@@ -1,7 +1,24 @@
 {
   "extends": "@react-native/typescript-config",
   "compilerOptions": {
-    "types": ["jest"]
+    "types": ["jest"],
+    "baseUrl": ".",
+    "paths": {
+      "@core": ["src/core"],
+      "@core/*": ["src/core/*"],
+      "@domain": ["src/domain"],
+      "@domain/*": ["src/domain/*"],
+      "@data": ["src/data"],
+      "@data/*": ["src/data/*"],
+      "@infrastructure": ["src/infrastructure"],
+      "@infrastructure/*": ["src/infrastructure/*"],
+      "@presentation": ["src/presentation"],
+      "@presentation/*": ["src/presentation/*"],
+      "@carplay": ["src/carplay"],
+      "@carplay/*": ["src/carplay/*"],
+      "@app": ["src/app"],
+      "@app/*": ["src/app/*"]
+    }
   },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["**/node_modules", "**/Pods"]
