@@ -15,7 +15,9 @@ export const QueryProvider: React.FC<{ children: React.ReactNode }> = ({
       defaultOptions: {
         queries: {
           staleTime: env.feedCacheTtlMs,
-          retry: env.networkRetryCount,
+          // Retry veri katmanında (RetryingHttpClient) yapılıyor; burada kapalı
+          // ki çift retry (RQ × HTTP) olmasın.
+          retry: false,
           refetchOnWindowFocus: false,
         },
       },

@@ -6,8 +6,10 @@
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "ci": "npm run typecheck && npm run lint && npm test"
   },
   "dependencies": {
     "@react-native/new-app-screen": "0.86.0",
@@ -17,9 +19,13 @@
     "fast-xml-parser": "^5.10.1",
     "react": "19.2.3",
     "react-native": "0.86.0",
+    "react-native-carplay": "^2.3.0",
     "react-native-gesture-handler": "^3.1.0",
+    "react-native-mmkv": "^4.3.2",
+    "react-native-nitro-modules": "^0.36.1",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-screens": "^4.26.2",
+    "react-native-track-player": "^4.1.2",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

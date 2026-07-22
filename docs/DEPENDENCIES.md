@@ -6,10 +6,15 @@
   `react-native-screens`, `react-native-gesture-handler`,
   `babel-plugin-module-resolver` (dev). RSS parser aktive edildi ve gerçek AA
   feed'iyle doğrulandı.
+- ✅ **Kuruldu, native derleme mac'te:** `react-native-mmkv` (+ peer
+  `react-native-nitro-modules`) — kalıcı depolama. JS/adaptör tarafı yazıldı ve
+  test edildi; jest'te `__mocks__/react-native-mmkv.js` ile taklit edilir. Cihazda
+  (iOS/Android) MMKV yoksa `createPersistentStorage` bellek-içi'ne güvenle düşer.
+  iOS derlemesi için: `cd ios && pod install` (mac). MMKV **hem iOS hem Android**'de
+  çalışır → Android'e geçince değişiklik gerekmez.
 - ⏳ **Mac aşamasına bırakıldı (native link):** `react-native-track-player`,
-  `react-native-carplay` (ses + CarPlay), `react-native-mmkv`,
-  `react-native-blob-util` (kalıcı depolama + offline indirme). Kod içi import'ları
-  yorum satırında; kurulunca aktive edilecek.
+  `react-native-carplay` (ses + CarPlay), `react-native-blob-util` (offline indirme).
+  Kod içi import'ları yorum satırında; kurulunca aktive edilecek.
 
 Aşağıdaki tablolar tüm bağımlılıkları ve kurulum sırasını gösterir.
 
@@ -37,12 +42,12 @@ Aşağıdaki tablolar tüm bağımlılıkları ve kurulum sırasını gösterir.
 | `react-native-track-player` | Arka plan oynatma, lock screen, CarPlay kontrolü |
 | `react-native-carplay` | CarPlay şablonları |
 
-## 4. Depolama & Offline (native — sonraki faz)
+## 4. Depolama & Offline
 
-| Paket | Amaç |
-|-------|------|
-| `react-native-mmkv` | Hızlı kalıcı key-value depolama |
-| `react-native-blob-util` | Bölüm indirme / dosya yönetimi (offline) |
+| Paket | Amaç | Durum |
+|-------|------|-------|
+| `react-native-mmkv` (+ `react-native-nitro-modules`) | Hızlı kalıcı key-value depolama (iOS+Android) | ✅ kuruldu, mac'te `pod install` |
+| `react-native-blob-util` | Bölüm indirme / dosya yönetimi (offline) | ⏳ sonraki faz |
 
 ## 5. Dev bağımlılıkları
 
@@ -74,9 +79,14 @@ Aşağıdaki tablolar tüm bağımlılıkları ve kurulum sırasını gösterir.
    - `TrackPlayerAudioService.ts` metodlarını doldur, playback service kaydet.
    - iOS: background audio capability + CarPlay entitlement + scene delegate.
 
-4. **Offline (sonraki faz)**:
+4. **Kalıcı depolama** (kuruldu; mac'te native derleme):
    ```sh
-   npm install react-native-mmkv react-native-blob-util
+   # zaten kurulu: react-native-mmkv + react-native-nitro-modules
+   cd ios && pod install   # mac
+   ```
+   Offline indirme (sonraki faz):
+   ```sh
+   npm install react-native-blob-util
    ```
 
 > Not: Native paketler Windows'ta `npm install` ile eklenebilir ama iOS derlemesi

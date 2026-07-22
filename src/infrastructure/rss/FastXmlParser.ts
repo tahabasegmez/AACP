@@ -24,6 +24,11 @@ export class FastXmlParser implements XmlParser {
     ignoreAttributes: false,
     attributeNamePrefix: '',
     trimValues: true,
+    // Sayısal görünen metinleri (ör. <title>1</title>, itunes:duration) sayıya
+    // ÇEVİRME — hepsi string kalsın. Aksi halde sadece rakamdan oluşan başlıklar
+    // number olur ve string işlemleri (trim) patlar. Süre/episode gibi alanları
+    // mapper zaten string'ten sayıya güvenle çeviriyor.
+    parseTagValue: false,
   });
 
   parse<T = unknown>(xml: string): T {

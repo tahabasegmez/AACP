@@ -17,17 +17,19 @@ import {
   StopPlayback,
 } from '@domain/usecases';
 import {
+  HybridShowCatalogRepository,
   InMemoryFeedCacheDataSource,
   PlaybackProgressRepositoryImpl,
   PodcastFeedRepositoryImpl,
+  RemoteCatalogDataSource,
   RssFeedDataSource,
-  ShowCatalogRepositoryImpl,
 } from '@data';
 import {
   FastXmlParser,
   FetchHttpClient,
-  InMemoryKeyValueStorage,
+  RetryingHttpClient,
   TrackPlayerAudioService,
+  createPersistentStorage,
 } from '@infrastructure';
 import { AppDependencies } from '@presentation/di';
 
@@ -43,16 +45,29 @@ export const composeDependencies = (): AppDependencies => {
   const logger = new ConsoleLogger();
 
   // infrastructure (somut teknoloji)
-  const http = new FetchHttpClient(env.requestTimeoutMs);
+  // Geçici ağ hatalarında retry veri katmanında (tüm yüzeyler için tutarlı).
+  const http = new RetryingHttpClient(
+    new FetchHttpClient(env.requestTimeoutMs),
+    env.networkRetryCount,
+  );
   const xmlParser = new FastXmlParser();
   const audioPlayer = new TrackPlayerAudioService();
-  const storage = new InMemoryKeyValueStorage();
+  // Cihazda MMKV (kalıcı); MMKV yoksa bellek-içi'ne güvenle düşer.
+  const storage = createPersistentStorage(logger);
 
   // data (kaynaklar + repository implementasyonları)
   const rssDataSource = new RssFeedDataSource(http, xmlParser);
+  const remoteCatalog = new RemoteCatalogDataSource(http);
   const feedCache = new InMemoryFeedCacheDataSource(env.feedCacheTtlMs);
   const feedRepo = new PodcastFeedRepositoryImpl(rssDataSource, feedCache, logger);
-  const catalogRepo = new ShowCatalogRepositoryImpl(FEED_CATALOG);
+  // Hibrit katalog: bundled fallback + (varsa) uzak remote-config.
+  const catalogRepo = new HybridShowCatalogRepository(
+    FEED_CATALOG,
+    remoteCatalog,
+    storage,
+    logger,
+    { remoteUrl: env.remoteCatalogUrl, ttlMs: env.remoteCatalogTtlMs },
+  );
   const progressRepo = new PlaybackProgressRepositoryImpl(storage);
 
   // domain use case'leri — kataloglar

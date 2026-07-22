@@ -1,9 +1,9 @@
 import { AudioPlayerService } from '@domain/services';
 import {
   ContinueEpisode,
-  GetPodcastFeed,
   GetResumeList,
   GetShowCatalog,
+  GetShowEpisodes,
   PausePlayback,
   PlayEpisode,
   ResumePlayback,
@@ -19,7 +19,7 @@ import {
  */
 export interface CarPlayDependencies {
   readonly getShowCatalog: GetShowCatalog;
-  readonly getPodcastFeed: GetPodcastFeed;
+  readonly getShowEpisodes: GetShowEpisodes;
   readonly getResumeList: GetResumeList;
   readonly playEpisode: PlayEpisode;
   readonly continueEpisode: ContinueEpisode;

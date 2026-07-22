@@ -1,0 +1,28 @@
+# Tüm metin dosyalarını repoda LF olarak normalleştir (Windows↔mac tutarlılığı).
+# Böylece her commit'te "LF will be replaced by CRLF" uyarıları ve diff gürültüsü biter.
+* text=auto eol=lf
+
+# Kesin metin tipleri
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# Windows'a özgü script'ler CRLF kalsın
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# İkili dosyalar (diff/merge yapma)
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.gif   binary
+*.ico   binary
+*.mp3   binary
+*.keystore binary
+*.jar   binary

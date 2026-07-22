@@ -1,64 +1,138 @@
-import { INITIAL_PLAYBACK_STATE, PlaybackState } from '@domain/entities';
-import { Episode } from '@domain/entities';
+import { Episode, INITIAL_PLAYBACK_STATE, PlaybackState } from '@domain/entities';
 import { AudioPlayerService } from '@domain/services';
+import TrackPlayer, {
+  AppKilledPlaybackBehavior,
+  Capability,
+  Event,
+} from 'react-native-track-player';
+import { episodeToTrack, mapTrackPlayerState } from './playbackMapping';
 
 /**
- * TrackPlayerAudioService — AudioPlayerService portunun
- * react-native-track-player tabanlı implementasyonu.
+ * TrackPlayerAudioService — AudioPlayerService portunun react-native-track-player
+ * implementasyonu.
  *
- * Bu sınıf, track-player'ın olaylarını dinleyip domain `PlaybackState`'ine
- * çevirir ve abonelere yayınlar. CarPlay ve mobil UI aynı örneği paylaşır.
+ * track-player olaylarını dinleyip domain `PlaybackState`'ine çevirir ve abonelere
+ * yayınlar. CarPlay ve mobil UI aynı örneği paylaşır. Saf dönüşümler
+ * `playbackMapping`'te (ayrı test edilir); bu sınıf ince bir sarmalayıcıdır.
  *
- * NOT: react-native-track-player henüz kurulmadığı için metod gövdeleri iskelet
- * halindedir. Paket kurulup native tarafı (iOS) yapılandırıldığında doldurulacak.
- * İskelet, arayüzü ve state yayınlama mekanizmasını şimdiden sabitler.
+ * Kilit ekranı / CarPlay uzaktan kontrolleri (RemotePlay/Pause/Seek...) native
+ * "playback service" tarafında ele alınır (bkz. playbackService.ts) ve durum
+ * yine buradaki PlaybackState dinleyicileri üzerinden geri yansır.
  */
 export class TrackPlayerAudioService implements AudioPlayerService {
   private state: PlaybackState = INITIAL_PLAYBACK_STATE;
   private readonly listeners = new Set<(state: PlaybackState) => void>();
+  private readonly subscriptions: Array<{ remove: () => void }> = [];
+  private isSetup = false;
 
   async setup(): Promise<void> {
-    // TODO: TrackPlayer.setupPlayer() + updateOptions(capabilities...) + event listener kaydı
+    if (this.isSetup) {
+      return;
+    }
+    await TrackPlayer.setupPlayer();
+    await TrackPlayer.updateOptions({
+      progressUpdateEventInterval: 1,
+      capabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.Stop,
+        Capability.SeekTo,
+        Capability.JumpForward,
+        Capability.JumpBackward,
+      ],
+      compactCapabilities: [Capability.Play, Capability.Pause, Capability.SeekTo],
+      forwardJumpInterval: 30,
+      backwardJumpInterval: 15,
+      android: {
+        appKilledPlaybackBehavior:
+          AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
+      },
+    });
+    this.registerListeners();
+    this.isSetup = true;
   }
 
-  async play(_episode: Episode): Promise<void> {
-    // TODO: TrackPlayer.reset(); TrackPlayer.add({ id, url, title, artwork ... }); TrackPlayer.play();
-    throw new Error('TrackPlayerAudioService.play: henüz implemente edilmedi.');
+  async play(episode: Episode): Promise<void> {
+    this.update({
+      status: 'loading',
+      currentEpisodeId: episode.id,
+      positionSec: 0,
+      durationSec: episode.durationSec,
+    });
+    await TrackPlayer.reset();
+    await TrackPlayer.add(episodeToTrack(episode));
+    await TrackPlayer.play();
   }
 
   async resume(): Promise<void> {
-    // TODO: TrackPlayer.play()
+    await TrackPlayer.play();
   }
 
   async pause(): Promise<void> {
-    // TODO: TrackPlayer.pause()
+    await TrackPlayer.pause();
   }
 
   async stop(): Promise<void> {
-    // TODO: TrackPlayer.stop()
+    await TrackPlayer.stop();
   }
 
-  async seekTo(_positionSec: number): Promise<void> {
-    // TODO: TrackPlayer.seekTo(positionSec)
+  async seekTo(positionSec: number): Promise<void> {
+    await TrackPlayer.seekTo(positionSec);
   }
 
-  async setRate(_rate: number): Promise<void> {
-    // TODO: TrackPlayer.setRate(rate)
+  async setRate(rate: number): Promise<void> {
+    await TrackPlayer.setRate(rate);
+    this.update({ rate });
   }
 
   async getState(): Promise<PlaybackState> {
+    try {
+      const [{ state }, progress] = await Promise.all([
+        TrackPlayer.getPlaybackState(),
+        TrackPlayer.getProgress(),
+      ]);
+      this.update({
+        status: mapTrackPlayerState(state),
+        positionSec: progress.position,
+        durationSec: progress.duration || this.state.durationSec,
+      });
+    } catch {
+      // Player henüz hazır değilse mevcut (son bilinen) durumu döneriz.
+    }
     return this.state;
   }
 
   subscribe(listener: (state: PlaybackState) => void): () => void {
     this.listeners.add(listener);
     listener(this.state);
-    return () => this.listeners.delete(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
-  /** track-player olaylarından state güncellendiğinde çağrılır (iç kullanım). */
-  private emit(next: Partial<PlaybackState>): void {
-    this.state = { ...this.state, ...next };
-    this.listeners.forEach(l => l(this.state));
+  /** track-player olaylarını dinleyip domain durumunu günceller. */
+  private registerListeners(): void {
+    this.subscriptions.push(
+      TrackPlayer.addEventListener(Event.PlaybackState, ({ state }) => {
+        this.update({ status: mapTrackPlayerState(state) });
+      }),
+      TrackPlayer.addEventListener(
+        Event.PlaybackProgressUpdated,
+        ({ position, duration }) => {
+          this.update({ positionSec: position, durationSec: duration });
+        },
+      ),
+      TrackPlayer.addEventListener(
+        Event.PlaybackActiveTrackChanged,
+        ({ track }) => {
+          this.update({ currentEpisodeId: track?.id ?? this.state.currentEpisodeId });
+        },
+      ),
+    );
+  }
+
+  private update(partial: Partial<PlaybackState>): void {
+    this.state = { ...this.state, ...partial };
+    this.listeners.forEach(listener => listener(this.state));
   }
 }

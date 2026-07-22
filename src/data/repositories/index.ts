@@ -1,3 +1,3 @@
 export * from './PodcastFeedRepositoryImpl';
-export * from './ShowCatalogRepositoryImpl';
+export * from './HybridShowCatalogRepository';
 export * from './PlaybackProgressRepositoryImpl';

@@ -3,6 +3,9 @@
  * @core ve @domain portlarını implemente eder; @data'yı bilmez.
  */
 export * from './network/FetchHttpClient';
+export * from './network/RetryingHttpClient';
 export * from './rss/FastXmlParser';
 export * from './audio/TrackPlayerAudioService';
 export * from './storage/KeyValueStorage';
+export * from './storage/MmkvKeyValueStorage';
+export * from './storage/createPersistentStorage';

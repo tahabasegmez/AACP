@@ -31,6 +31,14 @@ const asArray = <T>(value: T | T[] | undefined): T[] => {
   return Array.isArray(value) ? value : [value];
 };
 
+/** Herhangi bir değeri güvenle trimlenmiş string'e çevirir (number/boolean dahil). */
+const str = (value: unknown): string => {
+  if (value == null) {
+    return '';
+  }
+  return String(value).trim();
+};
+
 /** String ya da {#text} düğümünden düz metin çıkarır. */
 const readText = (value: RssTextNode | undefined): string => {
   if (value == null) {
@@ -39,7 +47,7 @@ const readText = (value: RssTextNode | undefined): string => {
   if (typeof value === 'string') {
     return value.trim();
   }
-  return String(value['#text'] ?? '').trim();
+  return str(value['#text']);
 };
 
 /** RSS pubDate'i güvenle ISO 8601'e çevirir; geçersizse boş string. */
@@ -77,9 +85,9 @@ const numberOrUndefined = (value: unknown): number | undefined => {
 
 const mapShow = (channel: RssChannelDto, feedUrl: string, id: string): Show => ({
   id,
-  title: (channel.title ?? '').trim() || 'İsimsiz Şov',
-  description: (channel.description ?? channel['itunes:summary'] ?? '').trim(),
-  author: (channel['itunes:author'] ?? '').trim(),
+  title: str(channel.title) || 'İsimsiz Şov',
+  description: str(channel.description) || str(channel['itunes:summary']),
+  author: str(channel['itunes:author']),
   // itunes:image (href) tercih edilir; yoksa RSS <image><url>.
   imageUrl: channel['itunes:image']?.href ?? channel.image?.url,
   feedUrl,
@@ -96,13 +104,11 @@ const mapEpisode = (item: RssItemDto, showId: string): Episode | null => {
   return {
     id: readText(item.guid) || audioUrl,
     showId,
-    title: (item.title ?? '').trim() || 'İsimsiz Bölüm',
-    description: (
-      item.description ??
-      item['content:encoded'] ??
-      item['itunes:summary'] ??
-      ''
-    ).trim(),
+    title: str(item.title) || 'İsimsiz Bölüm',
+    description:
+      str(item.description) ||
+      str(item['content:encoded']) ||
+      str(item['itunes:summary']),
     audioUrl,
     mimeType: item.enclosure?.type,
     durationSec: parseItunesDuration(item['itunes:duration']),
@@ -114,6 +120,23 @@ const mapEpisode = (item: RssItemDto, showId: string): Episode | null => {
   };
 };
 
+/**
+ * Bölüm id'lerinin benzersizliğini garanti eder.
+ *
+ * Bazı feed'lerde guid'ler tekrarlanabilir (ya da hiç olmayıp audioUrl'e düşer).
+ * Çakışan id'ler React liste anahtarlarını ve "kaldığın yer" kaydını bozardı;
+ * bu yüzden tekrar edeni "#2, #3 ..." ekiyle benzersizleştiririz (ilk giriş
+ * olduğu gibi kalır).
+ */
+const ensureUniqueIds = (episodes: readonly Episode[]): Episode[] => {
+  const seen = new Map<string, number>();
+  return episodes.map(ep => {
+    const count = seen.get(ep.id) ?? 0;
+    seen.set(ep.id, count + 1);
+    return count === 0 ? ep : { ...ep, id: `${ep.id}#${count + 1}` };
+  });
+};
+
 export const mapRssFeedToPodcastFeed = (
   dto: RssFeedDto,
   feedUrl: string,
@@ -121,8 +144,8 @@ export const mapRssFeedToPodcastFeed = (
   const channel = dto.channel ?? {};
   const id = slugFromFeedUrl(feedUrl);
   const show = mapShow(channel, feedUrl, id);
-  const episodes = asArray(channel.item)
+  const mapped = asArray(channel.item)
     .map(item => mapEpisode(item, id))
     .filter((e): e is Episode => e !== null);
-  return { show, episodes };
+  return { show, episodes: ensureUniqueIds(mapped) };
 };

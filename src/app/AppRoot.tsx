@@ -9,7 +9,7 @@ import {
   useDependencies,
   usePlayerStore,
 } from '@presentation';
-import { composeDependencies } from './di';
+import { getDependencies } from './di';
 
 /**
  * AppRoot — uygulamanın kökü (composition root'un React tarafı).
@@ -18,8 +18,8 @@ import { composeDependencies } from './di';
  * ağacı sarmala → oynatıcı durumunu store'a köprüle.
  */
 export const AppRoot: React.FC = () => {
-  // Bağımlılıklar uygulama ömrü boyunca tek örnek olmalı.
-  const dependencies = useMemo(() => composeDependencies(), []);
+  // Paylaşılan tek bağımlılık grafiği (CarPlay ile ortak).
+  const dependencies = useMemo(() => getDependencies(), []);
 
   return (
     <SafeAreaProvider>
@@ -67,11 +67,11 @@ const PlayerStateBridge: React.FC = () => {
         enoughProgressed
       ) {
         lastSavedPositionRef.current = positionSec;
-        void savePlaybackProgress.execute({
-          episodeId: currentEpisodeId,
-          positionSec,
-          durationSec,
-        });
+        savePlaybackProgress
+          .execute({ episodeId: currentEpisodeId, positionSec, durationSec })
+          .catch(() => {
+            /* progress kaydı best-effort; hatada sessiz geç */
+          });
       }
     });
     return unsubscribe;

@@ -134,4 +134,28 @@ describe('mapRssFeedToPodcastFeed — dayanıklılık', () => {
     const feed = mapFrom(xml);
     expect(feed.episodes[0].publishedAt).toBe('');
   });
+
+  it('tekrar eden guid\'leri benzersizleştirir (çakışma önleme)', () => {
+    const xml = `<?xml version="1.0"?><rss><channel><title>X</title>
+      <item><title>1</title><guid>dup</guid><enclosure url="https://m/1.mp3" type="audio/mpeg"/></item>
+      <item><title>2</title><guid>dup</guid><enclosure url="https://m/2.mp3" type="audio/mpeg"/></item>
+      <item><title>3</title><guid>dup</guid><enclosure url="https://m/3.mp3" type="audio/mpeg"/></item>
+    </channel></rss>`;
+    const ids = mapFrom(xml).episodes.map(e => e.id);
+    expect(ids).toEqual(['dup', 'dup#2', 'dup#3']);
+    expect(new Set(ids).size).toBe(3); // hepsi benzersiz
+  });
+
+  it('büyük feed (1500 bölüm) doğru ve eksiksiz map edilir', () => {
+    const items = Array.from({ length: 1500 }, (_, i) =>
+      `<item><title>Bölüm ${i}</title><guid>g${i}</guid>` +
+      `<enclosure url="https://m/${i}.mp3" type="audio/mpeg"/>` +
+      `<itunes:duration>${i}</itunes:duration></item>`,
+    ).join('');
+    const xml = `<?xml version="1.0"?><rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel><title>Büyük</title>${items}</channel></rss>`;
+    const feed = mapFrom(xml);
+    expect(feed.episodes).toHaveLength(1500);
+    expect(new Set(feed.episodes.map(e => e.id)).size).toBe(1500);
+    expect(feed.episodes[1499].durationSec).toBe(1499);
+  });
 });
