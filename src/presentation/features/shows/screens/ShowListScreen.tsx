@@ -1,9 +1,10 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React from 'react';
-import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
+import { FlatList, Pressable, Text } from 'react-native';
 import { Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { useShowsQuery } from '../../../query';
+import { EmptyState, ErrorView, LoadingView } from '../../../shared/components';
 import type { RootStackParamList } from '../../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ShowList'>;
@@ -12,28 +13,24 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ShowList'>;
  * ShowListScreen — AA şovlarının listesi (ana ekran).
  *
  * Veriyi yalnızca useShowsQuery'den alır; RSS/cache ayrıntısını bilmez.
- * Bu iskelet minimal tutuldu; tasarım/bileşenler sonra zenginleştirilecek.
+ * Yüklenme/hata/boş durumları ortak bileşenlerle tutarlı gösterilir.
  */
 export const ShowListScreen: React.FC<Props> = ({ navigation }) => {
   const theme = useTheme();
-  const { data: shows, isLoading, isError, refetch } = useShowsQuery();
+  const { data: shows, isLoading, isError, error, refetch } = useShowsQuery();
 
   if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator color={theme.colors.primary} />
-      </View>
-    );
+    return <LoadingView />;
   }
-
   if (isError) {
+    return <ErrorView error={error} onRetry={refetch} />;
+  }
+  if (!shows || shows.length === 0) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: theme.colors.text }}>Şovlar yüklenemedi.</Text>
-        <Pressable onPress={() => refetch()} style={{ marginTop: theme.spacing(2) }}>
-          <Text style={{ color: theme.colors.primary }}>Tekrar dene</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Şov bulunamadı"
+        description="Şu anda gösterilecek podcast bulunmuyor."
+      />
     );
   }
 

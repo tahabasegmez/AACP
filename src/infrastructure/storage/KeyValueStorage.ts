@@ -1,16 +1,15 @@
-/**
- * KeyValueStorage — kalıcı anahtar/değer depolama sözleşmesi + basit implementasyon.
- *
- * İlk sürümde bellek-içi implementasyon yeterli; kalıcılık gerektiğinde
- * react-native-mmkv tabanlı bir implementasyonla (aynı arayüz) değiştirilir.
- * Ayarlar, "son dinlenen konum", offline meta verisi gibi küçük veriler için.
- */
-export interface KeyValueStorage {
-  getString(key: string): string | null;
-  set(key: string, value: string): void;
-  delete(key: string): void;
-}
+import { KeyValueStorage } from '@core/ports';
 
+/**
+ * KeyValueStorage portunun bellek-içi implementasyonu.
+ *
+ * İlk sürüm için yeterli; kalıcılık gerektiğinde react-native-mmkv tabanlı bir
+ * implementasyonla (aynı arayüz) değiştirilir — çağıran kod değişmez.
+ * Ayarlar, "son dinlenen konum", offline meta verisi gibi küçük veriler için.
+ *
+ * NOT: Bellek-içi olduğu için uygulama yeniden başlayınca sıfırlanır. MMKV
+ * implementasyonu (mac aşaması) kalıcılığı sağlayacak.
+ */
 export class InMemoryKeyValueStorage implements KeyValueStorage {
   private readonly store = new Map<string, string>();
 

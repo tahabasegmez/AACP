@@ -1,29 +1,32 @@
-import { Result, fail, ok } from '@core/error';
-import { AppError } from '@core/error';
+import { Result } from '@core/error';
 import { Episode } from '../../entities';
 import { AudioPlayerService } from '../../services';
 import { UseCase } from '../UseCase';
+import { runPlayback } from './playbackResult';
 
 export interface PlayEpisodeParams {
   readonly episode: Episode;
+  /** Verilirse oynatma bu saniyeden başlar (kaldığı yerden devam için). */
+  readonly startPositionSec?: number;
 }
 
 /**
- * PlayEpisode — bir bölümü çalmaya başlar.
+ * PlayEpisode — bir bölümü çalmaya başlar (opsiyonel olarak belirli bir konumdan).
  *
  * Oynatma kütüphanesini (track-player) doğrudan çağırmak yerine bu use case
- * kullanılır; böylece hem mobil UI hem CarPlay aynı giriş noktasını paylaşır
- * ve ileride "dinleme geçmişi kaydet" gibi iş kuralları buraya eklenebilir.
+ * kullanılır; böylece hem mobil UI hem CarPlay aynı giriş noktasını paylaşır.
+ * "Kaldığı yerden devam" akışı `ContinueEpisode` use case'i tarafından, kayıtlı
+ * konum okunup `startPositionSec` olarak verilerek sağlanır.
  */
 export class PlayEpisode implements UseCase<PlayEpisodeParams, void> {
   constructor(private readonly player: AudioPlayerService) {}
 
-  async execute(params: PlayEpisodeParams): Promise<Result<void>> {
-    try {
+  execute(params: PlayEpisodeParams): Promise<Result<void>> {
+    return runPlayback(async () => {
       await this.player.play(params.episode);
-      return ok(undefined);
-    } catch (error) {
-      return fail(AppError.from(error, 'PLAYBACK'));
-    }
+      if (params.startPositionSec && params.startPositionSec > 0) {
+        await this.player.seekTo(params.startPositionSec);
+      }
+    });
   }
 }

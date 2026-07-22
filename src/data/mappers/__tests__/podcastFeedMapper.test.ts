@@ -107,3 +107,31 @@ describe('mapRssFeedToPodcastFeed', () => {
     expect(feed.episodes[0].publishedAt).toBe(new Date('Mon, 20 Jul 2026 15:27:21 +0300').toISOString());
   });
 });
+
+describe('mapRssFeedToPodcastFeed — dayanıklılık', () => {
+  const parser = new FastXmlParser();
+  const mapFrom = (xml: string) =>
+    mapRssFeedToPodcastFeed(parser.parse<{ rss?: RssFeedDto }>(xml).rss ?? {}, FEED_URL);
+
+  it('boş channel: varsayılanlarla şov, sıfır bölüm', () => {
+    const feed = mapFrom('<?xml version="1.0"?><rss><channel></channel></rss>');
+    expect(feed.show.title).toBe('İsimsiz Şov');
+    expect(feed.show.categories).toEqual([]);
+    expect(feed.episodes).toHaveLength(0);
+  });
+
+  it('channel hiç yoksa çökmiyor', () => {
+    const feed = mapFrom('<?xml version="1.0"?><rss></rss>');
+    expect(feed.episodes).toHaveLength(0);
+    expect(feed.show.id).toBe('test-sov');
+  });
+
+  it('bozuk pubDate boş publishedAt verir (çökmez)', () => {
+    const xml = `<?xml version="1.0"?><rss><channel><title>X</title><item>
+      <title>B</title><guid>g</guid><pubDate>çöp-tarih</pubDate>
+      <enclosure url="https://m/x.mp3" type="audio/mpeg"/>
+    </item></channel></rss>`;
+    const feed = mapFrom(xml);
+    expect(feed.episodes[0].publishedAt).toBe('');
+  });
+});

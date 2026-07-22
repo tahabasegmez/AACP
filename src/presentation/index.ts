@@ -7,3 +7,4 @@ export * from './theme';
 export * from './query';
 export * from './stores';
 export * from './navigation';
+export * from './shared/components';

@@ -1,5 +1,20 @@
 import { AudioPlayerService } from '@domain/services';
-import { GetPodcastFeed, GetShowCatalog, PlayEpisode } from '@domain/usecases';
+import {
+  ContinueEpisode,
+  GetPlaybackProgress,
+  GetPodcastFeed,
+  GetResumeList,
+  GetShowCatalog,
+  GetShowEpisodes,
+  PausePlayback,
+  PlayEpisode,
+  ResumePlayback,
+  SavePlaybackProgress,
+  SeekTo,
+  SetPlaybackRate,
+  SkipBy,
+  StopPlayback,
+} from '@domain/usecases';
 
 /**
  * AppDependencies — UI'ın ihtiyaç duyduğu use case ve servislerin sözleşmesi.
@@ -12,8 +27,26 @@ import { GetPodcastFeed, GetShowCatalog, PlayEpisode } from '@domain/usecases';
  * app/di'da örneğini ver, `useDependencies()` ile ekranında kullan.
  */
 export interface AppDependencies {
+  // Kataloglar
   readonly getShowCatalog: GetShowCatalog;
   readonly getPodcastFeed: GetPodcastFeed;
+  readonly getShowEpisodes: GetShowEpisodes;
+
+  // Oynatıcı transport
   readonly playEpisode: PlayEpisode;
+  readonly pausePlayback: PausePlayback;
+  readonly resumePlayback: ResumePlayback;
+  readonly stopPlayback: StopPlayback;
+  readonly seekTo: SeekTo;
+  readonly skipBy: SkipBy;
+  readonly setPlaybackRate: SetPlaybackRate;
+
+  // Son dinlenen konum (kaldığın yerden devam)
+  readonly savePlaybackProgress: SavePlaybackProgress;
+  readonly getPlaybackProgress: GetPlaybackProgress;
+  readonly continueEpisode: ContinueEpisode;
+  readonly getResumeList: GetResumeList;
+
+  // Oynatıcı servisi (durum köprüsü için)
   readonly audioPlayer: AudioPlayerService;
 }
