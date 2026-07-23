@@ -6,6 +6,7 @@ import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
 import { useShowEpisodes } from '../../../query';
 import { useDependencies } from '../../../di';
+import { usePlayerStore } from '../../../stores';
 import { EmptyState, ErrorView, LoadingView } from '../../../shared/components';
 import type { RootStackParamList } from '../../../navigation/types';
 
@@ -22,6 +23,7 @@ export const ShowDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const theme = useTheme();
   const { feedUrl } = route.params;
   const { continueEpisode } = useDependencies();
+  const setCurrentEpisode = usePlayerStore(s => s.setCurrentEpisode);
   const {
     data,
     isLoading,
@@ -41,6 +43,8 @@ export const ShowDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const show = data?.pages[0]?.show;
 
   const onPlay = async (episode: Episode) => {
+    // Oynatıcı ekranının başlık/görsel gösterebilmesi için seçili bölümü paylaş.
+    setCurrentEpisode(episode);
     await continueEpisode.execute({ episode });
     navigation.navigate('Player', { episodeId: episode.id });
   };

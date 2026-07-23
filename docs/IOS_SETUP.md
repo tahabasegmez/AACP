@@ -1,74 +1,148 @@
-# iOS Native Kurulum Checklist (mac aşaması)
+# macOS'ta Çalıştırma Rehberi (iOS)
 
-Bu belge, macbook'a geçtiğinde iOS derlemesi için yapılması gereken **native**
-adımları toplar. JS/mimari tarafı Windows'ta tamamlandı; burada yalnızca Xcode/
-CocoaPods/entitlement işleri var. Sırayla ilerle.
+Proje Windows'ta geliştirildi; bu belge **mac'te fork/clone edip ilk kez
+çalıştırmak** için gereken her şeyi sırayla anlatır. JS/mimari tarafı tamamlandı
+ve testli — burada yalnızca native (Xcode/CocoaPods) adımları var.
 
-> Not: Bu proje `AppRoot`/composition root ile hazır; ekranlar sonra yapılacak.
-> Aşağıdakiler ses (track-player), CarPlay, kalıcı depolama (MMKV) ve remote-config
-> içindir.
-
----
-
-## 0. Ön koşullar
-- [ ] Xcode (güncel) + Command Line Tools
-- [ ] Ruby + CocoaPods (`sudo gem install cocoapods` veya `brew install cocoapods`)
-- [ ] `npm install` (repo kökünde) — JS bağımlılıkları
-- [ ] `cd ios && pod install` — native modüllerin pod'ları (track-player, mmkv,
-      nitro-modules, carplay, screens, safe-area, gesture-handler)
-
-## 1. react-native-track-player (arka plan ses)
-- [ ] **Background Modes** capability ekle → **Audio, AirPlay and Picture in Picture**
-      (Xcode → Target → Signing & Capabilities → + Capability → Background Modes).
-      `Info.plist`'te `UIBackgroundModes` altında `audio` görünmeli.
-- [ ] Playback service zaten kayıtlı: [index.js](../index.js) →
-      `TrackPlayer.registerPlaybackService(...)` → [playbackService.ts](../src/infrastructure/audio/playbackService.ts).
-- [ ] Kilit ekranı kontrolleri `TrackPlayerAudioService.setup()` içindeki
-      `updateOptions` ile ayarlı (Play/Pause/Seek/Jump). Cihazda doğrula.
-
-## 2. Apple CarPlay
-CarPlay entitlement Apple'dan **özel izin** ister (Apple Developer hesabında
-"CarPlay audio app" yetkisi başvurusu). Geliştirme sırasında Simulator'da CarPlay
-ekranı ile test edilebilir.
-- [ ] Apple'dan **CarPlay audio** entitlement'ı iste (com.apple.developer.carplay-audio).
-- [ ] `ios/<App>/<App>.entitlements` dosyasına entitlement anahtarını ekle.
-- [ ] **Scene delegate**: CarPlay ayrı bir scene kullanır. `Info.plist` →
-      `UIApplicationSceneManifest` altında CarPlay scene (`CPTemplateApplicationSceneSessionRoleApplication`)
-      için `RNCarPlaySceneDelegate` tanımla (react-native-carplay dokümanındaki adımlar).
-- [ ] Bağlanınca kök şablon otomatik gelir: [registerCarPlay.ts](../src/app/carplay/registerCarPlay.ts)
-      (yalnızca iOS'ta çağrılır) → [CarPlayController](../src/carplay/controllers/CarPlayController.ts).
-- [ ] Xcode'da **CarPlay Simulator** (I/O → External Displays → CarPlay) ile şov→bölüm→
-      now playing akışını doğrula.
-
-## 3. react-native-mmkv (kalıcı depolama)
-- [ ] `pod install` yeterli (nitro-modules ile). Ekstra config gerekmez.
-- [ ] Cihazda "kaldığın yer" kalıcılığını doğrula (uygulamayı kapat-aç, konum korunur).
-- [ ] (Opsiyonel) Hassas veri için MMKV encryption — [MmkvKeyValueStorage](../src/infrastructure/storage/MmkvKeyValueStorage.ts)
-      `createMMKV({ id, encryptionKey })` ile genişletilebilir.
-
-## 4. Remote-config (App Transport Security)
-- [ ] `remoteCatalogUrl` **HTTPS** olmalı (ATS düz HTTP'yi engeller). Bkz.
-      [REMOTE_CONFIG.md](./REMOTE_CONFIG.md). Ayrıca RSS/medya alan adları
-      (`feeds.transistor.fm`, `media.transistor.fm`, `img.transistorcdn.com`) da
-      HTTPS olduğu için ek ATS istisnası gerekmez.
-
-## 5. Genel iOS
-- [ ] Bundle Identifier + Team (Signing).
-- [ ] Uygulama ikonları / launch screen (tasarım gelince).
-- [ ] `Info.plist` → `NSAppTransportSecurity` yalnızca gerekiyorsa (varsayılan güvenli).
+> **Şu anki UI geçicidir.** Ekranlar (şov listesi / bölümler / oynatıcı) yalnızca
+> veri akışını doğrulamak için en sade halde yazıldı. Sonraki fazda Spotify'dan
+> esinlenilmiş arayüzle değiştirilecek.
 
 ---
 
-## Hızlı komutlar (mac)
+## 0. Repoda ZATEN yapılandırılmış olanlar
+
+Bunlar için mac'te ekstra iş yok:
+
+| Konu | Durum |
+|------|-------|
+| Arka plan sesi | ✅ `UIBackgroundModes: audio` → [Info.plist](../ios/AACP/Info.plist) |
+| track-player playback service | ✅ [index.js](../index.js)'te kayıtlı → [playbackService.ts](../src/infrastructure/audio/playbackService.ts) |
+| Kilit ekranı kontrolleri | ✅ `updateOptions` ile ayarlı ([TrackPlayerAudioService](../src/infrastructure/audio/TrackPlayerAudioService.ts)) |
+| Kalıcı depolama (MMKV) | ✅ kod hazır; sadece `pod install` gerekir |
+| npm peer çakışması | ✅ [.npmrc](../.npmrc) (`legacy-peer-deps=true`) — ekstra bayrak gerekmez |
+| CarPlay kodu | ✅ hazır ([CarPlayController](../src/carplay/controllers/CarPlayController.ts)); **entitlement bekliyor** (bkz. §5) |
+| ATS / HTTPS | ✅ tüm kaynaklar (feeds/media/img.transistorcdn) HTTPS — istisna gerekmiyor |
+
+---
+
+## 1. Ön koşullar
+
+- [ ] **Node 22+** (`node -v`) — `package.json` `engines` ile uyumlu
+- [ ] **Xcode** (güncel) + Command Line Tools
+      (`xcode-select --install`, Xcode → Settings → Locations → Command Line Tools seçili)
+- [ ] **CocoaPods** — `brew install cocoapods` (veya `sudo gem install cocoapods`)
+- [ ] **Watchman** (opsiyonel ama önerilir) — `brew install watchman`
+
+## 2. Projeyi kur
+
 ```sh
-npm install
+git clone https://github.com/tahabasegmez/AACP.git
+cd AACP
+
+npm install          # .npmrc sayesinde legacy-peer-deps otomatik
 cd ios && pod install && cd ..
-npm run ios          # veya Xcode'dan çalıştır
 ```
 
-## Doğrulama sırası
-1. `npm test` + `npx tsc --noEmit` (Windows'ta da geçer) → JS/mantık sağlam.
-2. `pod install` → native bağlanma.
-3. Simulator'da uygulama açılışı (ekranlar sonra; şimdilik veri akışı/log).
-4. Ses: bir bölüm çal → arka plan + kilit ekranı kontrolleri.
-5. CarPlay Simulator: şov listesi → bölümler → now playing.
+`pod install` şu native modülleri bağlar: track-player, mmkv (+ nitro-modules),
+carplay, screens, safe-area-context, gesture-handler.
+
+Kurulumu doğrula (native olmadan da çalışır):
+```sh
+npm run ci     # typecheck + lint + test  → hepsi geçmeli
+```
+
+## 3. Xcode imzalama (ilk çalıştırma öncesi tek seferlik)
+
+```sh
+open ios/AACP.xcworkspace     # .xcodeproj DEĞİL, .xcworkspace
+```
+
+- [ ] Target **AACP** → **Signing & Capabilities**
+- [ ] **Team**: kendi Apple Developer hesabın/şirket hesabı
+- [ ] **Bundle Identifier**: benzersiz yap (ör. `com.aa.podcast.dev`)
+- [ ] Simulator için imzalama gerekmez; **gerçek cihaz** için gerekir
+
+## 4. Çalıştır
+
+```sh
+npm start          # Metro (ayrı terminalde bırak)
+npm run ios        # veya Xcode'dan ▶︎
+```
+
+### Ne görmelisin
+1. **Şov listesi** — 11 AA şovu **anında** gelir (ağ isteği yok; bundled katalog).
+2. Bir şova dokun → **bölüm listesi**. İlk açılışta RSS indirilir
+   (bazı şovlarda feed büyüktür, birkaç saniye sürebilir); liste sayfalı gelir.
+3. Bir bölüme dokun → **çalmaya başlar** ve oynatıcı ekranı açılır.
+4. Uygulamayı arka plana al → **ses devam etmeli**; kilit ekranında oynat/duraklat
+   ve ±30/15 sn kontrolleri görünmeli.
+5. Uygulamayı kapat-aç → aynı bölümde **kaldığın yerden devam** etmeli (MMKV).
+
+---
+
+## 5. CarPlay (Apple onayı sonrası)
+
+CarPlay **özel entitlement** ister; onay gelmeden aşağıdakileri yapma (imzalama
+hata verir). Uygulama CarPlay olmadan sorunsuz çalışır — kayıt başarısız olursa
+[index.js](../index.js) hatayı yutup sadece uyarı loglar.
+
+1. [ ] Apple Developer → **CarPlay audio app** yetkisi başvurusu yap.
+2. [ ] Onay gelince Xcode → Target → **Build Settings** → *Code Signing Entitlements*
+       = `AACP/AACP.entitlements` (dosya repoda hazır: [AACP.entitlements](../ios/AACP/AACP.entitlements)).
+3. [ ] `Info.plist`'e CarPlay **scene manifest**'ini ekle (react-native-carplay
+       dokümanındaki `UIApplicationSceneManifest` → `CPTemplateApplicationSceneSessionRoleApplication`
+       ve `RNCarPlaySceneDelegate`).
+4. [ ] Test: Simulator → **I/O → External Displays → CarPlay**.
+       Beklenen akış: **Podcastler** listesi → şov → bölümler → seçince
+       "kaldığın yerden" çalar + Now Playing şablonu.
+
+> CarPlay ve telefon **aynı oynatıcı örneğini** paylaşır
+> ([getDependencies](../src/app/di/getDependencies.ts) singleton'ı sayesinde),
+> yani ikisinde de durum senkron ilerler.
+
+---
+
+## 6. Sorun giderme
+
+**`pod install` hataları**
+```sh
+cd ios && pod repo update && pod install
+# İnatçı durumlarda:
+rm -rf Pods Podfile.lock && pod install
+```
+
+**Metro / cache tuhaflıkları**
+```sh
+npm start -- --reset-cache
+rm -rf node_modules && npm install
+```
+
+**Build hatası: react-native-carplay (New Architecture)**
+RN 0.86 varsayılan olarak New Architecture kullanır; `react-native-carplay@2.3.0`
+eski bir sürümdür ve interop katmanına güvenir. Derleme burada takılırsa geçici
+çözüm sırası:
+1. `index.js`'teki CarPlay bloğu zaten try/catch'te — **runtime** sorun çıkarmaz.
+2. Derleme (compile) hatası verirse geçici olarak paketi çıkar:
+   `npm uninstall react-native-carplay && cd ios && pod install`
+   (CarPlay kodu repoda kalır; entitlement onayıyla birlikte güncel sürümle geri eklenir.)
+
+**MMKV çalışmıyor / veriler kalıcı değil**
+`createPersistentStorage` MMKV başlatılamazsa bellek-içi depolamaya düşer ve
+konsola uyarı yazar. `pod install` yapıldığından ve `react-native-nitro-modules`
+kurulu olduğundan emin ol.
+
+**Ses arka planda kesiliyor**
+Xcode → Signing & Capabilities → **Background Modes → Audio** işaretli mi kontrol et
+(Info.plist'te tanımlı ama capability olarak da görünmeli).
+
+---
+
+## 7. Hızlı doğrulama listesi
+
+- [ ] `npm run ci` geçiyor
+- [ ] `pod install` sorunsuz
+- [ ] Simulator'da uygulama açılıyor, 11 şov listeleniyor
+- [ ] Bölüm çalıyor, arka planda devam ediyor, kilit ekranı kontrolleri çalışıyor
+- [ ] Kapat-aç → kaldığın yerden devam
+- [ ] (Entitlement sonrası) CarPlay Simulator akışı

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  CarPlay ses uygulaması yetkisi.
+
+	  ÖNEMLİ: Bu yetki Apple'dan ÖZEL İZİN gerektirir (Apple Developer hesabıyla
+	  "CarPlay audio app" başvurusu). İzin gelmeden bu dosyayı Xcode target'ına
+	  bağlarsan imzalama (code signing) HATA VERİR.
+
+	  Bu yüzden dosya repoda hazır bekliyor ama Xcode target'ına BAĞLANMADI.
+	  İzin geldikten sonra: Xcode → Target → Build Settings → "Code Signing
+	  Entitlements" = AACP/AACP.entitlements yap ve CarPlay scene manifest'ini
+	  Info.plist'e ekle (bkz. docs/IOS_SETUP.md).
+	-->
+	<key>com.apple.developer.carplay-audio</key>
+	<true/>
+</dict>
+</plist>
