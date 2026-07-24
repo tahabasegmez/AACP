@@ -33,7 +33,11 @@ export const RootNavigator: React.FC = () => {
       <Stack.Screen
         name="Player"
         component={PlayerScreen}
-        options={{ presentation: 'modal', title: 'Şimdi Çalıyor' }}
+        options={{
+          presentation: 'fullScreenModal',
+          headerShown: false,
+          animation: 'slide_from_bottom',
+        }}
       />
     </Stack.Navigator>
   );

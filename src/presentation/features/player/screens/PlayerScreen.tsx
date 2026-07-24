@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, Share, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Share, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDuration } from '@core/utils';
@@ -86,9 +86,16 @@ export const PlayerScreen: React.FC = () => {
         </Pressable>
       </View>
 
-      <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: theme.spacing(3) }}>
-        <View style={{ alignItems: 'center', marginBottom: theme.spacing(4) }}>
-          <CoverImage uri={episode?.imageUrl} size={260} radius={theme.radius.lg} />
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: 'center',
+          paddingHorizontal: theme.spacing(3),
+          paddingVertical: theme.spacing(2),
+        }}
+        showsVerticalScrollIndicator={false}>
+        <View style={{ alignItems: 'center', marginBottom: theme.spacing(3) }}>
+          <CoverImage uri={episode?.imageUrl} size={248} radius={theme.radius.lg} />
         </View>
 
         {/* Başlık + takip */}
@@ -215,7 +222,7 @@ export const PlayerScreen: React.FC = () => {
             </Text>
           </Pressable>
         )}
-      </View>
+      </ScrollView>
     </LinearGradient>
   );
 };

@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { Pressable, View } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import { Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { CoverImage, Icon, Text } from '../../../ui';
@@ -9,9 +8,12 @@ import { usePlayerStore } from '../../../stores';
 import { useShowsQuery } from '../../../query';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 
+const HEIGHT = 58;
+
 /**
  * MiniPlayer — tab bar'ın hemen üstünde sabit, o an çalan bölümü gösterir.
- * Dokununca tam ekran Player'ı açar (native slide-up). Bölüm yoksa görünmez.
+ * Dokununca tam ekran Player'ı açar. Bölüm yoksa görünmez.
+ * Sabit yükseklik + entegre (alt kenara gömülü) ilerleme çubuğu ile hizalı durur.
  */
 export const MiniPlayer: React.FC = () => {
   const theme = useTheme();
@@ -44,49 +46,59 @@ export const MiniPlayer: React.FC = () => {
     <Pressable
       onPress={() => navigation.navigate('Player', { episodeId: currentEpisode.id })}
       accessibilityRole="button"
-      accessibilityLabel={`${currentEpisode.title} — oynatıcıyı aç`}>
-      <LinearGradient
-        colors={[theme.colors.elevated, theme.colors.surface]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={{
-          marginHorizontal: theme.spacing(1),
-          borderRadius: theme.radius.md,
-          padding: theme.spacing(1),
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: theme.spacing(1.25),
-        }}>
-        <CoverImage uri={currentEpisode.imageUrl} size={40} radius={theme.radius.sm} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text variant="subtitle" numberOfLines={1}>
-            {currentEpisode.title}
+      accessibilityLabel={`${currentEpisode.title} — oynatıcıyı aç`}
+      style={{
+        height: HEIGHT,
+        marginHorizontal: theme.spacing(1),
+        borderRadius: theme.radius.md,
+        backgroundColor: theme.colors.elevated,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingLeft: theme.spacing(1),
+        paddingRight: theme.spacing(1.5),
+        gap: theme.spacing(1.25),
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+      }}>
+      <CoverImage uri={currentEpisode.imageUrl} size={42} radius={theme.radius.sm} />
+
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text variant="subtitle" numberOfLines={1}>
+          {currentEpisode.title}
+        </Text>
+        {!!showTitle && (
+          <Text variant="caption" color={theme.colors.textMuted} numberOfLines={1}>
+            {showTitle}
           </Text>
-          {!!showTitle && (
-            <Text variant="caption" color={theme.colors.textMuted} numberOfLines={1}>
-              {showTitle}
-            </Text>
-          )}
-        </View>
-        <Pressable
-          onPress={() => (isPlaying ? pausePlayback.execute() : resumePlayback.execute())}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={isPlaying ? 'Duraklat' : 'Devam et'}>
-          <Icon name={isPlaying ? 'pause' : 'play'} size={26} color={theme.colors.text} />
-        </Pressable>
-      </LinearGradient>
-      {/* ince ilerleme çizgisi */}
+        )}
+      </View>
+
+      <Pressable
+        onPress={() => (isPlaying ? pausePlayback.execute() : resumePlayback.execute())}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel={isPlaying ? 'Duraklat' : 'Devam et'}>
+        <Icon name={isPlaying ? 'pause' : 'play'} size={26} color={theme.colors.text} />
+      </Pressable>
+
+      {/* Alt kenara gömülü ilerleme çubuğu */}
       <View
         style={{
-          height: 2,
-          marginHorizontal: theme.spacing(2),
-          marginTop: 3,
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 2.5,
           backgroundColor: theme.colors.border,
-          borderRadius: 2,
-          overflow: 'hidden',
         }}>
-        <View style={{ height: '100%', width: `${fraction * 100}%`, backgroundColor: theme.colors.accent }} />
+        <View
+          style={{
+            height: '100%',
+            width: `${fraction * 100}%`,
+            backgroundColor: theme.colors.accent,
+          }}
+        />
       </View>
     </Pressable>
   );
