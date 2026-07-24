@@ -5,6 +5,7 @@ import {
   GetLatestEpisodes,
   GetPlaybackProgress,
   GetPodcastFeed,
+  GetPreferences,
   GetResumeList,
   GetShowCatalog,
   GetShowEpisodes,
@@ -13,6 +14,7 @@ import {
   PlayEpisode,
   ResumePlayback,
   SavePlaybackProgress,
+  SavePreferences,
   SeekTo,
   SetPlaybackRate,
   SkipBy,
@@ -41,6 +43,10 @@ export interface AppDependencies {
   readonly toggleFollow: ToggleFollow;
   readonly isFollowed: IsFollowed;
   readonly getFollowedShows: GetFollowedShows;
+
+  // Tercihler
+  readonly getPreferences: GetPreferences;
+  readonly savePreferences: SavePreferences;
 
   // Oynatıcı transport
   readonly playEpisode: PlayEpisode;

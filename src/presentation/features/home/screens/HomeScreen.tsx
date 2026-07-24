@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
-import { RefreshControl, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Episode, PlaybackProgress, Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
-import { Screen, Skeleton, Text } from '../../../ui';
+import { Icon, Screen, Skeleton, Text } from '../../../ui';
 import {
   useFollowedShows,
   useLatestEpisodes,
@@ -82,8 +82,22 @@ export const HomeScreen: React.FC = () => {
             tintColor={theme.colors.textMuted}
           />
         }>
-        <View style={{ paddingHorizontal: theme.spacing(2), paddingVertical: theme.spacing(1.5) }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: theme.spacing(2),
+            paddingVertical: theme.spacing(1.5),
+          }}>
           <Text variant="title">Merhaba 👋</Text>
+          <Pressable
+            onPress={() => navigation.navigate('Settings')}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Ayarlar">
+            <Icon name="settings" size={24} color={theme.colors.textMuted} />
+          </Pressable>
         </View>
 
         {shows.isLoading ? (

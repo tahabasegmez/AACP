@@ -6,6 +6,7 @@ import {
   GetLatestEpisodes,
   GetPlaybackProgress,
   GetPodcastFeed,
+  GetPreferences,
   GetResumeList,
   GetShowCatalog,
   GetShowEpisodes,
@@ -14,6 +15,7 @@ import {
   PlayEpisode,
   ResumePlayback,
   SavePlaybackProgress,
+  SavePreferences,
   SeekTo,
   SetPlaybackRate,
   SkipBy,
@@ -26,6 +28,7 @@ import {
   InMemoryFeedCacheDataSource,
   PlaybackProgressRepositoryImpl,
   PodcastFeedRepositoryImpl,
+  PreferencesRepositoryImpl,
   RemoteCatalogDataSource,
   RssFeedDataSource,
 } from '@data';
@@ -75,6 +78,7 @@ export const composeDependencies = (): AppDependencies => {
   );
   const progressRepo = new PlaybackProgressRepositoryImpl(storage);
   const followRepo = new FollowRepositoryImpl(storage);
+  const preferencesRepo = new PreferencesRepositoryImpl(storage);
 
   // domain use case'leri — kataloglar
   const getShowCatalog = new GetShowCatalog(catalogRepo);
@@ -86,6 +90,10 @@ export const composeDependencies = (): AppDependencies => {
   const toggleFollow = new ToggleFollow(followRepo);
   const isFollowed = new IsFollowed(followRepo);
   const getFollowedShows = new GetFollowedShows(followRepo, catalogRepo);
+
+  // domain use case'leri — tercihler
+  const getPreferences = new GetPreferences(preferencesRepo);
+  const savePreferences = new SavePreferences(preferencesRepo);
 
   // domain use case'leri — oynatıcı transport
   const playEpisode = new PlayEpisode(audioPlayer);
@@ -110,6 +118,8 @@ export const composeDependencies = (): AppDependencies => {
     toggleFollow,
     isFollowed,
     getFollowedShows,
+    getPreferences,
+    savePreferences,
     playEpisode,
     pausePlayback,
     resumePlayback,

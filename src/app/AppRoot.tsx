@@ -13,6 +13,7 @@ import {
   ThemeProvider,
   useDependencies,
   usePlayerStore,
+  usePreferencesStore,
   useTheme,
 } from '@presentation';
 import { getDependencies } from './di';
@@ -31,6 +32,7 @@ export const AppRoot: React.FC = () => {
     <SafeAreaProvider>
       <DependencyProvider dependencies={dependencies}>
         <QueryProvider>
+          <PreferencesHydrator />
           <ThemeProvider>
             <PlayerStateBridge />
             <Navigation />
@@ -63,6 +65,29 @@ const Navigation: React.FC = () => {
       <RootNavigator />
     </NavigationContainer>
   );
+};
+
+/**
+ * PreferencesHydrator — açılışta kalıcı tercihleri okuyup store'a yükler.
+ * ThemeProvider'ın DIŞINDA (ama DI ve store erişimli) durur ki tema/motion
+ * tercihleri ilk render'dan hemen sonra uygulansın.
+ */
+const PreferencesHydrator: React.FC = () => {
+  const { getPreferences } = useDependencies();
+  const setPrefs = usePreferencesStore(s => s.setPrefs);
+  useEffect(() => {
+    getPreferences
+      .execute()
+      .then(result => {
+        if (result.ok) {
+          setPrefs(result.value);
+        }
+      })
+      .catch(() => {
+        /* tercih okunamazsa varsayılanlarla devam */
+      });
+  }, [getPreferences, setPrefs]);
+  return null;
 };
 
 /** Konumu en fazla bu aralıkla (saniye) kaydet — her emit'te yazmaktan kaçınır. */

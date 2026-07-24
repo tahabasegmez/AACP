@@ -2,6 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FlashList } from '@shopify/flash-list';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { Episode } from '@domain/entities';
 import { useTheme } from '../../../theme';
@@ -21,6 +22,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ShowDetail'>;
  */
 export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { showId, feedUrl } = route.params;
   const play = usePlayEpisode();
   const [expanded, setExpanded] = useState(false);
@@ -67,7 +69,11 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
     <View>
       <LinearGradient
         colors={[theme.colors.brand, theme.colors.elevated, theme.colors.bg]}
-        style={{ paddingTop: theme.spacing(9), paddingBottom: theme.spacing(2), alignItems: 'center' }}>
+        style={{
+          paddingTop: insets.top + theme.spacing(6),
+          paddingBottom: theme.spacing(2),
+          alignItems: 'center',
+        }}>
         <CoverImage uri={show?.imageUrl} size={160} radius={theme.radius.md} />
         <Text variant="title" style={{ marginTop: theme.spacing(2), textAlign: 'center', paddingHorizontal: theme.spacing(2) }}>
           {show?.title ?? route.params.title ?? ''}

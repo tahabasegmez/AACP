@@ -16,4 +16,5 @@ export type RootStackParamList = {
   ShowDetail: { showId: string; feedUrl?: string; title?: string };
   Player: { episodeId: string } | undefined;
   SeeAll: { kind: SeeAllKind; title: string };
+  Settings: undefined;
 };

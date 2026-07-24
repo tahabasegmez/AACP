@@ -4,6 +4,7 @@ import { useTheme } from '../theme';
 import { ShowDetailScreen } from '../features/shows/screens/ShowDetailScreen';
 import { PlayerScreen } from '../features/player/screens/PlayerScreen';
 import { SeeAllScreen } from '../features/home/screens/SeeAllScreen';
+import { SettingsScreen } from '../features/settings/screens/SettingsScreen';
 import { TabsWithMiniPlayer } from './TabsWithMiniPlayer';
 import type { RootStackParamList } from './types';
 
@@ -30,6 +31,7 @@ export const RootNavigator: React.FC = () => {
         options={{ headerTransparent: true, title: '' }}
       />
       <Stack.Screen name="SeeAll" component={SeeAllScreen} options={{ title: '' }} />
+      <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
       <Stack.Screen
         name="Player"
         component={PlayerScreen}
