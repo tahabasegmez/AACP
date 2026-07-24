@@ -44,8 +44,8 @@ export const darkColors: ColorTokens = {
   accent: '#3374FF',
   accentSoft: 'rgba(51,116,255,0.14)',
   onAccent: '#FFFFFF',
-  text: '#F4F6FC',
-  textMuted: '#9AA0B4',
+  text: '#FFFFFF',
+  textMuted: '#A7ADC0',
   textDim: '#565C72',
   border: '#23283A',
   divider: '#20243444', // yarı saydam ayraç

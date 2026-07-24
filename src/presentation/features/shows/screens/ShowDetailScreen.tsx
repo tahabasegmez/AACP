@@ -12,6 +12,7 @@ import { useIsFollowed, useToggleFollow } from '../../../query';
 import { EmptyState, ErrorView, LoadingView } from '../../../shared/components';
 import { usePlayEpisode } from '../../player/usePlayEpisode';
 import { useEpisodeSheetStore } from '../../../stores';
+import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import type { RootStackParamList } from '../../../navigation/types';
 import { EpisodeRow } from '../components/EpisodeRow';
 
@@ -24,6 +25,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ShowDetail'>;
 export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const navigation = useAppNavigation();
   const { showId, feedUrl } = route.params;
   const play = usePlayEpisode();
   const openSheet = useEpisodeSheetStore(s => s.open);
@@ -60,11 +62,39 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
     return map;
   }, [resume.data]);
 
+  const BackButton = (
+    <Pressable
+      onPress={() => navigation.goBack()}
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityLabel="Geri"
+      style={{ position: 'absolute', top: insets.top + 4, left: theme.spacing(1.5), zIndex: 10 }}>
+      <View
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 17,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'rgba(0,0,0,0.35)',
+        }}>
+        <Icon name="chevron-back" size={22} color="#FFFFFF" />
+      </View>
+    </Pressable>
+  );
+
+  const wrap = (body: React.ReactNode) => (
+    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      {body}
+      {BackButton}
+    </View>
+  );
+
   if (isLoading) {
-    return <LoadingView />;
+    return wrap(<LoadingView />);
   }
   if (isError) {
-    return <ErrorView error={error} onRetry={refetch} />;
+    return wrap(<ErrorView error={error} onRetry={refetch} />);
   }
 
   const Header = (
@@ -133,20 +163,20 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
   );
 
   if (episodes.length === 0) {
-    return (
+    return wrap(
       <>
         {Header}
         <EmptyState title="Bölüm yok" description="Bu şovda henüz yayınlanmış bölüm bulunmuyor." />
-      </>
+      </>,
     );
   }
 
-  return (
+  return wrap(
     <FlashList
       data={episodes}
       keyExtractor={item => item.id}
       ListHeaderComponent={Header}
-      contentContainerStyle={{ paddingBottom: theme.spacing(12) }}
+      contentContainerStyle={{ paddingBottom: theme.spacing(14) }}
       renderItem={({ item }: { item: Episode }) => (
         <EpisodeRow
           episode={item}
@@ -163,6 +193,6 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
           fetchNextPage();
         }
       }}
-    />
+    />,
   );
 };

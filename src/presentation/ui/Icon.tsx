@@ -37,6 +37,7 @@ export type IconName =
   | 'refresh'
   | 'cloud-offline'
   | 'checkmark'
+  | 'info'
   | 'ellipsis';
 
 const GLYPHS: Record<IconName, string> = {
@@ -67,6 +68,7 @@ const GLYPHS: Record<IconName, string> = {
   refresh: 'refresh',
   'cloud-offline': 'cloud-offline-outline',
   checkmark: 'checkmark',
+  info: 'information-circle-outline',
   ellipsis: 'ellipsis-horizontal',
 };
 

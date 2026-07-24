@@ -28,7 +28,7 @@ export const RootNavigator: React.FC = () => {
       <Stack.Screen
         name="ShowDetail"
         component={ShowDetailScreen}
-        options={{ headerTransparent: true, title: '' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen name="SeeAll" component={SeeAllScreen} options={{ title: '' }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />

@@ -17,7 +17,7 @@ import { useTheme } from '../../../theme';
 import { CoverImage, Icon, IconName, Seekbar, Text } from '../../../ui';
 import { useDependencies } from '../../../di';
 import { usePlayerStore, useSleepTimerStore } from '../../../stores';
-import { useIsFollowed, useShowsQuery, useToggleFollow } from '../../../query';
+import { useIsFollowed, useToggleFollow } from '../../../query';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { usePlaybackController } from '../usePlaybackController';
 import { useDownloads, useDownloadStatus } from '../../downloads/useDownloads';
@@ -50,7 +50,6 @@ export const PlayerScreen: React.FC = () => {
 
   const playback = usePlayerStore(s => s.playback);
   const episode = usePlayerStore(s => s.currentEpisode);
-  const shows = useShowsQuery();
   const followed = useIsFollowed(episode?.showId ?? '');
   const toggleFollow = useToggleFollow();
   const dlStatus = useDownloadStatus(episode?.id ?? '');
@@ -61,8 +60,6 @@ export const PlayerScreen: React.FC = () => {
   const [notesOpen, setNotesOpen] = useState(false);
   const [hint, setHint] = useState('');
 
-  const showTitle =
-    (shows.data ?? []).find(s => s.id === episode?.showId)?.title ?? '';
   const isPlaying = playback.status === 'playing';
   const isBusy = playback.status === 'loading' || playback.status === 'buffering';
 
@@ -132,7 +129,7 @@ export const PlayerScreen: React.FC = () => {
             <Icon name="chevron-down" size={26} color={theme.colors.text} />
           </Pressable>
           <Text variant="label" color={theme.colors.textMuted} uppercase numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
-            {showTitle}
+            AA PODCAST
           </Text>
           <Pressable onPress={() => showHint('Yakında: Seçenekler')} hitSlop={10} accessibilityLabel="Seçenekler">
             <Icon name="ellipsis" size={22} color={theme.colors.text} />
@@ -149,9 +146,6 @@ export const PlayerScreen: React.FC = () => {
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text variant="heading" numberOfLines={2}>
                 {episode?.title ?? 'Bölüm seçili değil'}
-              </Text>
-              <Text variant="subtitle" color={theme.colors.accent} style={{ marginTop: 2 }}>
-                {showTitle}
               </Text>
             </View>
             {episode && (
@@ -209,24 +203,6 @@ export const PlayerScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Bölüm notları düğmesi (yalnızca not varsa; boşluk bırakmaz) */}
-        {!!episode?.description && (
-          <Pressable
-            onPress={() => setNotesOpen(true)}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              backgroundColor: theme.colors.surface,
-              borderRadius: theme.radius.md,
-              padding: theme.spacing(1.75),
-              marginBottom: theme.spacing(1.5),
-            }}>
-            <Text variant="subtitle">Bölüm notları</Text>
-            <Icon name="chevron-right" size={18} color={theme.colors.textMuted} />
-          </Pressable>
-        )}
-
         {/* Araçlar — en altta */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Pressable
@@ -247,6 +223,9 @@ export const PlayerScreen: React.FC = () => {
               onPress={onDownload}
             />
             <Tool icon="cast" label="Cihaz" onPress={() => showHint('Yakında: Cihaz')} />
+            {!!episode?.description && (
+              <Tool icon="info" label="Bölüm notları" onPress={() => setNotesOpen(true)} />
+            )}
             <Tool icon="share" label="Paylaş" onPress={() => episode && Share.share({ message: `${episode.title} — Anadolu Ajansı Podcast` }).catch(() => {})} />
           </View>
         </View>
