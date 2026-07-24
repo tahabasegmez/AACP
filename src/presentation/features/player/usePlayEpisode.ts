@@ -1,22 +1,24 @@
 import { useCallback } from 'react';
 import { Episode } from '@domain/entities';
-import { useAppNavigation } from '../../navigation/useAppNavigation';
+import { openPlayer } from '../../navigation/navigationRef';
 import { PlayContext, usePlaybackController } from './usePlaybackController';
 
 /**
  * usePlayEpisode — bir bölümü "kaldığın yerden" çalıp Player'ı açan ortak akış.
- * İsteğe bağlı `context` (bölüm listesi + indeks) verilirse Player'daki ileri/geri
- * bu kuyruk üzerinde çalışır (ör. bir şovun bölüm listesinden çalarken).
+ *
+ * Player'ı `navigationRef` ile açar (useNavigation DEĞİL); böylece
+ * NavigationContainer dışındaki global bileşenlerden de (ör. EpisodeSheet)
+ * güvenle çağrılabilir. İsteğe bağlı `context` verilirse Player'daki ileri/geri
+ * bu kuyruk üzerinde çalışır.
  */
 export const usePlayEpisode = () => {
   const { play } = usePlaybackController();
-  const navigation = useAppNavigation();
 
   return useCallback(
     async (episode: Episode, context?: PlayContext) => {
-      navigation.navigate('Player', { episodeId: episode.id });
+      openPlayer();
       await play(episode, context);
     },
-    [play, navigation],
+    [play],
   );
 };
