@@ -1,4 +1,3 @@
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import {
   DarkTheme,
   DefaultTheme,
@@ -44,13 +43,11 @@ export const AppRoot: React.FC = () => {
           <QueryProvider>
             <PreferencesHydrator />
             <ThemeProvider>
-              <BottomSheetModalProvider>
-                <PlayerStateBridge />
-                <SleepTimerRunner />
-                <DownloadsHydrator />
-                <Navigation />
-                <EpisodeSheet />
-              </BottomSheetModalProvider>
+              <PlayerStateBridge />
+              <SleepTimerRunner />
+              <DownloadsHydrator />
+              <Navigation />
+              <EpisodeSheet />
             </ThemeProvider>
           </QueryProvider>
         </DependencyProvider>

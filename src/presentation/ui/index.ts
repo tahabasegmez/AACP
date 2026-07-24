@@ -7,5 +7,6 @@ export * from './Seekbar';
 export * from './Screen';
 export * from './ScreenHeader';
 export * from './SearchField';
+export * from './BottomSheet';
 export * from './useReducedMotion';
 export * from './useOnlineStatus';

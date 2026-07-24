@@ -18,10 +18,12 @@
 
 - ✅ **Offline & etkileşim (kuruldu, mac'te `pod install`):** `react-native-blob-util`
   (indirme — [BlobUtilDownloader](../src/infrastructure/download/BlobUtilDownloader.ts) soyutlaması),
-  `@react-native-community/netinfo` (çevrimdışı algılama), `@gorhom/bottom-sheet`
-  (bölüm paneli), `react-native-reanimated@4` (+ peer `react-native-worklets`;
-  babel plugin `react-native-worklets/plugin` en sonda). Reanimated v4 New
-  Architecture gerektirir (RN 0.86 varsayılan).
+  `@react-native-community/netinfo` (çevrimdışı algılama).
+  - **Not:** Bölüm/not panelleri için `@gorhom/bottom-sheet` + `react-native-reanimated`
+    kullanılmıyor. RN 0.86 + reanimated v4/worklets native uyum sorunları çıkardığı
+    için, ağır bağımlılık yerine **saf React Native** ([ui/BottomSheet](../src/presentation/ui/BottomSheet.tsx),
+    Modal + Animated + PanResponder) tercih edildi. Daha az native bağımlılık = daha
+    az build riski.
 - ✅ **UI (Stage 1 — kuruldu, mac'te `pod install`):** `@shopify/flash-list`
   (uzun listeler), `react-native-fast-image` (kapak cache; New-Arch riski için
   [CoverImage](../src/presentation/ui/CoverImage.tsx) soyutlaması), `react-native-vector-icons`

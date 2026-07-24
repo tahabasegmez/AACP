@@ -1,13 +1,8 @@
-import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetScrollView,
-} from '@gorhom/bottom-sheet';
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { ActivityIndicator, Pressable, Share, View } from 'react-native';
+import React from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Share, View } from 'react-native';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../theme';
-import { CoverImage, Icon, IconName, Text } from '../../ui';
+import { BottomSheet, CoverImage, Icon, IconName, Text } from '../../ui';
 import { useSavedEpisodes, useShowsQuery, useToggleSaved } from '../../query';
 import { useEpisodeSheetStore } from '../../stores';
 import { usePlayEpisode } from '../player/usePlayEpisode';
@@ -27,13 +22,12 @@ const formatDate = (iso: string): string => {
 };
 
 /**
- * EpisodeSheet — bölüm ayrıntı paneli (aşağı kaydırıp kapatılan bottom sheet).
- * Kök seviyede tek örnek; episodeSheetStore ile açılır/kapanır. Listelerde
- * gezinirken içerik hızlıca görülür, buradan çal/indir/paylaş yapılır.
+ * EpisodeSheet — bölüm ayrıntı paneli (aşağı kaydırıp kapatılan panel).
+ * Kök seviyede tek örnek; episodeSheetStore ile açılır/kapanır. Buradan
+ * çal / sonra dinle / indir / paylaş yapılır.
  */
 export const EpisodeSheet: React.FC = () => {
   const theme = useTheme();
-  const ref = useRef<BottomSheetModal>(null);
   const episode = useEpisodeSheetStore(s => s.episode);
   const close = useEpisodeSheetStore(s => s.close);
   const play = usePlayEpisode();
@@ -43,23 +37,6 @@ export const EpisodeSheet: React.FC = () => {
   const saved = useSavedEpisodes();
   const toggleSaved = useToggleSaved();
   const isSaved = (saved.data ?? []).some(e => e.id === episode?.id);
-
-  const snapPoints = useMemo(() => ['62%', '90%'], []);
-
-  useEffect(() => {
-    if (episode) {
-      ref.current?.present();
-    } else {
-      ref.current?.dismiss();
-    }
-  }, [episode]);
-
-  const renderBackdrop = useCallback(
-    (props: React.ComponentProps<typeof BottomSheetBackdrop>) => (
-      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
-    ),
-    [],
-  );
 
   const showTitle =
     (shows.data ?? []).find(s => s.id === episode?.showId)?.title ?? '';
@@ -89,14 +66,8 @@ export const EpisodeSheet: React.FC = () => {
   })();
 
   return (
-    <BottomSheetModal
-      ref={ref}
-      snapPoints={snapPoints}
-      onDismiss={close}
-      backdropComponent={renderBackdrop}
-      backgroundStyle={{ backgroundColor: theme.colors.elevated }}
-      handleIndicatorStyle={{ backgroundColor: theme.colors.textMuted }}>
-      <BottomSheetScrollView contentContainerStyle={{ padding: theme.spacing(2.5) }}>
+    <BottomSheet visible={!!episode} onClose={close}>
+      <ScrollView contentContainerStyle={{ padding: theme.spacing(2.5), paddingTop: theme.spacing(1) }}>
         {episode && (
           <>
             <View style={{ flexDirection: 'row', gap: theme.spacing(1.5) }}>
@@ -167,8 +138,8 @@ export const EpisodeSheet: React.FC = () => {
             )}
           </>
         )}
-      </BottomSheetScrollView>
-    </BottomSheetModal>
+      </ScrollView>
+    </BottomSheet>
   );
 };
 
