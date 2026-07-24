@@ -5,7 +5,7 @@ require Pod::Executable.execute_command('node', ['-p',
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
-platform :ios, min_ios_version_supported
+platform :ios, '16.0'
 prepare_react_native_project!
 
 linkage = ENV['USE_FRAMEWORKS']
@@ -28,7 +28,36 @@ target 'AACP' do
       installer,
       config[:reactNativePath],
       :mac_catalyst_enabled => false,
-      # :ccache_enabled => true
+      # Intel Mac'te sonraki native derlemeleri belirgin biçimde hızlandırır.
+      :ccache_enabled => true
     )
+
+    # Swift/C++ interoperability in Xcode 16 requires iOS 16 or newer.
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |build_configuration|
+        build_configuration.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
+
+        # Xcode yalnızca uygulamayı çalıştırmak için kullanılıyor. Debug sırasında
+        # indeks üretmemek CPU, RAM ve disk kullanımını azaltır; Release etkilenmez.
+        if build_configuration.name == 'Debug'
+          build_configuration.build_settings['COMPILER_INDEX_STORE_ENABLE'] = 'NO'
+          build_configuration.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+          build_configuration.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf'
+        end
+      end
+    end
+
+    # CocoaPods'un framework kopyalama scriptleri rsync kullanır. Xcode'un
+    # User Script Sandboxing özelliği bu dosya erişimini engellediği için
+    # uygulama projesinin tüm yapılandırmalarında kapalı tut.
+    installer.aggregate_targets
+      .map(&:user_project)
+      .uniq
+      .each do |user_project|
+        user_project.build_configurations.each do |build_configuration|
+          build_configuration.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
+        end
+        user_project.save
+      end
   end
 end

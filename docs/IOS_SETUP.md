@@ -31,8 +31,11 @@ Bunlar için mac'te ekstra iş yok:
 - [ ] **Node 22+** (`node -v`) — `package.json` `engines` ile uyumlu
 - [ ] **Xcode** (güncel) + Command Line Tools
       (`xcode-select --install`, Xcode → Settings → Locations → Command Line Tools seçili)
+- [ ] **iOS 16+** deployment target — NitroModules'ın Swift/C++ köprüsü için gerekli
 - [ ] **CocoaPods** — `brew install cocoapods` (veya `sudo gem install cocoapods`)
 - [ ] **Watchman** (opsiyonel ama önerilir) — `brew install watchman`
+- [ ] **ccache** (Intel Mac için önerilir) — `brew install ccache`; ilk native
+      derlemeyi değil, sonraki derlemeleri hızlandırır
 
 ## 2. Projeyi kur
 
@@ -69,6 +72,11 @@ open ios/AACP.xcworkspace     # .xcodeproj DEĞİL, .xcworkspace
 npm start          # Metro (ayrı terminalde bırak)
 npm run ios        # veya Xcode'dan ▶︎
 ```
+
+Xcode şeması Metro kapalıysa otomatik başlatır. Intel Mac'lerde ilk native
+derleme uzun sürebilir; `ccache` ancak ilk derlemede önbellek dolduktan sonra
+fayda sağlar. Hızlı tekrar derlemeler için gerekmedikçe **Clean Build Folder**
+veya DerivedData temizliği yapma.
 
 ### Ne görmelisin
 1. **Şov listesi** — 11 AA şovu **anında** gelir (ağ isteği yok; bundled katalog).
