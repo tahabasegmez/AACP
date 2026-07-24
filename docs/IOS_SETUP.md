@@ -19,6 +19,7 @@ Bunlar için mac'te ekstra iş yok:
 | Arka plan sesi | ✅ `UIBackgroundModes: audio` → [Info.plist](../ios/AACP/Info.plist) |
 | track-player playback service | ✅ [index.js](../index.js)'te kayıtlı → [playbackService.ts](../src/infrastructure/audio/playbackService.ts) |
 | Kilit ekranı kontrolleri | ✅ `updateOptions` ile ayarlı ([TrackPlayerAudioService](../src/infrastructure/audio/TrackPlayerAudioService.ts)) |
+| Now Playing / Dynamic Island | ✅ iOS audio session `Playback` + `SpokenAudio` → medya adaya otomatik düşer |
 | Kalıcı depolama (MMKV) | ✅ kod hazır; sadece `pod install` gerekir |
 | Uygulama içi ikonlar (vector-icons) | ✅ `Info.plist` UIAppFonts + pod fontları bundle'lar |
 | npm peer çakışması | ✅ [.npmrc](../.npmrc) (`legacy-peer-deps=true`) — ekstra bayrak gerekmez |

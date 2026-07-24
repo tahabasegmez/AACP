@@ -1,9 +1,9 @@
 import React from 'react';
-import { ScrollView, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { EmptyState, ErrorView, LoadingView } from '../../../shared/components';
-import { Screen, Text } from '../../../ui';
+import { Icon, Screen, Text } from '../../../ui';
 import { useFollowedShows } from '../../../query';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { ShowCard } from '../../home/components/ShowCard';
@@ -58,11 +58,27 @@ export const LibraryScreen: React.FC = () => {
 
   return (
     <Screen>
-      <View style={{ padding: pad, paddingBottom: theme.spacing(0.5) }}>
-        <Text variant="title">Kütüphane</Text>
-        <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 2 }}>
-          Takip ettiğin şovlar
-        </Text>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: pad,
+          paddingBottom: theme.spacing(0.5),
+        }}>
+        <View>
+          <Text variant="title">Kütüphane</Text>
+          <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 2 }}>
+            Takip ettiğin şovlar
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => navigation.navigate('Tabs', { screen: 'Search' })}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Şov ara">
+          <Icon name="search" size={24} color={theme.colors.text} />
+        </Pressable>
       </View>
       {body()}
     </Screen>

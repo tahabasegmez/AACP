@@ -46,6 +46,9 @@ const AppKilledPlaybackBehavior = {
   PausePlayback: 'pause',
 };
 
+const IOSCategory = { Playback: 'playback', Ambient: 'ambient' };
+const IOSCategoryMode = { Default: 'default', SpokenAudio: 'spokenAudio' };
+
 let listeners = {};
 let calls = [];
 
@@ -95,4 +98,6 @@ module.exports = {
   Event,
   Capability,
   AppKilledPlaybackBehavior,
+  IOSCategory,
+  IOSCategoryMode,
 };

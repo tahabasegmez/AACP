@@ -4,6 +4,8 @@ import TrackPlayer, {
   AppKilledPlaybackBehavior,
   Capability,
   Event,
+  IOSCategory,
+  IOSCategoryMode,
 } from 'react-native-track-player';
 import { episodeToTrack, mapTrackPlayerState } from './playbackMapping';
 
@@ -29,7 +31,13 @@ export class TrackPlayerAudioService implements AudioPlayerService {
     if (this.isSetup) {
       return;
     }
-    await TrackPlayer.setupPlayer();
+    // iOS: Playback kategorisi + SpokenAudio modu → arka plan sesi VE Now Playing
+    // (kilit ekranı + Dynamic Island medya kartı). Podcast için doğru profil.
+    await TrackPlayer.setupPlayer({
+      autoHandleInterruptions: true,
+      iosCategory: IOSCategory.Playback,
+      iosCategoryMode: IOSCategoryMode.SpokenAudio,
+    });
     await TrackPlayer.updateOptions({
       progressUpdateEventInterval: 1,
       capabilities: [

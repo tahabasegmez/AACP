@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Share, View } from 'react-native';
+import {
+  ActionSheetIOS,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  Share,
+  StatusBar,
+  StyleSheet,
+  View,
+} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDuration } from '@core/utils';
@@ -8,9 +19,19 @@ import { CoverImage, Icon, IconName, Seekbar, Text } from '../../../ui';
 import { useDependencies } from '../../../di';
 import { usePlayerStore } from '../../../stores';
 import { useIsFollowed, useShowsQuery, useToggleFollow } from '../../../query';
+import { useSleepTimerStore } from '../../../stores';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 
 const SPEEDS = [1, 1.25, 1.5, 1.75, 2];
+const SLEEP_OPTIONS: ReadonlyArray<{ label: string; minutes: number }> = [
+  { label: 'Kapalı', minutes: 0 },
+  { label: '5 dakika', minutes: 5 },
+  { label: '10 dakika', minutes: 10 },
+  { label: '15 dakika', minutes: 15 },
+  { label: '30 dakika', minutes: 30 },
+  { label: '45 dakika', minutes: 45 },
+  { label: '60 dakika', minutes: 60 },
+];
 
 const stripHtml = (html: string): string =>
   html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
@@ -32,8 +53,39 @@ export const PlayerScreen: React.FC = () => {
   const followed = useIsFollowed(episode?.showId ?? '');
   const toggleFollow = useToggleFollow();
 
+  const sleepEndsAt = useSleepTimerStore(s => s.endsAt);
+  const setSleepEndsAt = useSleepTimerStore(s => s.setEndsAt);
+
   const [expandNotes, setExpandNotes] = useState(false);
   const [hint, setHint] = useState('');
+
+  const applySleep = (minutes: number) =>
+    setSleepEndsAt(minutes > 0 ? Date.now() + minutes * 60_000 : null);
+
+  const openSleepTimer = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: 'Uyku zamanlayıcı',
+          options: [...SLEEP_OPTIONS.map(o => o.label), 'İptal'],
+          cancelButtonIndex: SLEEP_OPTIONS.length,
+        },
+        i => {
+          if (i < SLEEP_OPTIONS.length) {
+            applySleep(SLEEP_OPTIONS[i].minutes);
+          }
+        },
+      );
+    } else {
+      Alert.alert('Uyku zamanlayıcı', undefined, [
+        ...SLEEP_OPTIONS.map(o => ({ text: o.label, onPress: () => applySleep(o.minutes) })),
+        { text: 'İptal', style: 'cancel' as const },
+      ]);
+    }
+  };
+
+  const sleepRemainingMin =
+    sleepEndsAt != null ? Math.max(0, Math.ceil((sleepEndsAt - Date.now()) / 60_000)) : null;
 
   const showTitle =
     (shows.data ?? []).find(s => s.id === episode?.showId)?.title ?? '';
@@ -69,10 +121,15 @@ export const PlayerScreen: React.FC = () => {
   );
 
   return (
-    <LinearGradient
-      colors={[theme.colors.brand, theme.colors.elevated, theme.colors.bg]}
-      locations={[0, 0.5, 1]}
-      style={{ flex: 1, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }}>
+    <View style={{ flex: 1, backgroundColor: theme.colors.brand }}>
+      {/* Degrade tüm ekranı (Dynamic Island'ın arkası dahil) kaplar. */}
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <LinearGradient
+        colors={[theme.colors.brand, theme.colors.elevated, theme.colors.bg]}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={{ flex: 1, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }}>
       {/* Üst bar */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing(2) }}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={10} accessibilityLabel="Kapat">
@@ -185,7 +242,12 @@ export const PlayerScreen: React.FC = () => {
             </Text>
           </Pressable>
           <View style={{ flexDirection: 'row', gap: theme.spacing(3) }}>
-            <Tool icon="timer" label="Uyku zamanlayıcı" onPress={() => showHint('Yakında: Uyku zamanlayıcı')} />
+            <Tool
+              icon="timer"
+              label="Uyku zamanlayıcı"
+              active={sleepEndsAt != null}
+              onPress={openSleepTimer}
+            />
             <Tool icon="list" label="Kuyruk" onPress={() => showHint('Yakında: Kuyruk')} />
             <Tool icon="download" label="İndir" onPress={() => showHint('Yakında: İndir')} />
             <Tool icon="cast" label="Oynatılan cihaz" onPress={() => showHint('Yakında: Cihaz seçimi')} />
@@ -196,6 +258,12 @@ export const PlayerScreen: React.FC = () => {
         {!!hint && (
           <Text variant="caption" color={theme.colors.textMuted} style={{ textAlign: 'center', marginTop: theme.spacing(1.5) }}>
             {hint}
+          </Text>
+        )}
+
+        {sleepRemainingMin != null && sleepRemainingMin > 0 && (
+          <Text variant="caption" color={theme.colors.accent} style={{ textAlign: 'center', marginTop: theme.spacing(1) }}>
+            Uyku zamanlayıcı: ~{sleepRemainingMin} dk
           </Text>
         )}
 
@@ -223,6 +291,7 @@ export const PlayerScreen: React.FC = () => {
           </Pressable>
         )}
       </ScrollView>
-    </LinearGradient>
+      </View>
+    </View>
   );
 };

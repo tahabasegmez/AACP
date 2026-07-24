@@ -14,6 +14,7 @@ import {
   useDependencies,
   usePlayerStore,
   usePreferencesStore,
+  useSleepTimerStore,
   useTheme,
 } from '@presentation';
 import { getDependencies } from './di';
@@ -35,6 +36,7 @@ export const AppRoot: React.FC = () => {
           <PreferencesHydrator />
           <ThemeProvider>
             <PlayerStateBridge />
+            <SleepTimerRunner />
             <Navigation />
           </ThemeProvider>
         </QueryProvider>
@@ -87,6 +89,35 @@ const PreferencesHydrator: React.FC = () => {
         /* tercih okunamazsa varsayılanlarla devam */
       });
   }, [getPreferences, setPrefs]);
+  return null;
+};
+
+/**
+ * SleepTimerRunner — uyku zamanlayıcı süresi dolunca oynatmayı duraklatır.
+ * Player ekranından bağımsız (store'dan beslenir) çalışır.
+ */
+const SleepTimerRunner: React.FC = () => {
+  const { pausePlayback } = useDependencies();
+  const endsAt = useSleepTimerStore(s => s.endsAt);
+  const setEndsAt = useSleepTimerStore(s => s.setEndsAt);
+
+  useEffect(() => {
+    if (!endsAt) {
+      return;
+    }
+    const fire = () => {
+      pausePlayback.execute().catch(() => {});
+      setEndsAt(null);
+    };
+    const ms = endsAt - Date.now();
+    if (ms <= 0) {
+      fire();
+      return;
+    }
+    const id = setTimeout(fire, ms);
+    return () => clearTimeout(id);
+  }, [endsAt, pausePlayback, setEndsAt]);
+
   return null;
 };
 
