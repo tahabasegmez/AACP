@@ -4,11 +4,11 @@ import {
   BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Pressable, Share, View } from 'react-native';
+import { ActivityIndicator, Pressable, Share, View } from 'react-native';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../theme';
 import { CoverImage, Icon, IconName, Text } from '../../ui';
-import { useShowsQuery } from '../../query';
+import { useSavedEpisodes, useShowsQuery, useToggleSaved } from '../../query';
 import { useEpisodeSheetStore } from '../../stores';
 import { usePlayEpisode } from '../player/usePlayEpisode';
 import { useDownloads, useDownloadStatus } from '../downloads/useDownloads';
@@ -40,6 +40,9 @@ export const EpisodeSheet: React.FC = () => {
   const { start, remove } = useDownloads();
   const status = useDownloadStatus(episode?.id ?? '');
   const shows = useShowsQuery();
+  const saved = useSavedEpisodes();
+  const toggleSaved = useToggleSaved();
+  const isSaved = (saved.data ?? []).some(e => e.id === episode?.id);
 
   const snapPoints = useMemo(() => ['62%', '90%'], []);
 
@@ -61,15 +64,26 @@ export const EpisodeSheet: React.FC = () => {
   const showTitle =
     (shows.data ?? []).find(s => s.id === episode?.showId)?.title ?? '';
 
-  const download: { icon: IconName; label: string; onPress?: () => void } = (() => {
+  const download: {
+    icon: IconName;
+    label: string;
+    onPress?: () => void;
+    color?: string;
+    busy?: boolean;
+  } = (() => {
     if (!episode) {
       return { icon: 'download', label: 'İndir' };
     }
     if (status === 'downloaded') {
-      return { icon: 'checkmark', label: 'İndirildi', onPress: () => remove(episode.id) };
+      return {
+        icon: 'downloaded',
+        label: 'İndirildi',
+        onPress: () => remove(episode.id),
+        color: theme.colors.accent,
+      };
     }
     if (status === 'downloading') {
-      return { icon: 'download', label: 'İndiriliyor…' };
+      return { icon: 'download', label: 'İndiriliyor…', busy: true };
     }
     return { icon: 'download', label: 'İndir', onPress: () => start(episode) };
   })();
@@ -124,7 +138,19 @@ export const EpisodeSheet: React.FC = () => {
                 </Text>
               </Pressable>
 
-              <SheetAction icon={download.icon} label={download.label} onPress={download.onPress} />
+              <SheetAction
+                icon={isSaved ? 'bookmark' : 'bookmark-outline'}
+                label="Sonra dinle"
+                color={isSaved ? theme.colors.accent : undefined}
+                onPress={() => toggleSaved.mutate(episode)}
+              />
+              <SheetAction
+                icon={download.icon}
+                label={download.label}
+                onPress={download.onPress}
+                color={download.color}
+                busy={download.busy}
+              />
               <SheetAction
                 icon="share"
                 label="Paylaş"
@@ -146,16 +172,18 @@ export const EpisodeSheet: React.FC = () => {
   );
 };
 
-const SheetAction: React.FC<{ icon: IconName; label: string; onPress?: () => void }> = ({
-  icon,
-  label,
-  onPress,
-}) => {
+const SheetAction: React.FC<{
+  icon: IconName;
+  label: string;
+  onPress?: () => void;
+  color?: string;
+  busy?: boolean;
+}> = ({ icon, label, onPress, color, busy }) => {
   const theme = useTheme();
   return (
     <Pressable
       onPress={onPress}
-      disabled={!onPress}
+      disabled={!onPress || busy}
       accessibilityRole="button"
       accessibilityLabel={label}
       style={{
@@ -163,9 +191,13 @@ const SheetAction: React.FC<{ icon: IconName; label: string; onPress?: () => voi
         justifyContent: 'center',
         gap: 3,
         paddingHorizontal: theme.spacing(1.5),
-        opacity: onPress ? 1 : 0.5,
+        opacity: onPress || busy ? 1 : 0.5,
       }}>
-      <Icon name={icon} size={22} color={theme.colors.text} />
+      {busy ? (
+        <ActivityIndicator size="small" color={theme.colors.accent} style={{ height: 22 }} />
+      ) : (
+        <Icon name={icon} size={22} color={color ?? theme.colors.text} />
+      )}
       <Text variant="caption" color={theme.colors.textMuted}>
         {label}
       </Text>

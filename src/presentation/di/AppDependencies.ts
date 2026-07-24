@@ -9,6 +9,7 @@ import {
   GetPodcastFeed,
   GetPreferences,
   GetResumeList,
+  GetSavedEpisodes,
   GetShowCatalog,
   GetShowEpisodes,
   IsFollowed,
@@ -23,6 +24,7 @@ import {
   SkipBy,
   StopPlayback,
   ToggleFollow,
+  ToggleSavedEpisode,
 } from '@domain/usecases';
 
 /**
@@ -55,6 +57,10 @@ export interface AppDependencies {
   readonly downloadEpisode: DownloadEpisode;
   readonly removeDownload: RemoveDownload;
   readonly getDownloads: GetDownloads;
+
+  // Sonra dinle
+  readonly toggleSavedEpisode: ToggleSavedEpisode;
+  readonly getSavedEpisodes: GetSavedEpisodes;
 
   // Oynatıcı transport
   readonly playEpisode: PlayEpisode;

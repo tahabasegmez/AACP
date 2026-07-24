@@ -5,19 +5,23 @@ import {
   NavigationContainer,
   Theme as NavTheme,
 } from '@react-navigation/native';
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   DependencyProvider,
   EpisodeSheet,
+  GlobalDock,
   QueryProvider,
   RootNavigator,
   ThemeProvider,
+  navigationRef,
   useDependencies,
   useDownloads,
   usePlayerStore,
   usePreferencesStore,
+  useRouteStore,
   useSleepTimerStore,
   useTheme,
 } from '@presentation';
@@ -70,6 +74,7 @@ const DownloadsHydrator: React.FC = () => {
  */
 const Navigation: React.FC = () => {
   const theme = useTheme();
+  const setRouteName = useRouteStore(s => s.setRouteName);
   const navTheme: NavTheme = {
     ...(theme.dark ? DarkTheme : DefaultTheme),
     colors: {
@@ -81,10 +86,19 @@ const Navigation: React.FC = () => {
       border: theme.colors.border,
     },
   };
+  // Aktif rota adını takip et (global mini player'ın konumu/görünürlüğü için).
+  const syncRoute = useCallback(() => {
+    setRouteName(navigationRef.getCurrentRoute()?.name);
+  }, [setRouteName]);
+
   return (
-    <NavigationContainer theme={navTheme}>
-      <RootNavigator />
-    </NavigationContainer>
+    <View style={{ flex: 1 }}>
+      <NavigationContainer ref={navigationRef} theme={navTheme} onReady={syncRoute} onStateChange={syncRoute}>
+        <RootNavigator />
+      </NavigationContainer>
+      {/* Global mini player + çevrimdışı şeridi — navigasyonun üstünde overlay. */}
+      <GlobalDock />
+    </View>
   );
 };
 

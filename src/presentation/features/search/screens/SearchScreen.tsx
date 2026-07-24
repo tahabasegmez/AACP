@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
+import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { EmptyState, LoadingView } from '../../../shared/components';
-import { Icon, Screen, Text } from '../../../ui';
+import { Screen, ScreenHeader, SearchField } from '../../../ui';
 import { useShowsQuery } from '../../../query';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { ShowCard } from '../../home/components/ShowCard';
@@ -45,43 +45,15 @@ export const SearchScreen: React.FC = () => {
 
   return (
     <Screen>
-      <View style={{ padding: pad, paddingBottom: theme.spacing(1) }}>
-        <Text variant="title" style={{ marginBottom: theme.spacing(1.5) }}>
-          Ara
-        </Text>
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing(1),
-            backgroundColor: theme.colors.surface,
-            borderRadius: theme.radius.md,
-            paddingHorizontal: theme.spacing(1.5),
-          }}>
-          <Icon name="search" size={18} color={theme.colors.textMuted} />
-          <TextInput
-            value={q}
-            onChangeText={setQ}
-            placeholder="Şov ara"
-            placeholderTextColor={theme.colors.textMuted}
-            style={{
-              flex: 1,
-              color: theme.colors.text,
-              paddingVertical: theme.spacing(1.25),
-              fontSize: 15,
-            }}
-            returnKeyType="search"
-            autoCorrect={false}
-          />
-        </View>
-      </View>
+      <ScreenHeader title="Ara" />
+      <SearchField value={q} onChangeText={setQ} placeholder="Şov ara" />
 
       {shows.isLoading ? (
         <LoadingView />
       ) : results.length === 0 ? (
         <EmptyState title="Sonuç yok" description={`"${q}" için şov bulunamadı.`} />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: pad, paddingTop: theme.spacing(1) }}>
+        <ScrollView contentContainerStyle={{ padding: pad, paddingTop: theme.spacing(1), paddingBottom: theme.spacing(10) }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
             {results.map(s => (
               <ShowCard key={s.id} show={s} width={colW} onPress={() => openShow(s)} />

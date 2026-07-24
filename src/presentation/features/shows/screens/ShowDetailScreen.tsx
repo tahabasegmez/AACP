@@ -146,12 +146,15 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
       data={episodes}
       keyExtractor={item => item.id}
       ListHeaderComponent={Header}
+      contentContainerStyle={{ paddingBottom: theme.spacing(12) }}
       renderItem={({ item }: { item: Episode }) => (
         <EpisodeRow
           episode={item}
           progress={progressById.get(item.id)}
           onPress={() => openSheet(item)}
-          onPlay={() => play(item)}
+          onPlay={() =>
+            play(item, { episodes, index: episodes.findIndex(e => e.id === item.id) })
+          }
         />
       )}
       onEndReachedThreshold={0.5}

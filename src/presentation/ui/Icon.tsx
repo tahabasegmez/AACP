@@ -24,6 +24,9 @@ export type IconName =
   | 'chevron-down'
   | 'chevron-back'
   | 'download'
+  | 'downloaded'
+  | 'bookmark'
+  | 'bookmark-outline'
   | 'share'
   | 'heart'
   | 'heart-outline'
@@ -50,7 +53,10 @@ const GLYPHS: Record<IconName, string> = {
   'chevron-right': 'chevron-forward',
   'chevron-down': 'chevron-down',
   'chevron-back': 'chevron-back',
-  download: 'download-outline',
+  download: 'arrow-down-circle-outline',
+  downloaded: 'arrow-down-circle',
+  bookmark: 'bookmark',
+  'bookmark-outline': 'bookmark-outline',
   share: 'share-outline',
   heart: 'heart',
   'heart-outline': 'heart-outline',

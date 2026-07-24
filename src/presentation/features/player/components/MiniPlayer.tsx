@@ -6,18 +6,16 @@ import { CoverImage, Icon, Text } from '../../../ui';
 import { useDependencies } from '../../../di';
 import { usePlayerStore } from '../../../stores';
 import { useShowsQuery } from '../../../query';
-import { useAppNavigation } from '../../../navigation/useAppNavigation';
 
 const HEIGHT = 58;
 
 /**
- * MiniPlayer — tab bar'ın hemen üstünde sabit, o an çalan bölümü gösterir.
- * Dokununca tam ekran Player'ı açar. Bölüm yoksa görünmez.
- * Sabit yükseklik + entegre (alt kenara gömülü) ilerleme çubuğu ile hizalı durur.
+ * MiniPlayer — o an çalan bölümü gösteren küçük oynatıcı. Dokununca `onOpen`
+ * (tam ekran Player) çağrılır. Bölüm yoksa görünmez. NavigationContainer'ın
+ * DIŞINDA (global dock) da render edilebildiği için navigasyonu prop ile alır.
  */
-export const MiniPlayer: React.FC = () => {
+export const MiniPlayer: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const theme = useTheme();
-  const navigation = useAppNavigation();
   const { pausePlayback, resumePlayback } = useDependencies();
   const playback = usePlayerStore(s => s.playback);
   const currentEpisode = usePlayerStore(s => s.currentEpisode);
@@ -44,7 +42,7 @@ export const MiniPlayer: React.FC = () => {
 
   return (
     <Pressable
-      onPress={() => navigation.navigate('Player', { episodeId: currentEpisode.id })}
+      onPress={onOpen}
       accessibilityRole="button"
       accessibilityLabel={`${currentEpisode.title} — oynatıcıyı aç`}
       style={{

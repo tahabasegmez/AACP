@@ -10,6 +10,7 @@ import {
   GetPodcastFeed,
   GetPreferences,
   GetResumeList,
+  GetSavedEpisodes,
   GetShowCatalog,
   GetShowEpisodes,
   IsFollowed,
@@ -24,6 +25,7 @@ import {
   SkipBy,
   StopPlayback,
   ToggleFollow,
+  ToggleSavedEpisode,
 } from '@domain/usecases';
 import {
   DownloadRepositoryImpl,
@@ -35,6 +37,7 @@ import {
   PreferencesRepositoryImpl,
   RemoteCatalogDataSource,
   RssFeedDataSource,
+  SavedEpisodesRepositoryImpl,
 } from '@data';
 import {
   BlobUtilDownloader,
@@ -85,6 +88,7 @@ export const composeDependencies = (): AppDependencies => {
   const followRepo = new FollowRepositoryImpl(storage);
   const preferencesRepo = new PreferencesRepositoryImpl(storage);
   const downloadRepo = new DownloadRepositoryImpl(new BlobUtilDownloader(), storage);
+  const savedRepo = new SavedEpisodesRepositoryImpl(storage);
 
   // domain use case'leri — kataloglar
   const getShowCatalog = new GetShowCatalog(catalogRepo);
@@ -105,6 +109,10 @@ export const composeDependencies = (): AppDependencies => {
   const downloadEpisode = new DownloadEpisode(downloadRepo);
   const removeDownload = new RemoveDownload(downloadRepo);
   const getDownloads = new GetDownloads(downloadRepo);
+
+  // domain use case'leri — sonra dinle
+  const toggleSavedEpisode = new ToggleSavedEpisode(savedRepo);
+  const getSavedEpisodes = new GetSavedEpisodes(savedRepo);
 
   // domain use case'leri — oynatıcı transport
   // PlayEpisode indirilen bölümlerde yerel dosyayı tercih eder (downloadRepo).
@@ -135,6 +143,8 @@ export const composeDependencies = (): AppDependencies => {
     downloadEpisode,
     removeDownload,
     getDownloads,
+    toggleSavedEpisode,
+    getSavedEpisodes,
     playEpisode,
     pausePlayback,
     resumePlayback,
