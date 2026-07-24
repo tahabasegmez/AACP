@@ -43,6 +43,12 @@
 		<string>fetch</string>
 		<string>processing</string>
 	</array>
+	<!-- react-native-vector-icons: font dosyaları pod ile bundle'lanır, burada
+	     kaydedilir. Ionicons uygulama genelinde kullanılıyor (Icon bileşeni). -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>Ionicons.ttf</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

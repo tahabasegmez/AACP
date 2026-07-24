@@ -1,43 +1,42 @@
+import {
+  ColorTokens,
+  darkColors,
+  duration,
+  lightColors,
+  radius,
+  spacing,
+  typography,
+} from './tokens';
+
 /**
- * Uygulama teması — renk, boşluk ve tipografi token'ları tek yerde.
- * Bileşenler sabit değer yazmak yerine bu token'ları kullanır (tutarlılık + kolay değişim).
+ * Theme — bileşenlerin tükettiği çözülmüş tasarım sistemi.
+ *
+ * `colors` içinde token'lara ek olarak birkaç geriye-dönük alias (primary,
+ * background) tutulur; eski ekranlar kırılmadan yeni sisteme geçebilsin diye.
+ * Yeni kod doğrudan token isimlerini kullanmalı (bg, accent, textMuted...).
  */
 export interface Theme {
-  readonly colors: {
-    readonly background: string;
-    readonly surface: string;
+  readonly dark: boolean;
+  readonly colors: ColorTokens & {
+    /** @deprecated accent kullan */
     readonly primary: string;
-    readonly text: string;
-    readonly textMuted: string;
-    readonly border: string;
+    /** @deprecated bg kullan */
+    readonly background: string;
   };
   readonly spacing: (multiplier: number) => number;
-  readonly radius: { readonly sm: number; readonly md: number; readonly lg: number };
+  readonly radius: typeof radius;
+  readonly typography: typeof typography;
+  readonly duration: typeof duration;
 }
 
-const baseSpacing = 8;
+const build = (dark: boolean, colors: ColorTokens): Theme => ({
+  dark,
+  colors: { ...colors, primary: colors.accent, background: colors.bg },
+  spacing,
+  radius,
+  typography,
+  duration,
+});
 
-export const lightTheme: Theme = {
-  colors: {
-    background: '#FFFFFF',
-    surface: '#F4F5F7',
-    primary: '#C8102E', // AA kurumsal kırmızısı (placeholder — doğrulanacak)
-    text: '#111417',
-    textMuted: '#6B7280',
-    border: '#E5E7EB',
-  },
-  spacing: (m: number) => baseSpacing * m,
-  radius: { sm: 6, md: 12, lg: 20 },
-};
-
-export const darkTheme: Theme = {
-  ...lightTheme,
-  colors: {
-    background: '#0B0E11',
-    surface: '#161A1F',
-    primary: '#E23A50',
-    text: '#F3F4F6',
-    textMuted: '#9CA3AF',
-    border: '#252A31',
-  },
-};
+export const darkTheme = build(true, darkColors);
+export const lightTheme = build(false, lightColors);

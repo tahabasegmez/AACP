@@ -1,29 +1,30 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useMemo } from 'react';
-import { FlatList, Pressable, Text, View } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
+import React, { useMemo, useState } from 'react';
+import { Pressable, View } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { Episode } from '@domain/entities';
-import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
-import { useShowEpisodes } from '../../../query';
-import { useDependencies } from '../../../di';
-import { usePlayerStore } from '../../../stores';
+import { CoverImage, Icon, Text } from '../../../ui';
+import { useResumeList, useShowEpisodes } from '../../../query';
+import { useIsFollowed, useToggleFollow } from '../../../query';
 import { EmptyState, ErrorView, LoadingView } from '../../../shared/components';
+import { usePlayEpisode } from '../../player/usePlayEpisode';
 import type { RootStackParamList } from '../../../navigation/types';
+import { EpisodeRow } from '../components/EpisodeRow';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ShowDetail'>;
 
 /**
- * ShowDetailScreen — bir şovun bölüm listesi (sayfalı/sonsuz kaydırma).
- *
- * Bölümler `useShowEpisodes` ile parça parça gelir (büyük feed'ler için).
- * Şov başlığı/açıklaması feed + katalog birleşiminden (use case içinde) zenginleşir.
- * Bölüme dokununca "kaldığın yerden" çalar.
+ * ShowDetailScreen — Spotify albüm mantığında şov ekranı.
+ * Kapaktan türeyen degrade hero, Takip et, ve sayfalı bölüm listesi (FlashList).
  */
-export const ShowDetailScreen: React.FC<Props> = ({ route, navigation }) => {
+export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
   const theme = useTheme();
-  const { feedUrl } = route.params;
-  const { continueEpisode } = useDependencies();
-  const setCurrentEpisode = usePlayerStore(s => s.setCurrentEpisode);
+  const { showId, feedUrl } = route.params;
+  const play = usePlayEpisode();
+  const [expanded, setExpanded] = useState(false);
+
   const {
     data,
     isLoading,
@@ -34,20 +35,26 @@ export const ShowDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     hasNextPage,
     isFetchingNextPage,
   } = useShowEpisodes(feedUrl);
+  const resume = useResumeList();
+  const followed = useIsFollowed(showId);
+  const toggleFollow = useToggleFollow();
 
-  // Sayfaları tek listeye indir; şov meta verisini ilk sayfadan al.
   const episodes = useMemo(
     () => data?.pages.flatMap(p => p.episodes.items) ?? [],
     [data],
   );
   const show = data?.pages[0]?.show;
 
-  const onPlay = async (episode: Episode) => {
-    // Oynatıcı ekranının başlık/görsel gösterebilmesi için seçili bölümü paylaş.
-    setCurrentEpisode(episode);
-    await continueEpisode.execute({ episode });
-    navigation.navigate('Player', { episodeId: episode.id });
-  };
+  // Kaldığın-yer çubukları için episodeId → oran haritası.
+  const progressById = useMemo(() => {
+    const map = new Map<string, number>();
+    (resume.data ?? []).forEach(p => {
+      if (p.durationSec > 0) {
+        map.set(p.episodeId, p.positionSec / p.durationSec);
+      }
+    });
+    return map;
+  }, [resume.data]);
 
   if (isLoading) {
     return <LoadingView />;
@@ -55,44 +62,89 @@ export const ShowDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   if (isError) {
     return <ErrorView error={error} onRetry={refetch} />;
   }
+
+  const Header = (
+    <View>
+      <LinearGradient
+        colors={[theme.colors.brand, theme.colors.elevated, theme.colors.bg]}
+        style={{ paddingTop: theme.spacing(9), paddingBottom: theme.spacing(2), alignItems: 'center' }}>
+        <CoverImage uri={show?.imageUrl} size={160} radius={theme.radius.md} />
+        <Text variant="title" style={{ marginTop: theme.spacing(2), textAlign: 'center', paddingHorizontal: theme.spacing(2) }}>
+          {show?.title ?? route.params.title ?? ''}
+        </Text>
+        <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 4 }}>
+          {show?.author}
+          {show?.categories?.length ? ` · ${show.categories[0]}` : ''}
+        </Text>
+        {!!show?.description && (
+          <Pressable onPress={() => setExpanded(v => !v)} style={{ paddingHorizontal: theme.spacing(2.5) }}>
+            <Text
+              variant="caption"
+              color={theme.colors.textMuted}
+              numberOfLines={expanded ? undefined : 2}
+              style={{ textAlign: 'center', marginTop: theme.spacing(1.25) }}>
+              {show.description}
+            </Text>
+          </Pressable>
+        )}
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing(2.5), marginTop: theme.spacing(2) }}>
+          <Pressable
+            onPress={() => toggleFollow.mutate(showId)}
+            accessibilityRole="button"
+            accessibilityLabel={followed.data ? 'Takibi bırak' : 'Takip et'}
+            style={{
+              borderWidth: 1.5,
+              borderColor: followed.data ? theme.colors.accent : theme.colors.textMuted,
+              borderRadius: theme.radius.pill,
+              paddingVertical: theme.spacing(1),
+              paddingHorizontal: theme.spacing(2.25),
+            }}>
+            <Text variant="subtitle" color={followed.data ? theme.colors.accent : theme.colors.text}>
+              {followed.data ? '✓ Takip ediliyor' : 'Takip et'}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => episodes[0] && play(episodes[0])}
+            accessibilityRole="button"
+            accessibilityLabel="En yeni bölümü çal"
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: theme.colors.accent,
+            }}>
+            <Icon name="play" size={24} color={theme.colors.onAccent} />
+          </Pressable>
+        </View>
+      </LinearGradient>
+    </View>
+  );
+
   if (episodes.length === 0) {
     return (
-      <EmptyState
-        title="Bölüm yok"
-        description="Bu şovda henüz yayınlanmış bölüm bulunmuyor."
-      />
+      <>
+        {Header}
+        <EmptyState title="Bölüm yok" description="Bu şovda henüz yayınlanmış bölüm bulunmuyor." />
+      </>
     );
   }
 
-  const renderItem = ({ item }: { item: Episode }) => (
-    <Pressable onPress={() => onPlay(item)} style={{ padding: theme.spacing(2) }}>
-      <Text style={{ color: theme.colors.text, fontSize: 15 }}>{item.title}</Text>
-      <Text style={{ color: theme.colors.textMuted, marginTop: theme.spacing(0.5) }}>
-        {formatDuration(item.durationSec)}
-      </Text>
-    </Pressable>
-  );
-
-  const Header = show ? (
-    <View style={{ padding: theme.spacing(2) }}>
-      <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: '700' }}>
-        {show.title}
-      </Text>
-      {!!show.description && (
-        <Text style={{ color: theme.colors.textMuted, marginTop: theme.spacing(1) }}>
-          {show.description}
-        </Text>
-      )}
-    </View>
-  ) : null;
-
   return (
-    <FlatList
-      style={{ backgroundColor: theme.colors.background }}
+    <FlashList
       data={episodes}
       keyExtractor={item => item.id}
-      renderItem={renderItem}
       ListHeaderComponent={Header}
+      renderItem={({ item }: { item: Episode }) => (
+        <EpisodeRow
+          episode={item}
+          progress={progressById.get(item.id)}
+          onPress={() => play(item)}
+        />
+      )}
       onEndReachedThreshold={0.5}
       onEndReached={() => {
         if (hasNextPage && !isFetchingNextPage) {

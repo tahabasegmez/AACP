@@ -1,4 +1,9 @@
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  DarkTheme,
+  DefaultTheme,
+  NavigationContainer,
+  Theme as NavTheme,
+} from '@react-navigation/native';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
@@ -8,6 +13,7 @@ import {
   ThemeProvider,
   useDependencies,
   usePlayerStore,
+  useTheme,
 } from '@presentation';
 import { getDependencies } from './di';
 
@@ -27,13 +33,35 @@ export const AppRoot: React.FC = () => {
         <QueryProvider>
           <ThemeProvider>
             <PlayerStateBridge />
-            <NavigationContainer>
-              <RootNavigator />
-            </NavigationContainer>
+            <Navigation />
           </ThemeProvider>
         </QueryProvider>
       </DependencyProvider>
     </SafeAreaProvider>
+  );
+};
+
+/**
+ * Navigation — NavigationContainer'ı uygulama temasıyla besler (beyaz geçiş
+ * parlamalarını önler; zemin ve accent tema token'larından gelir).
+ */
+const Navigation: React.FC = () => {
+  const theme = useTheme();
+  const navTheme: NavTheme = {
+    ...(theme.dark ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(theme.dark ? DarkTheme : DefaultTheme).colors,
+      primary: theme.colors.accent,
+      background: theme.colors.bg,
+      card: theme.colors.bg,
+      text: theme.colors.text,
+      border: theme.colors.border,
+    },
+  };
+  return (
+    <NavigationContainer theme={navTheme}>
+      <RootNavigator />
+    </NavigationContainer>
   );
 };
 
@@ -67,8 +95,19 @@ const PlayerStateBridge: React.FC = () => {
         enoughProgressed
       ) {
         lastSavedPositionRef.current = positionSec;
+        // "Dinlemeye devam" kartının başlık/kapak gösterip doğrudan çalabilmesi
+        // için o an çalan bölümün meta'sını da kaydet.
+        const ep = usePlayerStore.getState().currentEpisode;
         savePlaybackProgress
-          .execute({ episodeId: currentEpisodeId, positionSec, durationSec })
+          .execute({
+            episodeId: currentEpisodeId,
+            positionSec,
+            durationSec,
+            episodeTitle: ep?.title,
+            showId: ep?.showId,
+            artworkUrl: ep?.imageUrl,
+            audioUrl: ep?.audioUrl,
+          })
           .catch(() => {
             /* progress kaydı best-effort; hatada sessiz geç */
           });

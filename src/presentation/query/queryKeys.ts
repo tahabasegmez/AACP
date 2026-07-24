@@ -8,4 +8,9 @@ export const queryKeys = {
   feed: (feedUrl: string) => ['feed', feedUrl] as const,
   showEpisodes: (feedUrl: string, search: string, sort: EpisodeSortOrder) =>
     ['showEpisodes', feedUrl, search, sort] as const,
+  resume: ['resume'] as const,
+  followedShows: ['followedShows'] as const,
+  isFollowed: (showId: string) => ['isFollowed', showId] as const,
+  latestEpisodes: (feedUrls: readonly string[]) =>
+    ['latestEpisodes', [...feedUrls].sort().join(',')] as const,
 };

@@ -16,6 +16,12 @@
   `react-native-carplay` (ses + CarPlay), `react-native-blob-util` (offline indirme).
   Kod içi import'ları yorum satırında; kurulunca aktive edilecek.
 
+- ✅ **UI (Stage 1 — kuruldu, mac'te `pod install`):** `@shopify/flash-list`
+  (uzun listeler), `react-native-fast-image` (kapak cache; New-Arch riski için
+  [CoverImage](../src/presentation/ui/CoverImage.tsx) soyutlaması), `react-native-vector-icons`
+  (Ionicons; Info.plist'e kayıtlı), `react-native-linear-gradient` (degradeler),
+  `@react-navigation/bottom-tabs` (alt sekmeler).
+
 Aşağıdaki tablolar tüm bağımlılıkları ve kurulum sırasını gösterir.
 
 ## 1. Saf JS paketleri (Windows'ta kurulabilir, native link gerekmez)

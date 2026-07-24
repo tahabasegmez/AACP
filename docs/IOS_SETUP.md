@@ -20,6 +20,7 @@ Bunlar için mac'te ekstra iş yok:
 | track-player playback service | ✅ [index.js](../index.js)'te kayıtlı → [playbackService.ts](../src/infrastructure/audio/playbackService.ts) |
 | Kilit ekranı kontrolleri | ✅ `updateOptions` ile ayarlı ([TrackPlayerAudioService](../src/infrastructure/audio/TrackPlayerAudioService.ts)) |
 | Kalıcı depolama (MMKV) | ✅ kod hazır; sadece `pod install` gerekir |
+| Uygulama içi ikonlar (vector-icons) | ✅ `Info.plist` UIAppFonts + pod fontları bundle'lar |
 | npm peer çakışması | ✅ [.npmrc](../.npmrc) (`legacy-peer-deps=true`) — ekstra bayrak gerekmez |
 | CarPlay kodu | ✅ hazır ([CarPlayController](../src/carplay/controllers/CarPlayController.ts)); **entitlement bekliyor** (bkz. §5) |
 | ATS / HTTPS | ✅ tüm kaynaklar (feeds/media/img.transistorcdn) HTTPS — istisna gerekmiyor |
@@ -139,6 +140,16 @@ eski bir sürümdür ve interop katmanına güvenir. Derleme burada takılırsa 
 `createPersistentStorage` MMKV başlatılamazsa bellek-içi depolamaya düşer ve
 konsola uyarı yazar. `pod install` yapıldığından ve `react-native-nitro-modules`
 kurulu olduğundan emin ol.
+
+**İkonlar kutu/görünmüyor**
+`pod install` fontları bundle'lar, `Info.plist` UIAppFonts kaydeder (Ionicons).
+Görünmezse Xcode'da temiz derleme (Product → Clean Build Folder) dene.
+
+**react-native-fast-image (New Architecture) derleme sorunu**
+RN 0.86 New Arch kullanır; `react-native-fast-image` bakımı durgundur. Derleme
+burada takılırsa görsel bileşeni tek dosyada soyutlandı ([CoverImage](../src/presentation/ui/CoverImage.tsx)) —
+sadece o dosyanın içini `expo-image` veya `@d11/react-native-fast-image` ile
+değiştirmek yeterli (API'si benzer, ekranlar değişmez).
 
 **Ses arka planda kesiliyor**
 Xcode → Signing & Capabilities → **Background Modes → Audio** işaretli mi kontrol et

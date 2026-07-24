@@ -1,28 +1,40 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
+import { useTheme } from '../theme';
 import { ShowDetailScreen } from '../features/shows/screens/ShowDetailScreen';
-import { ShowListScreen } from '../features/shows/screens/ShowListScreen';
 import { PlayerScreen } from '../features/player/screens/PlayerScreen';
-import { RootStackParamList } from './types';
+import { SeeAllScreen } from '../features/home/screens/SeeAllScreen';
+import { TabNavigator } from './TabNavigator';
+import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 /**
- * RootNavigator — mobil (iOS) uygulamanın ekran akışı.
- * CarPlay ayrı bir navigasyon yüzeyidir (src/carplay), burayı kullanmaz.
+ * RootNavigator — kök stack: sekmeler + üstte açılan ekranlar (şov detayı,
+ * tam liste, tam ekran player modal). CarPlay ayrı bir yüzeydir, burayı kullanmaz.
  */
-export const RootNavigator: React.FC = () => (
-  <Stack.Navigator initialRouteName="ShowList">
-    <Stack.Screen
-      name="ShowList"
-      component={ShowListScreen}
-      options={{ title: 'Podcastler' }}
-    />
-    <Stack.Screen name="ShowDetail" component={ShowDetailScreen} />
-    <Stack.Screen
-      name="Player"
-      component={PlayerScreen}
-      options={{ presentation: 'modal', title: 'Şimdi Çalıyor' }}
-    />
-  </Stack.Navigator>
-);
+export const RootNavigator: React.FC = () => {
+  const theme = useTheme();
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: theme.colors.bg },
+        headerTintColor: theme.colors.text,
+        headerTitleStyle: { color: theme.colors.text },
+        contentStyle: { backgroundColor: theme.colors.bg },
+      }}>
+      <Stack.Screen name="Tabs" component={TabNavigator} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="ShowDetail"
+        component={ShowDetailScreen}
+        options={{ headerTransparent: true, title: '' }}
+      />
+      <Stack.Screen name="SeeAll" component={SeeAllScreen} options={{ title: '' }} />
+      <Stack.Screen
+        name="Player"
+        component={PlayerScreen}
+        options={{ presentation: 'modal', title: 'Şimdi Çalıyor' }}
+      />
+    </Stack.Navigator>
+  );
+};

@@ -42,7 +42,16 @@ export class PlaybackProgressRepositoryImpl
   async save(progress: PlaybackProgress): Promise<Result<void>> {
     try {
       const map = this.readAll();
-      map[progress.episodeId] = progress;
+      const existing = map[progress.episodeId];
+      // Gösterim/oynatma meta'sını koru: periyodik kayıt (yalnızca konum) daha
+      // önce doldurulmuş başlık/kapak/audioUrl'i silmesin.
+      map[progress.episodeId] = {
+        ...progress,
+        episodeTitle: progress.episodeTitle ?? existing?.episodeTitle,
+        showId: progress.showId ?? existing?.showId,
+        artworkUrl: progress.artworkUrl ?? existing?.artworkUrl,
+        audioUrl: progress.audioUrl ?? existing?.audioUrl,
+      };
       this.writeAll(map);
       return ok(undefined);
     } catch (error) {

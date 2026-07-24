@@ -2,11 +2,14 @@ import { FEED_CATALOG, env } from '@core/config';
 import { ConsoleLogger } from '@core/logger';
 import {
   ContinueEpisode,
+  GetFollowedShows,
+  GetLatestEpisodes,
   GetPlaybackProgress,
   GetPodcastFeed,
   GetResumeList,
   GetShowCatalog,
   GetShowEpisodes,
+  IsFollowed,
   PausePlayback,
   PlayEpisode,
   ResumePlayback,
@@ -15,8 +18,10 @@ import {
   SetPlaybackRate,
   SkipBy,
   StopPlayback,
+  ToggleFollow,
 } from '@domain/usecases';
 import {
+  FollowRepositoryImpl,
   HybridShowCatalogRepository,
   InMemoryFeedCacheDataSource,
   PlaybackProgressRepositoryImpl,
@@ -69,11 +74,18 @@ export const composeDependencies = (): AppDependencies => {
     { remoteUrl: env.remoteCatalogUrl, ttlMs: env.remoteCatalogTtlMs },
   );
   const progressRepo = new PlaybackProgressRepositoryImpl(storage);
+  const followRepo = new FollowRepositoryImpl(storage);
 
   // domain use case'leri — kataloglar
   const getShowCatalog = new GetShowCatalog(catalogRepo);
   const getPodcastFeed = new GetPodcastFeed(feedRepo, catalogRepo);
   const getShowEpisodes = new GetShowEpisodes(feedRepo, catalogRepo);
+  const getLatestEpisodes = new GetLatestEpisodes(feedRepo);
+
+  // domain use case'leri — takip (follow)
+  const toggleFollow = new ToggleFollow(followRepo);
+  const isFollowed = new IsFollowed(followRepo);
+  const getFollowedShows = new GetFollowedShows(followRepo, catalogRepo);
 
   // domain use case'leri — oynatıcı transport
   const playEpisode = new PlayEpisode(audioPlayer);
@@ -94,6 +106,10 @@ export const composeDependencies = (): AppDependencies => {
     getShowCatalog,
     getPodcastFeed,
     getShowEpisodes,
+    getLatestEpisodes,
+    toggleFollow,
+    isFollowed,
+    getFollowedShows,
     playEpisode,
     pausePlayback,
     resumePlayback,

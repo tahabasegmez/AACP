@@ -1,19 +1,17 @@
 import { Result } from '@core/error';
-import { buildPlaybackProgress } from '../../entities';
+import { PlaybackProgressInfo, buildPlaybackProgress } from '../../entities';
 import { PlaybackProgressRepository } from '../../repositories';
 import { UseCase } from '../UseCase';
 
-export interface SavePlaybackProgressParams {
+export interface SavePlaybackProgressParams extends PlaybackProgressInfo {
   readonly episodeId: string;
   readonly positionSec: number;
   readonly durationSec: number;
 }
 
 /**
- * SavePlaybackProgress — bir bölümün anlık konumunu kaydeder.
- *
- * Oynatma sırasında periyodik olarak (ör. birkaç saniyede bir) ve duraklat/çık
- * anlarında çağrılır. Tamamlanma durumunu entity içinde hesaplar.
+ * SavePlaybackProgress — bir bölümün anlık konumunu (ve varsa gösterim meta'sını)
+ * kaydeder. Oynatma sırasında periyodik ve duraklat/çık anlarında çağrılır.
  */
 export class SavePlaybackProgress
   implements UseCase<SavePlaybackProgressParams, void>
@@ -25,6 +23,13 @@ export class SavePlaybackProgress
       params.episodeId,
       params.positionSec,
       params.durationSec,
+      new Date(),
+      {
+        episodeTitle: params.episodeTitle,
+        showId: params.showId,
+        artworkUrl: params.artworkUrl,
+        audioUrl: params.audioUrl,
+      },
     );
     return this.repo.save(progress);
   }

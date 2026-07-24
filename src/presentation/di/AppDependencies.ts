@@ -1,11 +1,14 @@
 import { AudioPlayerService } from '@domain/services';
 import {
   ContinueEpisode,
+  GetFollowedShows,
+  GetLatestEpisodes,
   GetPlaybackProgress,
   GetPodcastFeed,
   GetResumeList,
   GetShowCatalog,
   GetShowEpisodes,
+  IsFollowed,
   PausePlayback,
   PlayEpisode,
   ResumePlayback,
@@ -14,6 +17,7 @@ import {
   SetPlaybackRate,
   SkipBy,
   StopPlayback,
+  ToggleFollow,
 } from '@domain/usecases';
 
 /**
@@ -31,6 +35,12 @@ export interface AppDependencies {
   readonly getShowCatalog: GetShowCatalog;
   readonly getPodcastFeed: GetPodcastFeed;
   readonly getShowEpisodes: GetShowEpisodes;
+  readonly getLatestEpisodes: GetLatestEpisodes;
+
+  // Takip (follow)
+  readonly toggleFollow: ToggleFollow;
+  readonly isFollowed: IsFollowed;
+  readonly getFollowedShows: GetFollowedShows;
 
   // Oynatıcı transport
   readonly playEpisode: PlayEpisode;

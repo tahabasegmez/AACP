@@ -2,6 +2,12 @@ export * from './UseCase';
 export * from './GetShowCatalog';
 export * from './GetPodcastFeed';
 export * from './GetShowEpisodes';
+export * from './GetLatestEpisodes';
+
+// Takip (follow)
+export * from './follow/ToggleFollow';
+export * from './follow/IsFollowed';
+export * from './follow/GetFollowedShows';
 
 // Player — transport kontrolleri
 export * from './player/PlayEpisode';
