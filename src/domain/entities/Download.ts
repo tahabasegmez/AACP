@@ -1,22 +1,22 @@
 /**
- * Offline indirme modeli — İLERİDE implemente edilecek (mimaride yeri hazır).
+ * Offline indirme modeli.
  *
- * Bölümlerin çevrimdışı dinlenmesi için indirme durumunu domain seviyesinde
- * temsil eder. İlk sürümde yalnızca tip olarak var; `DownloadRepository`
- * implementasyonu sonraki fazda gelecek.
+ * Bir bölümün çevrimdışı dinlenmesi için indirme durumunu ve yerel dosya yolunu
+ * temsil eder. Gösterim/oynatma meta'sı (başlık, showId, kapak, süre) ile
+ * "İndirilenler" listesi feed çekmeden kart gösterebilir ve doğrudan oynatabilir.
  */
-export type DownloadStatus =
-  | 'not_downloaded'
-  | 'queued'
-  | 'downloading'
-  | 'downloaded'
-  | 'failed';
+export type DownloadStatus = 'downloading' | 'downloaded' | 'failed';
 
 export interface DownloadItem {
   readonly episodeId: string;
   readonly status: DownloadStatus;
-  /** 0..1 arası ilerleme. */
-  readonly progress: number;
-  /** İndirildiğinde yerel dosya yolu. */
+  /** İndirildiğinde yerel dosya yolu (mutlak). */
   readonly localPath?: string;
+
+  // Gösterim/oynatma meta'sı:
+  readonly episodeTitle?: string;
+  readonly showId?: string;
+  readonly artworkUrl?: string;
+  readonly durationSec?: number;
+  readonly publishedAt?: string;
 }

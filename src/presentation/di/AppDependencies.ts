@@ -1,6 +1,8 @@
 import { AudioPlayerService } from '@domain/services';
 import {
   ContinueEpisode,
+  DownloadEpisode,
+  GetDownloads,
   GetFollowedShows,
   GetLatestEpisodes,
   GetPlaybackProgress,
@@ -12,6 +14,7 @@ import {
   IsFollowed,
   PausePlayback,
   PlayEpisode,
+  RemoveDownload,
   ResumePlayback,
   SavePlaybackProgress,
   SavePreferences,
@@ -47,6 +50,11 @@ export interface AppDependencies {
   // Tercihler
   readonly getPreferences: GetPreferences;
   readonly savePreferences: SavePreferences;
+
+  // İndirmeler (offline)
+  readonly downloadEpisode: DownloadEpisode;
+  readonly removeDownload: RemoveDownload;
+  readonly getDownloads: GetDownloads;
 
   // Oynatıcı transport
   readonly playEpisode: PlayEpisode;

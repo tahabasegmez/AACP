@@ -10,3 +10,5 @@ export * from './stores';
 export * from './navigation';
 export * from './shared/components';
 export * from './features/player/usePlayEpisode';
+export * from './features/downloads/useDownloads';
+export * from './features/episode/EpisodeSheet';

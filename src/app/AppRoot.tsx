@@ -1,3 +1,4 @@
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import {
   DarkTheme,
   DefaultTheme,
@@ -5,13 +6,16 @@ import {
   Theme as NavTheme,
 } from '@react-navigation/native';
 import React, { useEffect, useMemo, useRef } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   DependencyProvider,
+  EpisodeSheet,
   QueryProvider,
   RootNavigator,
   ThemeProvider,
   useDependencies,
+  useDownloads,
   usePlayerStore,
   usePreferencesStore,
   useSleepTimerStore,
@@ -30,19 +34,34 @@ export const AppRoot: React.FC = () => {
   const dependencies = useMemo(() => getDependencies(), []);
 
   return (
-    <SafeAreaProvider>
-      <DependencyProvider dependencies={dependencies}>
-        <QueryProvider>
-          <PreferencesHydrator />
-          <ThemeProvider>
-            <PlayerStateBridge />
-            <SleepTimerRunner />
-            <Navigation />
-          </ThemeProvider>
-        </QueryProvider>
-      </DependencyProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <DependencyProvider dependencies={dependencies}>
+          <QueryProvider>
+            <PreferencesHydrator />
+            <ThemeProvider>
+              <BottomSheetModalProvider>
+                <PlayerStateBridge />
+                <SleepTimerRunner />
+                <DownloadsHydrator />
+                <Navigation />
+                <EpisodeSheet />
+              </BottomSheetModalProvider>
+            </ThemeProvider>
+          </QueryProvider>
+        </DependencyProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
+};
+
+/** DownloadsHydrator — açılışta indirilenler listesini store'a yükler. */
+const DownloadsHydrator: React.FC = () => {
+  const { hydrate } = useDownloads();
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
+  return null;
 };
 
 /**

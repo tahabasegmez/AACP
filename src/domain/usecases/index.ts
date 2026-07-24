@@ -13,6 +13,11 @@ export * from './follow/GetFollowedShows';
 export * from './preferences/GetPreferences';
 export * from './preferences/SavePreferences';
 
+// İndirmeler (offline)
+export * from './downloads/DownloadEpisode';
+export * from './downloads/RemoveDownload';
+export * from './downloads/GetDownloads';
+
 // Player — transport kontrolleri
 export * from './player/PlayEpisode';
 export * from './player/PausePlayback';

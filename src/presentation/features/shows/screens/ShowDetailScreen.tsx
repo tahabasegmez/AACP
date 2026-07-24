@@ -11,6 +11,7 @@ import { useResumeList, useShowEpisodes } from '../../../query';
 import { useIsFollowed, useToggleFollow } from '../../../query';
 import { EmptyState, ErrorView, LoadingView } from '../../../shared/components';
 import { usePlayEpisode } from '../../player/usePlayEpisode';
+import { useEpisodeSheetStore } from '../../../stores';
 import type { RootStackParamList } from '../../../navigation/types';
 import { EpisodeRow } from '../components/EpisodeRow';
 
@@ -25,6 +26,7 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
   const insets = useSafeAreaInsets();
   const { showId, feedUrl } = route.params;
   const play = usePlayEpisode();
+  const openSheet = useEpisodeSheetStore(s => s.open);
   const [expanded, setExpanded] = useState(false);
 
   const {
@@ -148,7 +150,8 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
         <EpisodeRow
           episode={item}
           progress={progressById.get(item.id)}
-          onPress={() => play(item)}
+          onPress={() => openSheet(item)}
+          onPlay={() => play(item)}
         />
       )}
       onEndReachedThreshold={0.5}

@@ -24,8 +24,11 @@ export const EpisodeRow: React.FC<{
   /** 0..1 arası kaldığın yer; yoksa çubuk gösterilmez. */
   progress?: number;
   completed?: boolean;
+  /** Satıra dokunma → ayrıntı paneli. */
   onPress: () => void;
-}> = ({ episode, progress, completed, onPress }) => {
+  /** Çal ikonu → doğrudan oynat. */
+  onPlay: () => void;
+}> = ({ episode, progress, completed, onPress, onPlay }) => {
   const theme = useTheme();
   const dim = completed ? 0.5 : 1;
 
@@ -33,7 +36,7 @@ export const EpisodeRow: React.FC<{
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={episode.title}
+      accessibilityLabel={`${episode.title} — ayrıntılar`}
       style={{
         flexDirection: 'row',
         gap: theme.spacing(1.5),
@@ -94,7 +97,13 @@ export const EpisodeRow: React.FC<{
           )}
         </View>
       </View>
-      <Icon name="play" size={22} color={theme.colors.text} />
+      <Pressable
+        onPress={onPlay}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Çal">
+        <Icon name="play" size={24} color={theme.colors.text} />
+      </Pressable>
     </Pressable>
   );
 };

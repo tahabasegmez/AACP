@@ -2,6 +2,8 @@ import { FEED_CATALOG, env } from '@core/config';
 import { ConsoleLogger } from '@core/logger';
 import {
   ContinueEpisode,
+  DownloadEpisode,
+  GetDownloads,
   GetFollowedShows,
   GetLatestEpisodes,
   GetPlaybackProgress,
@@ -13,6 +15,7 @@ import {
   IsFollowed,
   PausePlayback,
   PlayEpisode,
+  RemoveDownload,
   ResumePlayback,
   SavePlaybackProgress,
   SavePreferences,
@@ -23,6 +26,7 @@ import {
   ToggleFollow,
 } from '@domain/usecases';
 import {
+  DownloadRepositoryImpl,
   FollowRepositoryImpl,
   HybridShowCatalogRepository,
   InMemoryFeedCacheDataSource,
@@ -33,6 +37,7 @@ import {
   RssFeedDataSource,
 } from '@data';
 import {
+  BlobUtilDownloader,
   FastXmlParser,
   FetchHttpClient,
   RetryingHttpClient,
@@ -79,6 +84,7 @@ export const composeDependencies = (): AppDependencies => {
   const progressRepo = new PlaybackProgressRepositoryImpl(storage);
   const followRepo = new FollowRepositoryImpl(storage);
   const preferencesRepo = new PreferencesRepositoryImpl(storage);
+  const downloadRepo = new DownloadRepositoryImpl(new BlobUtilDownloader(), storage);
 
   // domain use case'leri — kataloglar
   const getShowCatalog = new GetShowCatalog(catalogRepo);
@@ -95,8 +101,14 @@ export const composeDependencies = (): AppDependencies => {
   const getPreferences = new GetPreferences(preferencesRepo);
   const savePreferences = new SavePreferences(preferencesRepo);
 
+  // domain use case'leri — indirmeler (offline)
+  const downloadEpisode = new DownloadEpisode(downloadRepo);
+  const removeDownload = new RemoveDownload(downloadRepo);
+  const getDownloads = new GetDownloads(downloadRepo);
+
   // domain use case'leri — oynatıcı transport
-  const playEpisode = new PlayEpisode(audioPlayer);
+  // PlayEpisode indirilen bölümlerde yerel dosyayı tercih eder (downloadRepo).
+  const playEpisode = new PlayEpisode(audioPlayer, downloadRepo);
   const pausePlayback = new PausePlayback(audioPlayer);
   const resumePlayback = new ResumePlayback(audioPlayer);
   const stopPlayback = new StopPlayback(audioPlayer);
@@ -120,6 +132,9 @@ export const composeDependencies = (): AppDependencies => {
     getFollowedShows,
     getPreferences,
     savePreferences,
+    downloadEpisode,
+    removeDownload,
+    getDownloads,
     playEpisode,
     pausePlayback,
     resumePlayback,

@@ -16,5 +16,7 @@ module.exports = {
         },
       },
     ],
+    // react-native-reanimated v4: worklets plugin EN SONDA olmalı.
+    'react-native-worklets/plugin',
   ],
 };

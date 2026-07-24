@@ -1,6 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { OfflineBar } from '../shared/components';
 import { MiniPlayer } from '../features/player/components/MiniPlayer';
 import { TabNavigator } from './TabNavigator';
 
@@ -26,6 +27,7 @@ export const TabsWithMiniPlayer: React.FC = () => {
           bottom: insets.bottom + TAB_BAR_HEIGHT,
         }}>
         <MiniPlayer />
+        <OfflineBar />
       </View>
     </View>
   );

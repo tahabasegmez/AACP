@@ -16,6 +16,12 @@
   `react-native-carplay` (ses + CarPlay), `react-native-blob-util` (offline indirme).
   Kod içi import'ları yorum satırında; kurulunca aktive edilecek.
 
+- ✅ **Offline & etkileşim (kuruldu, mac'te `pod install`):** `react-native-blob-util`
+  (indirme — [BlobUtilDownloader](../src/infrastructure/download/BlobUtilDownloader.ts) soyutlaması),
+  `@react-native-community/netinfo` (çevrimdışı algılama), `@gorhom/bottom-sheet`
+  (bölüm paneli), `react-native-reanimated@4` (+ peer `react-native-worklets`;
+  babel plugin `react-native-worklets/plugin` en sonda). Reanimated v4 New
+  Architecture gerektirir (RN 0.86 varsayılan).
 - ✅ **UI (Stage 1 — kuruldu, mac'te `pod install`):** `@shopify/flash-list`
   (uzun listeler), `react-native-fast-image` (kapak cache; New-Arch riski için
   [CoverImage](../src/presentation/ui/CoverImage.tsx) soyutlaması), `react-native-vector-icons`

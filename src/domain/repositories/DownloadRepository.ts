@@ -2,16 +2,19 @@ import { Result } from '@core/error';
 import { DownloadItem, Episode } from '../entities';
 
 /**
- * DownloadRepository — offline indirme yönetimi. İLERİDE implemente edilecek.
+ * DownloadRepository — bölüm indirmelerini yönetir (dosya + meta veri).
  *
- * PORT (arayüz). İlk sürümde yalnızca sözleşme olarak var; `data` katmanındaki
- * implementasyonu (react-native-blob-util tabanlı) sonraki fazda gelecek.
- * Şimdilik burada tanımlı olması, UI ve use case'lerin arayüze göre
- * yazılabilmesini sağlar.
+ * PORT. Implementasyon `data` katmanında; indirme motoru (Downloader) ve kalıcı
+ * meta (KeyValueStorage) `infrastructure`'dan enjekte edilir. Domain nerede/nasıl
+ * saklandığını bilmez — ileride motor/depolama değişse arayüz sabit kalır.
  */
 export interface DownloadRepository {
-  getDownload(episodeId: string): Promise<Result<DownloadItem>>;
-  listDownloads(): Promise<Result<readonly DownloadItem[]>>;
-  enqueue(episode: Episode): Promise<Result<DownloadItem>>;
+  /** Tek bölümün indirme kaydı (yoksa null). */
+  get(episodeId: string): Promise<Result<DownloadItem | null>>;
+  /** Tüm indirmeler ("İndirilenler" listesi). */
+  list(): Promise<Result<readonly DownloadItem[]>>;
+  /** Bölümü indirir; tamamlanınca "downloaded" kaydı döner. */
+  download(episode: Episode): Promise<Result<DownloadItem>>;
+  /** İndirmeyi ve dosyayı siler. */
   remove(episodeId: string): Promise<Result<void>>;
 }
