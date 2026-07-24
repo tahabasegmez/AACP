@@ -4,7 +4,7 @@ import { useTheme } from '../theme';
 import { ShowDetailScreen } from '../features/shows/screens/ShowDetailScreen';
 import { PlayerScreen } from '../features/player/screens/PlayerScreen';
 import { SeeAllScreen } from '../features/home/screens/SeeAllScreen';
-import { TabNavigator } from './TabNavigator';
+import { TabsWithMiniPlayer } from './TabsWithMiniPlayer';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -23,7 +23,7 @@ export const RootNavigator: React.FC = () => {
         headerTitleStyle: { color: theme.colors.text },
         contentStyle: { backgroundColor: theme.colors.bg },
       }}>
-      <Stack.Screen name="Tabs" component={TabNavigator} options={{ headerShown: false }} />
+      <Stack.Screen name="Tabs" component={TabsWithMiniPlayer} options={{ headerShown: false }} />
       <Stack.Screen
         name="ShowDetail"
         component={ShowDetailScreen}

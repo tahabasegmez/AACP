@@ -74,7 +74,7 @@ export const HomeScreen: React.FC = () => {
   return (
     <Screen>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: theme.spacing(4) }}
+        contentContainerStyle={{ paddingBottom: theme.spacing(10) }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

@@ -121,6 +121,17 @@ cd ios && pod repo update && pod install
 rm -rf Pods Podfile.lock && pod install
 ```
 
+**"unable to open base configuration file" (BVLinearGradient, RNFastImage,
+SDWebImage, libwebp, RNVectorIcons/Ionicons ...)**
+Yeni native paket eklendi ama `pod install` çalıştırılmadı → o pod'ların
+`.xcconfig` (base configuration) dosyaları oluşmamış. Çözüm:
+```sh
+cd ios && pod install       # olmazsa: rm -rf Pods Podfile.lock && pod install --repo-update
+```
+Sonra **`AACP.xcworkspace`** ile aç (`.xcodeproj` DEĞİL) ve Product → Clean Build
+Folder yap. **Kural:** `git pull` sonrası bağımlılık değiştiyse `pod install`
+tekrarlanmalı (`npm install` native tarafı bağlamaz).
+
 **Metro / cache tuhaflıkları**
 ```sh
 npm start -- --reset-cache
