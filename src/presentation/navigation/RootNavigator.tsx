@@ -30,7 +30,7 @@ export const RootNavigator: React.FC = () => {
         component={ShowDetailScreen}
         options={{ headerShown: false }}
       />
-      <Stack.Screen name="SeeAll" component={SeeAllScreen} options={{ title: '' }} />
+      <Stack.Screen name="SeeAll" component={SeeAllScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
       <Stack.Screen
         name="Player"

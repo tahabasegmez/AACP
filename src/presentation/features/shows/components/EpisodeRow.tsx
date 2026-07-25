@@ -44,6 +44,7 @@ export const EpisodeRow: React.FC<{
         paddingHorizontal: theme.spacing(2),
         borderTopWidth: 1,
         borderTopColor: theme.colors.divider,
+        backgroundColor: theme.colors.bg,
         opacity: dim,
       }}>
       <View style={{ flex: 1, minWidth: 0 }}>

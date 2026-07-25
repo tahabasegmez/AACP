@@ -18,12 +18,14 @@
 
 - ✅ **Offline & etkileşim (kuruldu, mac'te `pod install`):** `react-native-blob-util`
   (indirme — [BlobUtilDownloader](../src/infrastructure/download/BlobUtilDownloader.ts) soyutlaması),
-  `@react-native-community/netinfo` (çevrimdışı algılama).
-  - **Not:** Kapak-rengi arka planlar için `react-native-image-colors` KULLANILMIYOR
-    (v2 Expo Modules altyapısı gerektiriyor). Bunun yerine native-dep'siz
-    [HashImagePalette](../src/infrastructure/image/HashImagePalette.ts) — kapak URL'inden
-    deterministik marka-uyumlu renk türetir. ImagePalette portu arkasında; ileride
-    gerçek piksel rengi istenirse yalnızca bu adaptör değişir.
+  `@react-native-community/netinfo` (çevrimdışı algılama), `react-native-image-colors`
+  (+ `expo-modules-core`) — kapağın GERÇEK baskın rengi.
+  - **Kapak rengi:** [ImageColorsPalette](../src/infrastructure/image/ImageColorsPalette.ts)
+    gerçek pikselden rengi çıkarır ve arka plan için koyulaştırır. Native/Expo kurulu
+    değilse HATA YUTULUR ve deterministik [HashImagePalette](../src/infrastructure/image/HashImagePalette.ts)
+    rengine düşer (crash yok). Mac'te gerçek renk için tek seferlik kurulum:
+    `npx install-expo-modules` + `pod install` (bkz. IOS_SETUP.md). ImagePalette portu
+    arkasında; ikisi de tek dosyada değiştirilebilir.
   - **Not:** Bölüm/not panelleri için `@gorhom/bottom-sheet` + `react-native-reanimated`
     kullanılmıyor. RN 0.86 + reanimated v4/worklets native uyum sorunları çıkardığı
     için, ağır bağımlılık yerine **saf React Native** ([ui/BottomSheet](../src/presentation/ui/BottomSheet.tsx),

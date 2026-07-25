@@ -46,6 +46,12 @@ git clone https://github.com/tahabasegmez/AACP.git
 cd AACP
 
 npm install          # .npmrc sayesinde legacy-peer-deps otomatik
+
+# Kapak-rengi arka planlar için Expo Modules altyapısı (tek seferlik).
+# react-native-image-colors gerçek piksel rengini bununla okur.
+# Yapmazsan uygulama yine çalışır: renk deterministik türetilmiş moda düşer.
+npx install-expo-modules@latest
+
 cd ios && pod install && cd ..
 ```
 

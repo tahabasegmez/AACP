@@ -1,10 +1,11 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FlashList } from '@shopify/flash-list';
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { Episode, PlaybackProgress, Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { EmptyState, LoadingView } from '../../../shared/components';
+import { ImmersiveHeader } from '../../../ui';
 import {
   useFollowedShows,
   useLatestEpisodes,
@@ -31,17 +32,16 @@ const progressToEpisode = (p: PlaybackProgress): Episode => ({
   imageUrl: p.artworkUrl,
 });
 
-/** SeeAll — bir carousel'in tam dikey listesi (şovlar grid, bölümler liste). */
-export const SeeAllScreen: React.FC<Props> = ({ route, navigation: nav }) => {
+/**
+ * SeeAll — bir carousel'in tam dikey listesi (şovlar grid, bölümler liste).
+ * Native header yerine ImmersiveHeader (island'a kadar tam ekran, dairesiz geri).
+ */
+export const SeeAllScreen: React.FC<Props> = ({ route }) => {
   const { kind, title } = route.params;
   const theme = useTheme();
   const navigation = useAppNavigation();
   const play = usePlayEpisode();
   const { width } = useWindowDimensions();
-
-  useEffect(() => {
-    nav.setOptions({ title });
-  }, [nav, title]);
 
   const shows = useShowsQuery();
   const resume = useResumeList();
@@ -70,73 +70,84 @@ export const SeeAllScreen: React.FC<Props> = ({ route, navigation: nav }) => {
       title: show.title,
     });
 
-  if (kind === 'shows') {
-    if (shows.isLoading) {
+  const renderBody = () => {
+    if (kind === 'shows') {
+      if (shows.isLoading) {
+        return <LoadingView />;
+      }
+      return (
+        <ScrollView
+          contentInsetAdjustmentBehavior="never"
+          contentContainerStyle={{ padding: pad, paddingBottom: theme.spacing(12) }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
+            {(shows.data ?? []).map(s => (
+              <ShowCard key={s.id} show={s} width={colW} onPress={() => openShow(s)} />
+            ))}
+          </View>
+        </ScrollView>
+      );
+    }
+
+    if (kind === 'continue') {
+      const items = (resume.data ?? []).filter(p => p.audioUrl);
+      if (items.length === 0) {
+        return <EmptyState title="Liste boş" description="Yarıda bıraktığın bölüm yok." />;
+      }
+      return (
+        <FlashList
+          data={items}
+          keyExtractor={p => p.episodeId}
+          contentInsetAdjustmentBehavior="never"
+          contentContainerStyle={{ padding: pad, paddingBottom: theme.spacing(12) }}
+          ItemSeparatorComponent={() => <View style={{ height: gap }} />}
+          renderItem={({ item }) => (
+            <ContinueCard
+              progress={item}
+              width={fullW}
+              showTitle={showById.get(item.showId ?? '')?.title ?? ''}
+              onPress={() => play(progressToEpisode(item))}
+            />
+          )}
+        />
+      );
+    }
+
+    // latest
+    const items = latest.data ?? [];
+    if (latest.isLoading) {
       return <LoadingView />;
     }
-    return (
-      <ScrollView
-        style={{ flex: 1, backgroundColor: theme.colors.bg }}
-        contentContainerStyle={{ padding: pad }}>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
-          {(shows.data ?? []).map(s => (
-            <ShowCard key={s.id} show={s} width={colW} onPress={() => openShow(s)} />
-          ))}
-        </View>
-      </ScrollView>
-    );
-  }
-
-  if (kind === 'continue') {
-    const items = (resume.data ?? []).filter(p => p.audioUrl);
     if (items.length === 0) {
-      return <EmptyState title="Liste boş" description="Yarıda bıraktığın bölüm yok." />;
+      return (
+        <EmptyState
+          title="Henüz yok"
+          description="Takip ettiğin şovlardan yeni bölüm geldiğinde burada listelenir."
+        />
+      );
     }
     return (
       <FlashList
         data={items}
-        keyExtractor={p => p.episodeId}
-        contentContainerStyle={{ padding: pad }}
+        keyExtractor={ep => ep.id}
+        contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={{ padding: pad, paddingBottom: theme.spacing(12) }}
         ItemSeparatorComponent={() => <View style={{ height: gap }} />}
         renderItem={({ item }) => (
-          <ContinueCard
-            progress={item}
+          <EpisodeCard
+            episode={item}
             width={fullW}
-            showTitle={showById.get(item.showId ?? '')?.title ?? ''}
-            onPress={() => play(progressToEpisode(item))}
+            showTitle={showById.get(item.showId)?.title ?? ''}
+            onPress={() => play(item)}
           />
         )}
       />
     );
-  }
+  };
 
-  // latest
-  const items = latest.data ?? [];
-  if (latest.isLoading) {
-    return <LoadingView />;
-  }
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        title="Henüz yok"
-        description="Takip ettiğin şovlardan yeni bölüm geldiğinde burada listelenir."
-      />
-    );
-  }
   return (
-    <FlashList
-      data={items}
-      keyExtractor={ep => ep.id}
-      contentContainerStyle={{ padding: pad }}
-      ItemSeparatorComponent={() => <View style={{ height: gap }} />}
-      renderItem={({ item }) => (
-        <EpisodeCard
-          episode={item}
-          width={fullW}
-          showTitle={showById.get(item.showId)?.title ?? ''}
-          onPress={() => play(item)}
-        />
-      )}
-    />
+    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      <ImmersiveHeader title={title} onBack={() => navigation.goBack()} />
+      {renderBody()}
+    </View>
   );
 };

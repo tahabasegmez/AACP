@@ -16,16 +16,17 @@ export const HomeHeader: React.FC = () => {
   return (
     <LinearGradient
       colors={[theme.colors.brand, theme.colors.bg]}
+      locations={[0, 0.95]}
       style={{
-        paddingTop: insets.top + theme.spacing(1.5),
-        paddingBottom: theme.spacing(3),
+        paddingTop: insets.top + theme.spacing(2),
+        paddingBottom: theme.spacing(5),
         alignItems: 'center',
       }}>
       <View accessibilityRole="header" accessibilityLabel="AA Podcast">
         <Image
           source={AA_LOGO}
           resizeMode="contain"
-          style={{ width: 168, height: 52 }}
+          style={{ width: 240, height: 132 }}
         />
       </View>
     </LinearGradient>

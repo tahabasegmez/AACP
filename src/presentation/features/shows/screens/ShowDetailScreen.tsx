@@ -65,26 +65,22 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
   const BackButton = (
     <Pressable
       onPress={() => navigation.goBack()}
-      hitSlop={12}
+      hitSlop={16}
       accessibilityRole="button"
       accessibilityLabel="Geri"
-      style={{ position: 'absolute', top: insets.top + 4, left: theme.spacing(1.5), zIndex: 10 }}>
-      <View
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 17,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: 'rgba(0,0,0,0.35)',
-        }}>
-        <Icon name="chevron-back" size={22} color="#FFFFFF" />
-      </View>
+      style={{ position: 'absolute', top: insets.top + 6, left: theme.spacing(1.5), zIndex: 10 }}>
+      <Icon name="chevron-back" size={28} color="#FFFFFF" />
     </Pressable>
   );
 
   const wrap = (body: React.ReactNode) => (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      {/* Sabit full-bleed backdrop: island dahil en üstten başlar, kapağın rengine göre */}
+      <CoverGradient
+        uri={show?.imageUrl}
+        locations={[0, 0.4, 0.62]}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+      />
       {body}
       {BackButton}
       <TextSheet
@@ -105,8 +101,7 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
 
   const Header = (
     <View>
-      <CoverGradient
-        uri={show?.imageUrl}
+      <View
         style={{
           paddingTop: insets.top + theme.spacing(6),
           paddingBottom: theme.spacing(2),
@@ -167,7 +162,7 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
             <Icon name="play" size={24} color={theme.colors.onAccent} />
           </Pressable>
         </View>
-      </CoverGradient>
+      </View>
     </View>
   );
 

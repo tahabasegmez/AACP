@@ -6,6 +6,7 @@ export * from './Skeleton';
 export * from './Seekbar';
 export * from './Screen';
 export * from './ScreenHeader';
+export * from './ImmersiveHeader';
 export * from './SearchField';
 export * from './BottomSheet';
 export * from './TextSheet';

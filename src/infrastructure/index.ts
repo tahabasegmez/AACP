@@ -11,3 +11,4 @@ export * from './storage/MmkvKeyValueStorage';
 export * from './storage/createPersistentStorage';
 export * from './download/BlobUtilDownloader';
 export * from './image/HashImagePalette';
+export * from './image/ImageColorsPalette';

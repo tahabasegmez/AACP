@@ -75,6 +75,7 @@ export const HomeScreen: React.FC = () => {
   return (
     <Screen edges={{ top: false }}>
       <ScrollView
+        contentInsetAdjustmentBehavior="never"
         contentContainerStyle={{ paddingBottom: theme.spacing(10) }}
         refreshControl={
           <RefreshControl

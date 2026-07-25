@@ -43,7 +43,7 @@ import {
   BlobUtilDownloader,
   FastXmlParser,
   FetchHttpClient,
-  HashImagePalette,
+  ImageColorsPalette,
   RetryingHttpClient,
   TrackPlayerAudioService,
   createPersistentStorage,
@@ -69,7 +69,7 @@ export const composeDependencies = (): AppDependencies => {
   );
   const xmlParser = new FastXmlParser();
   const audioPlayer = new TrackPlayerAudioService();
-  const imagePalette = new HashImagePalette();
+  const imagePalette = new ImageColorsPalette();
   // Cihazda MMKV (kalıcı); MMKV yoksa bellek-içi'ne güvenle düşer.
   const storage = createPersistentStorage(logger);
 
