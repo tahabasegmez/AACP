@@ -96,7 +96,11 @@ const mapShow = (channel: RssChannelDto, feedUrl: string, id: string): Show => (
   websiteUrl: channel.link,
 });
 
-const mapEpisode = (item: RssItemDto, showId: string): Episode | null => {
+const mapEpisode = (
+  item: RssItemDto,
+  showId: string,
+  showImageUrl?: string,
+): Episode | null => {
   const audioUrl = item.enclosure?.url;
   if (!audioUrl) {
     return null; // ses dosyası (enclosure) olmayan item atlanır
@@ -113,7 +117,8 @@ const mapEpisode = (item: RssItemDto, showId: string): Episode | null => {
     mimeType: item.enclosure?.type,
     durationSec: parseItunesDuration(item['itunes:duration']),
     publishedAt: toIso(item.pubDate),
-    imageUrl: item['itunes:image']?.href,
+    // Bölümün kendi kapağı yoksa şovun kapağına düş.
+    imageUrl: item['itunes:image']?.href ?? showImageUrl,
     episodeNumber: numberOrUndefined(item['itunes:episode']),
     season: numberOrUndefined(item['itunes:season']),
     fileSizeBytes: numberOrUndefined(item.enclosure?.length),
@@ -145,7 +150,7 @@ export const mapRssFeedToPodcastFeed = (
   const id = slugFromFeedUrl(feedUrl);
   const show = mapShow(channel, feedUrl, id);
   const mapped = asArray(channel.item)
-    .map(item => mapEpisode(item, id))
+    .map(item => mapEpisode(item, id, show.imageUrl))
     .filter((e): e is Episode => e !== null);
   return { show, episodes: ensureUniqueIds(mapped) };
 };

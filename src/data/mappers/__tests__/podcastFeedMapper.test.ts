@@ -146,6 +146,18 @@ describe('mapRssFeedToPodcastFeed — dayanıklılık', () => {
     expect(new Set(ids).size).toBe(3); // hepsi benzersiz
   });
 
+  it('bölüm kapağı yoksa şov kapağına düşer', () => {
+    const xml = `<?xml version="1.0"?><rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel>
+      <title>X</title>
+      <itunes:image href="https://cdn/show.jpg"/>
+      <item><title>Kapaksız</title><guid>g1</guid><enclosure url="https://m/1.mp3" type="audio/mpeg"/></item>
+      <item><title>Kapaklı</title><guid>g2</guid><itunes:image href="https://cdn/ep.jpg"/><enclosure url="https://m/2.mp3" type="audio/mpeg"/></item>
+    </channel></rss>`;
+    const eps = mapFrom(xml).episodes;
+    expect(eps[0].imageUrl).toBe('https://cdn/show.jpg'); // fallback
+    expect(eps[1].imageUrl).toBe('https://cdn/ep.jpg'); // kendi kapağı
+  });
+
   it('büyük feed (1500 bölüm) doğru ve eksiksiz map edilir', () => {
     const items = Array.from({ length: 1500 }, (_, i) =>
       `<item><title>Bölüm ${i}</title><guid>g${i}</guid>` +

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Modal,
@@ -12,9 +12,11 @@ import { useTheme } from '../theme';
 
 /**
  * BottomSheet — aşağıdan yukarıya kayan, sürükleyip/arka plana dokunup kapatılan
- * panel. Saf React Native (Modal + Animated + PanResponder) ile; ağır native
- * bağımlılık (reanimated/gorhom) GEREKTİRMEZ. Tam ekran modal Player'ın üstünde
- * de sorunsuz açılır.
+ * panel. TEK yerde tanımlı; her kullanan (EpisodeSheet, notlar, açıklama) çağırır.
+ *
+ * Karartma (backdrop) panelle birlikte YUKARI KAYMAZ — yerinde yavaşça belirir;
+ * yalnızca panel aşağıdan kayar. Saf React Native (Modal + Animated + PanResponder),
+ * ağır native bağımlılık gerektirmez.
  */
 export const BottomSheet: React.FC<{
   visible: boolean;
@@ -25,7 +27,26 @@ export const BottomSheet: React.FC<{
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
-  const translateY = useRef(new Animated.Value(0)).current;
+
+  const [mounted, setMounted] = useState(visible);
+  const backdrop = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(height)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      Animated.parallel([
+        Animated.timing(backdrop, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 2 }),
+      ]).start();
+    } else if (mounted) {
+      Animated.parallel([
+        Animated.timing(backdrop, { toValue: 0, duration: 200, useNativeDriver: true }),
+        Animated.timing(translateY, { toValue: height, duration: 220, useNativeDriver: true }),
+      ]).start(() => setMounted(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   const pan = useRef(
     PanResponder.create({
@@ -38,7 +59,6 @@ export const BottomSheet: React.FC<{
       onPanResponderRelease: (_e, g) => {
         if (g.dy > 120) {
           onClose();
-          translateY.setValue(0);
         } else {
           Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
         }
@@ -46,9 +66,15 @@ export const BottomSheet: React.FC<{
     }),
   ).current;
 
+  if (!mounted) {
+    return null;
+  }
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: theme.colors.overlay }} onPress={onClose} />
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+      <Animated.View style={{ flex: 1, backgroundColor: theme.colors.overlay, opacity: backdrop }}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+      </Animated.View>
       <Animated.View
         style={{
           position: 'absolute',

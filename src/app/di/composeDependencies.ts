@@ -43,6 +43,7 @@ import {
   BlobUtilDownloader,
   FastXmlParser,
   FetchHttpClient,
+  ImageColorsPalette,
   RetryingHttpClient,
   TrackPlayerAudioService,
   createPersistentStorage,
@@ -68,6 +69,7 @@ export const composeDependencies = (): AppDependencies => {
   );
   const xmlParser = new FastXmlParser();
   const audioPlayer = new TrackPlayerAudioService();
+  const imagePalette = new ImageColorsPalette();
   // Cihazda MMKV (kalıcı); MMKV yoksa bellek-içi'ne güvenle düşer.
   const storage = createPersistentStorage(logger);
 
@@ -140,6 +142,7 @@ export const composeDependencies = (): AppDependencies => {
     getFollowedShows,
     getPreferences,
     savePreferences,
+    imagePalette,
     downloadEpisode,
     removeDownload,
     getDownloads,

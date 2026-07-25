@@ -3,4 +3,5 @@ export * from './useShowsQuery';
 export * from './useShowEpisodes';
 export * from './useHomeData';
 export * from './useLibraryData';
+export * from './useCoverColor';
 export * from './QueryProvider';

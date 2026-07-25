@@ -72,6 +72,12 @@ export const LibraryScreen: React.FC = () => {
     });
 
   const empty = savedList.length === 0 && followedList.length === 0 && downloadsList.length === 0;
+  // Kütüphanede hiç içerik yok mu (filtreden önce)? Öyleyse arama kutusunu gizle
+  // ki "boş" mesajı ekranın tam ortasına gelsin.
+  const hasAnyLibrary =
+    (saved.data?.length ?? 0) > 0 ||
+    (followed.data?.length ?? 0) > 0 ||
+    Object.values(items).some(d => d.status === 'downloaded');
 
   return (
     <Screen>
@@ -87,7 +93,7 @@ export const LibraryScreen: React.FC = () => {
           </Pressable>
         }
       />
-      <SearchField value={q} onChangeText={setQ} placeholder="Kütüphanende ara" />
+      {hasAnyLibrary && <SearchField value={q} onChangeText={setQ} placeholder="Kütüphanende ara" />}
 
       {empty ? (
         <EmptyState

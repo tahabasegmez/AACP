@@ -10,11 +10,19 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { formatDuration } from '@core/utils';
+import { formatDuration, stripHtml } from '@core/utils';
 import { useTheme } from '../../../theme';
-import { CoverImage, Icon, IconName, Seekbar, Text } from '../../../ui';
+import {
+  CoverGradient,
+  CoverImage,
+  Icon,
+  IconName,
+  Seekbar,
+  Text,
+  TextSheet,
+  useHeroCoverSize,
+} from '../../../ui';
 import { useDependencies } from '../../../di';
 import { usePlayerStore, useSleepTimerStore } from '../../../stores';
 import { useIsFollowed, useToggleFollow } from '../../../query';
@@ -22,7 +30,6 @@ import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { usePlaybackController } from '../usePlaybackController';
 import { useDownloads, useDownloadStatus } from '../../downloads/useDownloads';
 import { SkipButton } from '../components/SkipButton';
-import { NotesSheet } from '../components/NotesSheet';
 
 const SPEEDS = [1, 1.25, 1.5, 1.75, 2];
 const SLEEP_OPTIONS: ReadonlyArray<{ label: string; minutes: number }> = [
@@ -113,22 +120,21 @@ export const PlayerScreen: React.FC = () => {
   const getPosition = () => usePlayerStore.getState().playback.positionSec;
   const getDuration = () => usePlayerStore.getState().playback.durationSec;
   const doSeek = (sec: number) => seekTo.execute({ positionSec: sec });
+  const coverSize = useHeroCoverSize();
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.brand }}>
+    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <LinearGradient
-        colors={[theme.colors.brand, theme.colors.elevated, theme.colors.bg]}
-        locations={[0, 0.5, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      {/* Arka plan: kapağın baskın renginden tema zeminine degrade */}
+      <CoverGradient uri={episode?.imageUrl} style={StyleSheet.absoluteFill} />
+
       <View style={{ flex: 1, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12, paddingHorizontal: theme.spacing(3) }}>
         {/* Üst bar */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Pressable onPress={() => navigation.goBack()} hitSlop={10} accessibilityLabel="Kapat">
             <Icon name="chevron-down" size={26} color={theme.colors.text} />
           </Pressable>
-          <Text variant="label" color={theme.colors.textMuted} uppercase numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
+          <Text variant="label" color={theme.colors.text} uppercase numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
             AA PODCAST
           </Text>
           <Pressable onPress={() => showHint('Yakında: Seçenekler')} hitSlop={10} accessibilityLabel="Seçenekler">
@@ -136,12 +142,13 @@ export const PlayerScreen: React.FC = () => {
           </Pressable>
         </View>
 
-        {/* Oynatıcı kümesi (kalan alanı doldurur, dikeyde ortalar) */}
-        <View style={{ flex: 1, justifyContent: 'center' }}>
-          <View style={{ alignItems: 'center', marginBottom: theme.spacing(3) }}>
-            <CoverImage uri={episode?.imageUrl} size={230} radius={theme.radius.lg} />
-          </View>
+        {/* Kapak: AA PODCAST ile başlık arasında ortalanır (kalan alanı doldurur) */}
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <CoverImage uri={episode?.imageUrl} size={coverSize} radius={theme.radius.lg} />
+        </View>
 
+        {/* Alt küme — sabit düzen (her bölümde aynı) */}
+        <View>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing(1.5) }}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text variant="heading" numberOfLines={2}>
@@ -162,7 +169,7 @@ export const PlayerScreen: React.FC = () => {
             )}
           </View>
 
-          <View style={{ marginTop: theme.spacing(2.5) }}>
+          <View style={{ marginTop: theme.spacing(2) }}>
             <Seekbar
               positionSec={playback.positionSec}
               durationSec={playback.durationSec}
@@ -175,7 +182,7 @@ export const PlayerScreen: React.FC = () => {
             </View>
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing(3.5), marginTop: theme.spacing(1.5) }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing(3.5), marginTop: theme.spacing(1) }}>
             <SkipButton direction="back" onTap={() => previous(playback.positionSec)} onSeekTo={doSeek} getPosition={getPosition} getDuration={getDuration} />
             <Pressable
               onPress={() => (isPlaying ? pausePlayback.execute() : resumePlayback.execute())}
@@ -191,50 +198,54 @@ export const PlayerScreen: React.FC = () => {
             <SkipButton direction="forward" onTap={next} onSeekTo={doSeek} getPosition={getPosition} getDuration={getDuration} />
           </View>
 
-          {!!hint && (
-            <Text variant="caption" color={theme.colors.textMuted} style={{ textAlign: 'center', marginTop: theme.spacing(1.5) }}>
-              {hint}
+          {(sleepRemainingMin != null && sleepRemainingMin > 0) || hint ? (
+            <Text variant="caption" color={hint ? theme.colors.textMuted : theme.colors.accent} style={{ textAlign: 'center', marginTop: theme.spacing(1) }}>
+              {hint || `Uyku zamanlayıcı: ~${sleepRemainingMin} dk`}
             </Text>
-          )}
-          {sleepRemainingMin != null && sleepRemainingMin > 0 && (
-            <Text variant="caption" color={theme.colors.accent} style={{ textAlign: 'center', marginTop: theme.spacing(1) }}>
-              Uyku zamanlayıcı: ~{sleepRemainingMin} dk
-            </Text>
-          )}
-        </View>
+          ) : null}
 
-        {/* Araçlar — en altta */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Pressable
-            onPress={cycleSpeed}
-            hitSlop={8}
-            accessibilityLabel={`Oynatma hızı ${playback.rate}x`}
-            style={{ backgroundColor: theme.colors.accentSoft, paddingVertical: 6, paddingHorizontal: theme.spacing(1.5), borderRadius: theme.radius.pill }}>
-            <Text variant="subtitle" color={theme.colors.accent}>{playback.rate}×</Text>
-          </Pressable>
-          <View style={{ flexDirection: 'row', gap: theme.spacing(2.5) }}>
-            <Tool icon="timer" label="Uyku" active={sleepEndsAt != null} onPress={openSleepTimer} />
-            <Tool icon="list" label="Kuyruk" onPress={() => showHint('Yakında: Kuyruk')} />
-            <Tool
-              icon={dlStatus === 'downloaded' ? 'downloaded' : 'download'}
-              label="İndir"
-              active={dlStatus === 'downloaded'}
-              busy={dlStatus === 'downloading'}
-              onPress={onDownload}
-            />
-            <Tool icon="cast" label="Cihaz" onPress={() => showHint('Yakında: Cihaz')} />
-            {!!episode?.description && (
-              <Tool icon="info" label="Bölüm notları" onPress={() => setNotesOpen(true)} />
-            )}
-            <Tool icon="share" label="Paylaş" onPress={() => episode && Share.share({ message: `${episode.title} — Anadolu Ajansı Podcast` }).catch(() => {})} />
+          {/* Bölüm notları — başlat/butonlar ile alt araçlar arasında, önizlemeli */}
+          {!!episode?.description && (
+            <Pressable onPress={() => setNotesOpen(true)} style={{ marginTop: theme.spacing(1.75) }}>
+              <Text variant="caption" color={theme.colors.textMuted} numberOfLines={2}>
+                {stripHtml(episode.description)}
+              </Text>
+              <Text variant="caption" color={theme.colors.text} style={{ marginTop: 2 }}>
+                devamını oku…
+              </Text>
+            </Pressable>
+          )}
+
+          {/* Araçlar — en altta */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: theme.spacing(2) }}>
+            <Pressable
+              onPress={cycleSpeed}
+              hitSlop={8}
+              accessibilityLabel={`Oynatma hızı ${playback.rate}x`}
+              style={{ backgroundColor: theme.colors.accentSoft, paddingVertical: 6, paddingHorizontal: theme.spacing(1.5), borderRadius: theme.radius.pill }}>
+              <Text variant="subtitle" color={theme.colors.accent}>{playback.rate}×</Text>
+            </Pressable>
+            <View style={{ flexDirection: 'row', gap: theme.spacing(2.5) }}>
+              <Tool icon="timer" label="Uyku" active={sleepEndsAt != null} onPress={openSleepTimer} />
+              <Tool icon="list" label="Kuyruk" onPress={() => showHint('Yakında: Kuyruk')} />
+              <Tool
+                icon={dlStatus === 'downloaded' ? 'downloaded' : 'download'}
+                label="İndir"
+                active={dlStatus === 'downloaded'}
+                busy={dlStatus === 'downloading'}
+                onPress={onDownload}
+              />
+              <Tool icon="cast" label="Cihaz" onPress={() => showHint('Yakında: Cihaz')} />
+              <Tool icon="share" label="Paylaş" onPress={() => episode && Share.share({ message: `${episode.title} — Anadolu Ajansı Podcast` }).catch(() => {})} />
+            </View>
           </View>
         </View>
       </View>
 
-      <NotesSheet
+      <TextSheet
         visible={notesOpen}
         title="Bölüm notları"
-        notes={episode?.description ?? ''}
+        text={episode?.description ?? ''}
         onClose={() => setNotesOpen(false)}
       />
     </View>

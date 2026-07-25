@@ -1,20 +1,20 @@
 import React from 'react';
 import { ScrollView } from 'react-native';
-import { useTheme } from '../../../theme';
-import { BottomSheet, Text } from '../../../ui';
-
-const stripHtml = (html: string): string =>
-  html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+import { stripHtml } from '@core/utils';
+import { useTheme } from '../theme';
+import { BottomSheet } from './BottomSheet';
+import { Text } from './Text';
 
 /**
- * NotesSheet — bölüm notlarını aşağıdan kayan panelde gösterir (ortak BottomSheet).
+ * TextSheet — başlık + uzun (HTML olabilen) metni aşağıdan kayan panelde gösterir.
+ * Bölüm notları ve şov açıklaması gibi yerlerde ortak kullanılır (ortak BottomSheet).
  */
-export const NotesSheet: React.FC<{
+export const TextSheet: React.FC<{
   visible: boolean;
   title: string;
-  notes: string;
+  text: string;
   onClose: () => void;
-}> = ({ visible, title, notes, onClose }) => {
+}> = ({ visible, title, text, onClose }) => {
   const theme = useTheme();
   return (
     <BottomSheet visible={visible} onClose={onClose} maxHeightRatio={0.7}>
@@ -23,7 +23,7 @@ export const NotesSheet: React.FC<{
       </Text>
       <ScrollView contentContainerStyle={{ padding: theme.spacing(2.5), paddingTop: theme.spacing(1.5) }}>
         <Text variant="body" color={theme.colors.textMuted}>
-          {stripHtml(notes)}
+          {stripHtml(text)}
         </Text>
       </ScrollView>
     </BottomSheet>

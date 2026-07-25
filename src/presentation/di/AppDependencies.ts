@@ -1,3 +1,4 @@
+import { ImagePalette } from '@core/ports';
 import { AudioPlayerService } from '@domain/services';
 import {
   ContinueEpisode,
@@ -79,4 +80,7 @@ export interface AppDependencies {
 
   // Oynatıcı servisi (durum köprüsü için)
   readonly audioPlayer: AudioPlayerService;
+
+  // Kapak görselinden baskın renk (arka plan renklendirme)
+  readonly imagePalette: ImagePalette;
 }

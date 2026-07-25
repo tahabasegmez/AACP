@@ -3,10 +3,9 @@ import { FlashList } from '@shopify/flash-list';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import LinearGradient from 'react-native-linear-gradient';
 import { Episode } from '@domain/entities';
 import { useTheme } from '../../../theme';
-import { CoverImage, Icon, Text } from '../../../ui';
+import { CoverGradient, CoverImage, Icon, Text, TextSheet, useHeroCoverSize } from '../../../ui';
 import { useResumeList, useShowEpisodes } from '../../../query';
 import { useIsFollowed, useToggleFollow } from '../../../query';
 import { EmptyState, ErrorView, LoadingView } from '../../../shared/components';
@@ -29,7 +28,8 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
   const { showId, feedUrl } = route.params;
   const play = usePlayEpisode();
   const openSheet = useEpisodeSheetStore(s => s.open);
-  const [expanded, setExpanded] = useState(false);
+  const coverSize = useHeroCoverSize();
+  const [descOpen, setDescOpen] = useState(false);
 
   const {
     data,
@@ -87,6 +87,12 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       {body}
       {BackButton}
+      <TextSheet
+        visible={descOpen}
+        title={show?.title ?? 'Açıklama'}
+        text={show?.description ?? ''}
+        onClose={() => setDescOpen(false)}
+      />
     </View>
   );
 
@@ -99,14 +105,14 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
 
   const Header = (
     <View>
-      <LinearGradient
-        colors={[theme.colors.brand, theme.colors.elevated, theme.colors.bg]}
+      <CoverGradient
+        uri={show?.imageUrl}
         style={{
           paddingTop: insets.top + theme.spacing(6),
           paddingBottom: theme.spacing(2),
           alignItems: 'center',
         }}>
-        <CoverImage uri={show?.imageUrl} size={160} radius={theme.radius.md} />
+        <CoverImage uri={show?.imageUrl} size={coverSize} radius={theme.radius.md} />
         <Text variant="title" style={{ marginTop: theme.spacing(2), textAlign: 'center', paddingHorizontal: theme.spacing(2) }}>
           {show?.title ?? route.params.title ?? ''}
         </Text>
@@ -115,13 +121,16 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
           {show?.categories?.length ? ` · ${show.categories[0]}` : ''}
         </Text>
         {!!show?.description && (
-          <Pressable onPress={() => setExpanded(v => !v)} style={{ paddingHorizontal: theme.spacing(2.5) }}>
+          <Pressable onPress={() => setDescOpen(true)} style={{ paddingHorizontal: theme.spacing(2.5) }}>
             <Text
               variant="caption"
               color={theme.colors.textMuted}
-              numberOfLines={expanded ? undefined : 2}
+              numberOfLines={3}
               style={{ textAlign: 'center', marginTop: theme.spacing(1.25) }}>
               {show.description}
+            </Text>
+            <Text variant="caption" color={theme.colors.text} style={{ textAlign: 'center', marginTop: 4 }}>
+              devamını oku…
             </Text>
           </Pressable>
         )}
@@ -144,7 +153,7 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
           </Pressable>
 
           <Pressable
-            onPress={() => episodes[0] && play(episodes[0])}
+            onPress={() => episodes[0] && play(episodes[0], { episodes, index: 0 })}
             accessibilityRole="button"
             accessibilityLabel="En yeni bölümü çal"
             style={{
@@ -158,7 +167,7 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
             <Icon name="play" size={24} color={theme.colors.onAccent} />
           </Pressable>
         </View>
-      </LinearGradient>
+      </CoverGradient>
     </View>
   );
 
@@ -176,6 +185,7 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
       data={episodes}
       keyExtractor={item => item.id}
       ListHeaderComponent={Header}
+      contentInsetAdjustmentBehavior="never"
       contentContainerStyle={{ paddingBottom: theme.spacing(14) }}
       renderItem={({ item }: { item: Episode }) => (
         <EpisodeRow

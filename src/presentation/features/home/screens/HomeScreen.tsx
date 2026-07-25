@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { Episode, PlaybackProgress, Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
-import { Screen, ScreenHeader, Skeleton } from '../../../ui';
+import { Screen, Skeleton } from '../../../ui';
 import {
   useFollowedShows,
   useLatestEpisodes,
@@ -11,6 +11,7 @@ import {
 } from '../../../query';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { usePlayEpisode } from '../../player/usePlayEpisode';
+import { HomeHeader } from '../components/HomeHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { HScroll } from '../components/HScroll';
 import { ShowCard } from '../components/ShowCard';
@@ -72,7 +73,7 @@ export const HomeScreen: React.FC = () => {
     });
 
   return (
-    <Screen>
+    <Screen edges={{ top: false }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: theme.spacing(10) }}
         refreshControl={
@@ -82,7 +83,9 @@ export const HomeScreen: React.FC = () => {
             tintColor={theme.colors.textMuted}
           />
         }>
-        <ScreenHeader title="Merhaba 👋" />
+        <HomeHeader />
+
+        <View style={{ height: theme.spacing(1) }} />
 
         {shows.isLoading ? (
           <LoadingSkeleton />

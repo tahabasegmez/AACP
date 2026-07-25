@@ -1,15 +1,12 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, View } from 'react-native';
-import { formatDuration } from '@core/utils';
+import { formatDuration, stripHtml } from '@core/utils';
 import { useTheme } from '../../theme';
 import { BottomSheet, CoverImage, Icon, IconName, Text } from '../../ui';
 import { useSavedEpisodes, useShowsQuery, useToggleSaved } from '../../query';
 import { useEpisodeSheetStore } from '../../stores';
 import { usePlayEpisode } from '../player/usePlayEpisode';
 import { useDownloads, useDownloadStatus } from '../downloads/useDownloads';
-
-const stripHtml = (html: string): string =>
-  html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 
 const formatDate = (iso: string): string => {
   if (!iso) {
