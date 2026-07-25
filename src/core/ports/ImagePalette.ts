@@ -3,8 +3,9 @@
  *
  * Domain anlamı taşımaz; core'da durur. Kapak görsellerine göre arka plan
  * renklendirmek için kullanılır. Somut implementasyon `infrastructure`'da
- * (react-native-image-colors). Değiştirmek gerekirse tek dosya değişir; başarısız
- * olursa null döner (çağıran taraf marka rengine düşer).
+ * (native-dep'siz hash tabanlı; ileride istenirse gerçek piksel-renk çıkarımına
+ * geçilebilir). Değiştirmek gerekirse tek dosya değişir; null dönerse çağıran
+ * taraf marka rengine düşer.
  */
 export interface ImagePalette {
   getDominant(uri: string): Promise<string | null>;
