@@ -102,6 +102,12 @@ const PlayerStateBridge: React.FC = () => {
     const unsubscribe = audioPlayer.subscribe(state => {
       setPlayback(state);
 
+      // Reklam çalarken ilerleme KAYDEDİLMEZ: reklamın konumu bölümün konumu
+      // değildir; kaydedilse "kaldığın yer" bozulurdu.
+      if (state.ad) {
+        return;
+      }
+
       // Konumu seyrek kaydet: aktif oynatmada ve en az PROGRESS_SAVE_INTERVAL_SEC
       // ilerledikçe. Böylece storage'a sürekli yazmayız.
       const { currentEpisodeId, positionSec, durationSec, status } = state;

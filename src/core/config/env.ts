@@ -51,6 +51,20 @@ export interface AppEnv {
   readonly analyticsEnabled: boolean;
   /** Cihazlar arası senkron açık mı (apiBaseUrl gerektirir). */
   readonly syncEnabled: boolean;
+
+  /**
+   * VAST reklam etiketi (ad tag) URL'i. Reklam sunucusundan alınır.
+   * BOŞSA reklam sistemi tamamen kapalıdır — oynatma akışı hiç değişmez.
+   *
+   * Yer tutucular istek anında doldurulur:
+   *   {placement} {episodeId} {showId} {duration} {timestamp} {random}
+   *
+   * Örnek:
+   *   https://ads.example.com/vast?pos={placement}&ep={episodeId}&cb={random}
+   */
+  readonly adTagUrl?: string;
+  /** Kaç bölümde bir reklam gösterilsin (1 = her bölüm sonunda). */
+  readonly adEveryNEpisodes: number;
 }
 
 /** Tüm ortamlarda ortak, teknoloji kaynaklı varsayılanlar. */
@@ -60,6 +74,7 @@ const base = {
   networkRetryCount: 2,
   remoteCatalogTtlMs: 6 * 60 * 60_000, // 6 saat
   episodeSource: 'rss' as EpisodeSourceKind,
+  adEveryNEpisodes: 1,
 } as const;
 
 /**
@@ -98,6 +113,7 @@ interface RawOverrides {
   APP_CATALOG_URL?: string;
   APP_EPISODE_SOURCE?: string;
   APP_TRANSISTOR_API_KEY?: string;
+  APP_AD_TAG_URL?: string;
 }
 
 /**
@@ -141,6 +157,7 @@ const resolveEnv = (): AppEnv => {
       ? raw.APP_EPISODE_SOURCE
       : preset.episodeSource,
     transistorApiKey: trimmed(raw.APP_TRANSISTOR_API_KEY) ?? preset.transistorApiKey,
+    adTagUrl: trimmed(raw.APP_AD_TAG_URL) ?? preset.adTagUrl,
   };
 };
 
@@ -162,3 +179,9 @@ export const isBackendEnabled = (e: AppEnv = env): boolean => Boolean(e.apiBaseU
 export const isSyncEnabled = (e: AppEnv = env): boolean => e.syncEnabled && isBackendEnabled(e);
 export const isAnalyticsEnabled = (e: AppEnv = env): boolean =>
   e.analyticsEnabled && isBackendEnabled(e);
+
+/**
+ * Reklam sistemi yalnızca bir ad tag URL'i verildiğinde açılır.
+ * Verilmezse oynatma akışı reklamsız çalışır (varsayılan).
+ */
+export const isAdsEnabled = (e: AppEnv = env): boolean => Boolean(e.adTagUrl);

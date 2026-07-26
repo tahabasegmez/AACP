@@ -12,13 +12,17 @@ import { useTheme } from '../theme';
  * Seekbar — dokunma/sürükleme ile konum seçilen ilerleme çubuğu (native slider
  * bağımlılığı olmadan, PanResponder ile). Sürüklerken oynatma konumunu takip
  * etmez; bırakınca onSeek çağrılır. `buffering` true iken hafif bir nabız gösterir.
+ *
+ * `disabled` verildiğinde (ör. atlanamaz reklam çalarken) dokunma yok sayılır;
+ * çubuk ilerlemeyi göstermeye devam eder ama konum değiştirilemez.
  */
 export const Seekbar: React.FC<{
   positionSec: number;
   durationSec: number;
   buffering?: boolean;
+  disabled?: boolean;
   onSeek: (sec: number) => void;
-}> = ({ positionSec, durationSec, buffering, onSeek }) => {
+}> = ({ positionSec, durationSec, buffering, disabled, onSeek }) => {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
   const [scrubbing, setScrubbing] = useState(false);
@@ -26,6 +30,9 @@ export const Seekbar: React.FC<{
   const widthRef = useRef(0);
   const durationRef = useRef(0);
   durationRef.current = durationSec;
+  // PanResponder bir kez kurulduğu için güncel `disabled` değerini ref'ten okur.
+  const disabledRef = useRef(false);
+  disabledRef.current = !!disabled;
 
   const pulse = useRef(new Animated.Value(1)).current;
   React.useEffect(() => {
@@ -53,8 +60,8 @@ export const Seekbar: React.FC<{
 
   const pan = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => !disabledRef.current,
+      onMoveShouldSetPanResponder: () => !disabledRef.current,
       onPanResponderGrant: (e: GestureResponderEvent) => {
         setScrubbing(true);
         setScrubSec(secFromX(e.nativeEvent.locationX));

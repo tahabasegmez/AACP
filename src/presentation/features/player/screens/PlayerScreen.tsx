@@ -3,6 +3,7 @@ import {
   ActionSheetIOS,
   ActivityIndicator,
   Alert,
+  Linking,
   Platform,
   Pressable,
   Share,
@@ -11,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { AdPlaybackState } from '@domain/entities';
 import { formatDuration, stripHtml } from '@core/utils';
 import { useTheme } from '../../../theme';
 import {
@@ -84,6 +86,8 @@ export const PlayerScreen: React.FC = () => {
 
   const isPlaying = playback.status === 'playing';
   const isBusy = playback.status === 'loading' || playback.status === 'buffering';
+  /** Dolu ise şu an bir reklam çalıyor — kontroller kısıtlanır. */
+  const ad = playback.ad;
 
   const showHint = (label: string) => {
     setHint(label);
@@ -171,13 +175,16 @@ export const PlayerScreen: React.FC = () => {
 
         {/* Alt küme — sabit düzen (her bölümde aynı) */}
         <View>
+          {/* Reklam çalarken bilgilendirme bandı; bölüm bilgisi gizlenmez. */}
+          {ad && <AdBanner ad={ad} />}
+
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing(1.5) }}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text variant="heading" numberOfLines={2}>
                 {episode?.title ?? 'Bölüm seçili değil'}
               </Text>
             </View>
-            {episode && (
+            {episode && !ad && (
               <Pressable
                 onPress={() => toggleFollow.mutate(episode.showId)}
                 hitSlop={10}
@@ -196,6 +203,8 @@ export const PlayerScreen: React.FC = () => {
               positionSec={playback.positionSec}
               durationSec={playback.durationSec}
               buffering={playback.status === 'buffering'}
+              // Reklam atlanamaz: sarma devre dışı (oynatıcı da ayrıca engeller).
+              disabled={!!ad}
               onSeek={doSeek}
             />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
@@ -204,8 +213,11 @@ export const PlayerScreen: React.FC = () => {
             </View>
           </View>
 
+          {/* Reklam atlanamaz: ileri/geri atlama gizlenir, yalnızca duraklat kalır. */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing(3.5), marginTop: theme.spacing(1) }}>
-            <SkipButton direction="back" onTap={() => previous(playback.positionSec)} onSeekTo={doSeek} getPosition={getPosition} getDuration={getDuration} />
+            {!ad && (
+              <SkipButton direction="back" onTap={() => previous(playback.positionSec)} onSeekTo={doSeek} getPosition={getPosition} getDuration={getDuration} />
+            )}
             <Pressable
               onPress={() => (isPlaying ? pausePlayback.execute() : resumePlayback.execute())}
               accessibilityRole="button"
@@ -221,7 +233,9 @@ export const PlayerScreen: React.FC = () => {
                 </View>
               )}
             </Pressable>
-            <SkipButton direction="forward" onTap={next} onSeekTo={doSeek} getPosition={getPosition} getDuration={getDuration} />
+            {!ad && (
+              <SkipButton direction="forward" onTap={next} onSeekTo={doSeek} getPosition={getPosition} getDuration={getDuration} />
+            )}
           </View>
 
           {(sleepRemainingMin != null && sleepRemainingMin > 0) || hint ? (
@@ -246,9 +260,11 @@ export const PlayerScreen: React.FC = () => {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: theme.spacing(2) }}>
             <Pressable
               onPress={cycleSpeed}
+              // Reklam hızlandırılarak "atlanamaz" kuralı delinmemeli.
+              disabled={!!ad}
               hitSlop={8}
               accessibilityLabel={`Oynatma hızı ${playback.rate}x`}
-              style={{ backgroundColor: theme.colors.accentSoft, paddingVertical: 6, paddingHorizontal: theme.spacing(1.5), borderRadius: theme.radius.pill }}>
+              style={{ backgroundColor: theme.colors.accentSoft, paddingVertical: 6, paddingHorizontal: theme.spacing(1.5), borderRadius: theme.radius.pill, opacity: ad ? 0.4 : 1 }}>
               <Text variant="subtitle" color={theme.colors.accent}>{playback.rate}×</Text>
             </Pressable>
             <View style={{ flexDirection: 'row', gap: theme.spacing(2.5) }}>
@@ -275,6 +291,55 @@ export const PlayerScreen: React.FC = () => {
         onClose={() => setNotesOpen(false)}
       />
     </View>
+  );
+};
+
+/**
+ * AdBanner — reklam çalarken gösterilen bilgi bandı.
+ *
+ * Kullanıcıya durumu açıkça bildirir ("Reklam 1/2"), reklam verenin adını
+ * gösterir ve varsa tıklanabilir bağlantıyı sunar. Bandın varlığı aynı zamanda
+ * kontrollerin neden kilitli olduğunu açıklar.
+ */
+const AdBanner: React.FC<{ ad: AdPlaybackState }> = ({ ad }) => {
+  const theme = useTheme();
+  const label = ad.total > 1 ? `Reklam ${ad.index}/${ad.total}` : 'Reklam';
+
+  const openLink = (): void => {
+    if (ad.clickUrl) {
+      Linking.openURL(ad.clickUrl).catch(() => {
+        /* bağlantı açılamazsa sessiz geç */
+      });
+    }
+  };
+
+  return (
+    <Pressable
+      onPress={openLink}
+      disabled={!ad.clickUrl}
+      accessibilityRole={ad.clickUrl ? 'link' : 'text'}
+      accessibilityLabel={`${label}${ad.advertiser ? ` — ${ad.advertiser}` : ''}`}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: theme.spacing(1),
+        alignSelf: 'flex-start',
+        backgroundColor: theme.colors.accentSoft,
+        paddingVertical: 5,
+        paddingHorizontal: theme.spacing(1.25),
+        borderRadius: theme.radius.pill,
+        marginBottom: theme.spacing(1),
+      }}>
+      <Text variant="label" color={theme.colors.accent} uppercase>
+        {label}
+      </Text>
+      {!!ad.advertiser && (
+        <Text variant="caption" color={theme.colors.textMuted} numberOfLines={1}>
+          {ad.advertiser}
+        </Text>
+      )}
+      {!!ad.clickUrl && <Icon name="chevron-right" size={14} color={theme.colors.accent} />}
+    </Pressable>
   );
 };
 

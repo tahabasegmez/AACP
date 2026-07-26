@@ -1,10 +1,12 @@
 import {
   FEED_CATALOG,
   env,
+  isAdsEnabled,
   isAnalyticsEnabled,
   isSyncEnabled,
   resolveCatalogUrl,
 } from '@core/config';
+import { DEFAULT_AD_POLICY } from '@domain/entities';
 import { ConsoleLogger } from '@core/logger';
 import {
   ContinueEpisode,
@@ -49,8 +51,10 @@ import {
   RssFeedSource,
   SavedEpisodesRepositoryImpl,
   TransistorFeedSource,
+  VastAdRepository,
 } from '@data';
 import {
+  AdAwareAudioPlayer,
   ApiClient,
   BatchingAnalytics,
   BlobUtilDownloader,
@@ -83,7 +87,6 @@ export const composeDependencies = (): AppDependencies => {
     env.networkRetryCount,
   );
   const xmlParser = new FastXmlParser();
-  const audioPlayer = new TrackPlayerAudioService();
   const imagePalette = new ImageColorsPalette();
   // Cihazda MMKV (kalıcı); MMKV yoksa bellek-içi'ne güvenle düşer.
   const storage = createPersistentStorage(logger);
@@ -95,6 +98,19 @@ export const composeDependencies = (): AppDependencies => {
     ? new BatchingAnalytics(api, logger, true)
     : new NoopAnalytics();
   const errorReporter = new LoggingErrorReporter(logger, analytics);
+
+  // Oynatıcı: reklam yapılandırılmışsa gerçek oynatıcı bir DECORATOR ile sarılır.
+  // Reklam mantığı tek yerde toplanır; use case'ler, UI ve CarPlay aynı portu
+  // görmeye devam eder ve reklamdan haberdar olmak zorunda kalmaz.
+  const basePlayer = new TrackPlayerAudioService();
+  const audioPlayer = isAdsEnabled(env)
+    ? new AdAwareAudioPlayer(
+        basePlayer,
+        new VastAdRepository(http, logger, { adTagUrl: env.adTagUrl ?? '' }),
+        logger,
+        { ...DEFAULT_AD_POLICY, enabled: true, everyNEpisodes: env.adEveryNEpisodes },
+      )
+    : basePlayer;
 
   // Cihazlar arası senkron: kaldığın yer, takipler, sonra dinle.
   const syncEngine = new SyncEngine(

@@ -4,3 +4,4 @@ export * from './PlaybackProgressRepository';
 export * from './FollowRepository';
 export * from './SavedEpisodesRepository';
 export * from './DownloadRepository';
+export * from './AdRepository';
