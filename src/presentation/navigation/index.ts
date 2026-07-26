@@ -3,4 +3,4 @@ export * from './useAppNavigation';
 export * from './navigationRef';
 export * from './AnimatedTabBar';
 export * from './TabNavigator';
-export * from './RootNavigator';
+export * from './PodcastNavigator';
