@@ -13,9 +13,11 @@ import { consoleLogger } from './core/logger';
 const main = async (): Promise<void> => {
   const env = loadEnv();
   const logger = consoleLogger;
-  const { router, store } = createApp(env, logger);
+  const { router, store, scheduler } = createApp(env, logger);
 
   await store.init();
+  // Takip edilen şovlarda yeni bölüm taraması (FEED_WATCH_INTERVAL_MS=0 → kapalı).
+  scheduler.start();
 
   const server = http.createServer((req, res) => {
     void router.handler(req, res);
@@ -32,6 +34,7 @@ const main = async (): Promise<void> => {
 
   const shutdown = (signal: string): void => {
     logger.info('Kapanıyor', { signal });
+    scheduler.stop();
     server.close(() => {
       void store.close().finally(() => process.exit(0));
     });

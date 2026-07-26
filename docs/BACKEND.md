@@ -3,9 +3,29 @@
 Bu belge `server/` altındaki servisi anlatır: ne yapar, nasıl kurulur, uygulama
 ona nasıl bağlanır ve neyin eksik olduğu.
 
-> **Sunucudan bağımsızlık:** Servis hiçbir makineye özgü varsayım yapmaz. Aynı
-> imaj ve aynı `.env` şeması Raspberry Pi 5'te (arm64), kurumsal bir sunucuda ya
-> da kiralık bir VPS'te (amd64) çalışır. Değişen tek şey `.env` içeriğidir.
+> **Sunucudan bağımsızlık (değişmez şart):** Servis hiçbir makineye özgü varsayım
+> yapmaz. Aynı imaj ve aynı `.env` şeması Raspberry Pi 5'te (arm64), kurumsal bir
+> sunucuda ya da kiralık bir VPS'te (amd64) çalışır. Değişen tek şey `.env`
+> içeriğidir. Koda makineye özel yol/adres/varsayım yazmayın — her şey ortam
+> değişkeninden gelir ([config/env.ts](../server/src/config/env.ts)).
+
+Kurulum adım adım: [SUNUCU-KURULUM.md](SUNUCU-KURULUM.md) ·
+Yarım kalanlar: [KALAN-ISLER.md](KALAN-ISLER.md)
+
+## 0. Değişmez tasarım kararları
+
+Bunlar bilinçli tercihlerdir; değiştirmeden önce sebebini bilin:
+
+1. **Web çerçevesi yok.** Node'un yerleşik `http` modülü + ~150 satırlık kendi
+   router'ımız. İhtiyaç yüzeyi küçük (birkaç REST ucu); Express bağımlılığı
+   ARM/x86 kurulum sorunları ve bakım yükü getirirdi.
+2. **Kalıcılık port arkasında.** Servisler `Store` arayüzünü görür, SQLite'ı
+   değil. Postgres'e geçmek = yeni bir adaptör + `app.ts`'te bir satır.
+3. **Uygulama sunucusuz da çalışır.** Mobil tarafta `apiBaseUrl` boşsa senkron,
+   telemetri ve uzak katalog sessizce kapanır; hiçbir akış kırılmaz. Bu güvenlik
+   ağını bozmayın.
+4. **API sürümlü.** Tüm uçlar `/v1/...`. Kırıcı değişiklik gerekirse `/v2` yan
+   yana yaşar, eski istemciler çalışmaya devam eder.
 
 ## 1. Ne sağlar
 

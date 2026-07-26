@@ -1,12 +1,13 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React, { useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import { NavigationState, useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme';
 import { ShowDetailScreen } from '../features/shows/screens/ShowDetailScreen';
 import { PlayerScreen } from '../features/player/screens/PlayerScreen';
 import { QueueScreen } from '../features/player/screens/QueueScreen';
 import { SeeAllScreen } from '../features/home/screens/SeeAllScreen';
 import { SettingsScreen } from '../features/settings/screens/SettingsScreen';
+import { DownloadsScreen } from '../features/downloads/screens/DownloadsScreen';
 import { TabNavigator } from './TabNavigator';
 import { useRouteStore } from '../stores';
 import { resetScrim } from '../ui';
@@ -53,6 +54,11 @@ export const PodcastNavigator: React.FC = () => {
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Queue" component={QueueScreen} options={{ headerShown: false }} />
         <Stack.Screen
+          name="Downloads"
+          component={DownloadsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="Player"
           component={PlayerScreen}
           options={{
@@ -79,11 +85,15 @@ const RouteTracker: React.FC = () => {
   const setRouteName = useRouteStore(s => s.setRouteName);
 
   useEffect(() => {
+    let lastName: string | undefined;
+
     const sync = (): void => {
-      // Bu navigator'ın kendi state'inden aktif rota adını çöz.
-      const state = navigation.getState();
-      const active = state?.routes?.[state.index ?? 0];
-      setRouteName(active?.name);
+      const name = leafRouteName(navigation.getState());
+      if (name === lastName) {
+        return; // aynı ekran: gereksiz scrim sıfırlaması yapma
+      }
+      lastName = name;
+      setRouteName(name);
       resetScrim(); // yeni ekran en üstten başlar
     };
 
@@ -92,4 +102,21 @@ const RouteTracker: React.FC = () => {
   }, [navigation, setRouteName]);
 
   return null;
+};
+
+/** İç içe navigator state'inde gezinip EN DERİN (görünen) rotanın adını verir. */
+const leafRouteName = (state: NavigationState | undefined): string | undefined => {
+  let current = state;
+  let name: string | undefined;
+
+  // Tab/stack iç içeyse görünen ekran en alttaki yapraktır (ör. Tabs → Home).
+  while (current) {
+    const route = current.routes[current.index ?? 0];
+    if (!route) {
+      break;
+    }
+    name = route.name;
+    current = route.state as NavigationState | undefined;
+  }
+  return name;
 };

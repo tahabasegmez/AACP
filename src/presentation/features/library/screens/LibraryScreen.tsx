@@ -11,7 +11,6 @@ import { useDownloads } from '../../downloads/useDownloads';
 import { SectionHeader } from '../../home/components/SectionHeader';
 import { HScroll } from '../../home/components/HScroll';
 import { ShowCard } from '../../home/components/ShowCard';
-import { EpisodeCard } from '../../home/components/EpisodeCard';
 import { EpisodeMiniCard } from '../../home/components/EpisodeMiniCard';
 
 const trLower = (s: string) => s.toLocaleLowerCase('tr-TR');
@@ -145,13 +144,21 @@ export const LibraryScreen: React.FC = () => {
 
           {downloadsList.length > 0 && (
             <View style={{ marginBottom: theme.spacing(2.5) }}>
-              <SectionHeader title="İndirilenler" />
+              <SectionHeader
+                title="İndirilenler"
+                onSeeAll={() => navigation.navigate('Downloads')}
+              />
               <HScroll>
                 {downloadsList.map(ep => (
-                  <EpisodeCard
+                  <EpisodeMiniCard
                     key={ep.id}
-                    episode={ep}
-                    showTitle={showTitleOf(ep.showId)}
+                    artworkUrl={ep.imageUrl}
+                    title={ep.title}
+                    subtitle={showTitleOf(ep.showId)}
+                    // İndirilenlerde ekstra bilgi: rozet + tarih·süre.
+                    badge={{ icon: 'downloaded', label: 'İndirildi' }}
+                    publishedAt={ep.publishedAt}
+                    durationSec={ep.durationSec}
                     onPress={() => play(ep)}
                   />
                 ))}

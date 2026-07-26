@@ -1,28 +1,28 @@
 import React from 'react';
 import { View } from 'react-native';
-import { useTheme } from '../theme';
+import { headerMetrics } from './headerMetrics';
 import { Text } from './Text';
 
 /**
  * ScreenHeader — tüm sekmelerde AYNI hizada duran ortak başlık.
- * Sol başlık + opsiyonel sağ aksiyon (ör. ayarlar). Sabit dikey boşluklar
- * sayesinde sekmeler arası geçişte başlık zıplamaz.
+ * Sol başlık + opsiyonel sağ aksiyon (ör. ayarlar). Ölçüler `headerMetrics`ten
+ * gelir; ana sayfanın logolu başlığı da aynı kaynağı kullanır, bu sayede
+ * sekmeler arası geçişte başlığın alt hizası kaymaz.
  */
 export const ScreenHeader: React.FC<{
   title: string;
   right?: React.ReactNode;
 }> = ({ title, right }) => {
-  const theme = useTheme();
   return (
     <View
       style={{
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        minHeight: 44,
-        paddingHorizontal: theme.spacing(2),
-        paddingTop: theme.spacing(1),
-        paddingBottom: theme.spacing(1),
+        minHeight: headerMetrics.minHeight,
+        paddingHorizontal: headerMetrics.paddingHorizontal,
+        paddingTop: headerMetrics.paddingTop,
+        paddingBottom: headerMetrics.paddingBottom,
       }}>
       <Text variant="title">{title}</Text>
       {right ?? null}

@@ -54,6 +54,11 @@ export interface ServerEnv {
   readonly rateLimitPerMin: number;
   /** Telemetri toplama açık mı. */
   readonly analyticsEnabled: boolean;
+  /**
+   * Takip edilen feed'lerde yeni bölüm taraması aralığı (ms).
+   * 0 veya negatif → tarayıcı devre dışı.
+   */
+  readonly feedWatchIntervalMs: number;
 }
 
 export const loadEnv = (source: NodeJS.ProcessEnv = process.env): ServerEnv => {
@@ -72,5 +77,6 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): ServerEnv => {
     transistorBaseUrl: source.TRANSISTOR_BASE_URL?.trim() || 'https://api.transistor.fm/v1',
     rateLimitPerMin: int(source.RATE_LIMIT_PER_MIN, 120),
     analyticsEnabled: bool(source.ANALYTICS_ENABLED, true),
+    feedWatchIntervalMs: Number(source.FEED_WATCH_INTERVAL_MS ?? 30 * 60_000) || 0,
   };
 };

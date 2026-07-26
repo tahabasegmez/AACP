@@ -17,6 +17,7 @@ export class MemoryStore implements Store {
   private readonly sync = new Map<string, SyncRecord>();
   private readonly analytics: AnalyticsEvent[] = [];
   private readonly push = new Map<string, PushRegistration>();
+  private readonly settings = new Map<string, string>();
   private catalog?: string;
 
   async init(): Promise<void> {}
@@ -66,6 +67,24 @@ export class MemoryStore implements Store {
 
   async removePushRegistration(token: string): Promise<void> {
     this.push.delete(token);
+  }
+
+  async listPushTargetsForShow(showId: string): Promise<PushRegistration[]> {
+    // Takip kaydı olan (silinmemiş) kullanıcıların push jetonları.
+    const followers = new Set(
+      [...this.sync.entries()]
+        .filter(([key, value]) => key.includes(':follows:') && value.key === showId && !value.deleted)
+        .map(([key]) => key.split(':')[0]),
+    );
+    return [...this.push.values()].filter(p => followers.has(p.userId));
+  }
+
+  async getSetting(key: string): Promise<string | undefined> {
+    return this.settings.get(key);
+  }
+
+  async setSetting(key: string, value: string): Promise<void> {
+    this.settings.set(key, value);
   }
 
   async getCatalog(): Promise<string | undefined> {

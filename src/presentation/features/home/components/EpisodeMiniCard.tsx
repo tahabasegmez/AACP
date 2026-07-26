@@ -1,18 +1,36 @@
 import React from 'react';
 import { Pressable, View } from 'react-native';
+import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
-import { CoverImage, Icon, Text } from '../../../ui';
+import { CoverImage, Icon, IconName, Text } from '../../../ui';
 
 const DEFAULT_W = 236;
 
+/** Meta satırındaki tarih biçimi (kısa: "12 Tem"). */
+const formatDate = (iso?: string): string => {
+  if (!iso) {
+    return '';
+  }
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+};
+
 /**
- * EpisodeMiniCard — kompakt yatay bölüm kartı: kapak + başlık/şov + hızlı çal.
- * "Dinlemeye devam" (ilerleme çubuklu) ve "Sonra dinle" (çubuksuz) yatay
- * menülerinde AYNI kart olarak kullanılır. Sunumsaldır: veri kaynağından
- * (PlaybackProgress / Episode) bağımsız, ilkel proplar alır.
+ * EpisodeMiniCard — uygulamadaki TEK yatay bölüm kartı.
  *
- * Tarih/süre gibi ayrıntılar burada gösterilmez; "Tümü" ile açılan dikey
- * listede (EpisodeRow) görülür.
+ * "Dinlemeye devam", "Sonra dinle", "Yeni bölümler" ve "İndirilenler" listeleri
+ * bu kartı kullanır; böylece bölüm kartı uygulamanın her yerinde aynı görünür.
+ *
+ * Kullanıldığı yere göre değişen EKSTRALAR opsiyoneldir ve kartın iskeletini
+ * bozmaz:
+ *  - `fraction` → kaldığın yer çubuğu (Dinlemeye devam)
+ *  - `publishedAt` / `durationSec` → tarih·süre meta satırı (İndirilenler, Yeni)
+ *  - `badge` → durum rozeti (ör. "İndirildi")
+ *
+ * Sunumsaldır: veri kaynağından (PlaybackProgress / Episode / DownloadItem)
+ * bağımsız, yalnızca ilkel proplar alır.
  */
 export const EpisodeMiniCard: React.FC<{
   artworkUrl?: string;
@@ -20,10 +38,29 @@ export const EpisodeMiniCard: React.FC<{
   subtitle: string;
   /** 0..1 arası ilerleme; verilirse alt çubuk gösterilir. */
   fraction?: number;
+  /** Verilirse başlığın altında tarih·süre satırı çıkar. */
+  publishedAt?: string;
+  durationSec?: number;
+  /** Küçük durum rozeti (ör. indirilmiş bölüm). */
+  badge?: { icon: IconName; label: string };
   onPress: () => void;
   width?: number;
-}> = ({ artworkUrl, title, subtitle, fraction, onPress, width = DEFAULT_W }) => {
+}> = ({
+  artworkUrl,
+  title,
+  subtitle,
+  fraction,
+  publishedAt,
+  durationSec,
+  badge,
+  onPress,
+  width = DEFAULT_W,
+}) => {
   const theme = useTheme();
+  const dateText = formatDate(publishedAt);
+  const durationText = durationSec != null && durationSec > 0 ? formatDuration(durationSec) : '';
+  const meta = [dateText, durationText].filter(Boolean).join(' · ');
+
   return (
     <Pressable
       onPress={onPress}
@@ -39,6 +76,7 @@ export const EpisodeMiniCard: React.FC<{
         padding: theme.spacing(1.25),
       }}>
       <CoverImage uri={artworkUrl} size={54} radius={theme.radius.md} />
+
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text variant="subtitle" numberOfLines={1}>
           {title}
@@ -46,6 +84,22 @@ export const EpisodeMiniCard: React.FC<{
         <Text variant="caption" color={theme.colors.textMuted} numberOfLines={1}>
           {subtitle}
         </Text>
+
+        {!!meta && (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
+              marginTop: 2,
+            }}>
+            {badge && <Icon name={badge.icon} size={12} color={theme.colors.accent} />}
+            <Text variant="caption" color={theme.colors.textDim} numberOfLines={1}>
+              {meta}
+            </Text>
+          </View>
+        )}
+
         {fraction != null && (
           <View
             style={{
@@ -58,13 +112,14 @@ export const EpisodeMiniCard: React.FC<{
             <View
               style={{
                 height: '100%',
-                width: `${Math.min(1, fraction) * 100}%`,
+                width: `${Math.min(1, Math.max(0, fraction)) * 100}%`,
                 backgroundColor: theme.colors.accent,
               }}
             />
           </View>
         )}
       </View>
+
       <View
         style={{
           width: 32,

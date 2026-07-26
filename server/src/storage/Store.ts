@@ -70,6 +70,16 @@ export interface Store {
   // --- push ---------------------------------------------------------------
   upsertPushRegistration(registration: PushRegistration): Promise<void>;
   removePushRegistration(token: string): Promise<void>;
+  /**
+   * Bir şovu takip eden kullanıcıların push kayıtları.
+   * (follows koleksiyonunda `key = showId` ve silinmemiş olanlar.)
+   */
+  listPushTargetsForShow(showId: string): Promise<PushRegistration[]>;
+
+  // --- anahtar/değer (servis durumu) --------------------------------------
+  /** Serbest ayar okuma/yazma (ör. bir şovun en son görülen bölümü). */
+  getSetting(key: string): Promise<string | undefined>;
+  setSetting(key: string, value: string): Promise<void>;
 
   // --- katalog ------------------------------------------------------------
   /** Yayınlanmış katalog JSON'u (yoksa undefined → bundled fallback). */

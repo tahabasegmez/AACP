@@ -16,7 +16,6 @@ import { SectionHeader } from '../components/SectionHeader';
 import { HScroll } from '../components/HScroll';
 import { ShowCard } from '../components/ShowCard';
 import { EpisodeMiniCard } from '../components/EpisodeMiniCard';
-import { EpisodeCard } from '../components/EpisodeCard';
 
 /** progress kaydından (meta'sıyla) çalınabilir bir Episode kurar. */
 const progressToEpisode = (p: PlaybackProgress): Episode => ({
@@ -125,10 +124,14 @@ export const HomeScreen: React.FC = () => {
                 />
                 <HScroll>
                   {latestItems.map(ep => (
-                    <EpisodeCard
+                    <EpisodeMiniCard
                       key={ep.id}
-                      episode={ep}
-                      showTitle={showById.get(ep.showId)?.title ?? ''}
+                      artworkUrl={ep.imageUrl}
+                      title={ep.title}
+                      subtitle={showById.get(ep.showId)?.title ?? ''}
+                      // Yeni bölümlerde ekstra bilgi: yayın tarihi ve süre.
+                      publishedAt={ep.publishedAt}
+                      durationSec={ep.durationSec}
                       onPress={() => play(ep)}
                     />
                   ))}

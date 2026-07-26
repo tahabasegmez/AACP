@@ -2,20 +2,23 @@ import React from 'react';
 import { Image, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../../theme';
-import { AA_LOGO } from '../../../ui';
+import { AA_LOGO, headerMetrics } from '../../../ui';
 
 /** Logonun gerçek en/boy oranı (kaynak görsel 342×288). */
 const LOGO_ASPECT = 342 / 288;
+/** Başlık satırına sığacak logo yüksekliği (minHeight'i taşırmaz). */
 const LOGO_HEIGHT = 34;
 
 /**
  * HomeHeader — ana sayfanın SABİT başlığı (kaydırılınca kaybolmaz).
  *
- * Diğer sekmelerdeki ScreenHeader ile AYNI dikey metrikler (minHeight 44 + eşit
- * boşluklar) kullanılır; böylece alt hizası Ara/Kütüphane başlıklarıyla aynı
- * satırda durur ve sekme geçişinde zıplama olmaz. Fark: başlık metni yerine
- * "AA PODCAST" logosu ve marka mavisi solid zemin — üst güvenli alan içeri
- * alındığı için mavi, Dynamic Island / status bar arkasına kadar dolar.
+ * Dikey ölçüler `headerMetrics`ten gelir — Ara/Kütüphane'deki ScreenHeader ile
+ * AYNI kaynak. Bu sayede sekmeler arasında geçerken başlığın ALT HİZASI birebir
+ * aynı yerde kalır ve içerik zıplamaz. Fark yalnızca içerikte: başlık metni
+ * yerine "AA PODCAST" logosu ve marka mavisi zemin.
+ *
+ * Üst güvenli alan header'ın içine alınır; böylece mavi, Dynamic Island /
+ * status bar arkasına kadar kenardan kenara dolar.
  */
 export const HomeHeader: React.FC = () => {
   const theme = useTheme();
@@ -24,11 +27,11 @@ export const HomeHeader: React.FC = () => {
     <View
       style={{
         backgroundColor: theme.colors.brand,
-        paddingTop: insets.top + theme.spacing(1),
-        paddingBottom: theme.spacing(1),
-        paddingHorizontal: theme.spacing(2),
+        paddingTop: insets.top + headerMetrics.paddingTop,
+        paddingBottom: headerMetrics.paddingBottom,
+        paddingHorizontal: headerMetrics.paddingHorizontal,
       }}>
-      <View style={{ minHeight: 44, justifyContent: 'center' }}>
+      <View style={{ minHeight: headerMetrics.minHeight, justifyContent: 'center' }}>
         <Image
           source={AA_LOGO}
           resizeMode="contain"

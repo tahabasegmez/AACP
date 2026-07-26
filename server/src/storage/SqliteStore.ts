@@ -166,20 +166,55 @@ export class SqliteStore implements Store {
     this.db.prepare('DELETE FROM push_registrations WHERE token = ?').run(token);
   }
 
-  async getCatalog(): Promise<string | undefined> {
+  async listPushTargetsForShow(showId: string): Promise<PushRegistration[]> {
+    // Takip kaydı `sync_records`'ta collection='follows', key=showId olarak durur;
+    // silinmiş (tombstone) kayıtlar hariç tutulur.
+    const rows = this.db
+      .prepare(
+        `SELECT p.token, p.user_id, p.platform, p.updated_at
+           FROM push_registrations p
+           JOIN sync_records s
+             ON s.user_id = p.user_id
+            AND s.collection = 'follows'
+            AND s.key = ?
+            AND s.deleted = 0`,
+      )
+      .all(showId) as Array<{
+      token: string;
+      user_id: string;
+      platform: string;
+      updated_at: number;
+    }>;
+    return rows.map(r => ({
+      token: r.token,
+      userId: r.user_id,
+      platform: r.platform,
+      updatedAt: r.updated_at,
+    }));
+  }
+
+  async getSetting(key: string): Promise<string | undefined> {
     const row = this.db
-      .prepare("SELECT value FROM settings WHERE key = 'catalog'")
-      .get() as { value: string } | undefined;
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(key) as { value: string } | undefined;
     return row?.value;
   }
 
-  async setCatalog(json: string): Promise<void> {
+  async setSetting(key: string, value: string): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO settings (key, value) VALUES ('catalog', ?)
+        `INSERT INTO settings (key, value) VALUES (?, ?)
          ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
       )
-      .run(json);
+      .run(key, value);
+  }
+
+  async getCatalog(): Promise<string | undefined> {
+    return this.getSetting('catalog');
+  }
+
+  async setCatalog(json: string): Promise<void> {
+    await this.setSetting('catalog', json);
   }
 
   async close(): Promise<void> {

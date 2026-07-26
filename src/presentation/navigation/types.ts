@@ -19,4 +19,6 @@ export type RootStackParamList = {
   Settings: undefined;
   /** Oynatma kuyruğu ("Sıradakiler"). */
   Queue: undefined;
+  /** İndirilen bölümlerin yönetimi. */
+  Downloads: undefined;
 };

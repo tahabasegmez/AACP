@@ -8,6 +8,9 @@ import type { Logger } from './core/logger';
 import { AnalyticsService } from './modules/analytics/AnalyticsService';
 import { AuthService } from './modules/auth/AuthService';
 import { CatalogService } from './modules/catalog/CatalogService';
+import { FeedWatcher } from './modules/push/FeedWatcher';
+import { PushScheduler } from './modules/push/PushScheduler';
+import { LoggingPushSender } from './modules/push/PushSender';
 import { PushService } from './modules/push/PushService';
 import { SyncService } from './modules/sync/SyncService';
 import { TransistorProxy } from './modules/transistor/TransistorProxy';
@@ -18,6 +21,8 @@ import type { Store } from './storage/Store';
 export interface App {
   readonly router: Router;
   readonly store: Store;
+  /** Yeni bölüm tarayıcısı — main.ts başlatır/durdurur. */
+  readonly scheduler: PushScheduler;
 }
 
 /**
@@ -44,6 +49,12 @@ export const createApp = (env: ServerEnv, logger: Logger): App => {
   const analytics = new AnalyticsService(store, env.analyticsEnabled);
   const push = new PushService(store);
   const transistor = new TransistorProxy(env.transistorBaseUrl, env.transistorApiKey);
+
+  // Yeni bölüm bildirimi: tarayıcı + zamanlayıcı.
+  // Gönderici bir PORTtur; APNs anahtarı hazır olunca yalnızca burası değişir.
+  const pushSender = new LoggingPushSender(logger);
+  const feedWatcher = new FeedWatcher(store, catalog, pushSender, logger);
+  const scheduler = new PushScheduler(feedWatcher, logger, env.feedWatchIntervalMs);
 
   const router = new Router(logger)
     .use(cors(env.corsOrigins))
@@ -102,6 +113,12 @@ export const createApp = (env: ServerEnv, logger: Logger): App => {
     return noContent();
   });
 
+  // Yönetim: feed taramasını elle tetikle (kurulum doğrulaması için).
+  router.post('/v1/push/scan', async ctx => {
+    requireAdmin(ctx.headers['x-admin-token'], env.adminToken);
+    return ok(await feedWatcher.runOnce());
+  });
+
   // --- Transistor proxy --------------------------------------------------
   // API anahtarı sunucuda kalır; istemci anahtarsız çalışır.
   router.get('/v1/transistor/:resource', async ctx => {
@@ -109,7 +126,7 @@ export const createApp = (env: ServerEnv, logger: Logger): App => {
     return { status: 200, body, headers: { 'Content-Type': 'application/json; charset=utf-8' } };
   });
 
-  return { router, store };
+  return { router, store, scheduler };
 };
 
 /** Yönetim uçları: ADMIN_TOKEN tanımlı değilse tamamen kapalıdır. */
