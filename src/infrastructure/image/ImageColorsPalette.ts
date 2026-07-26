@@ -2,7 +2,7 @@ import { toBackdropColor } from '@core/utils';
 import { ImagePalette } from '@core/ports';
 import { HashImagePalette } from './HashImagePalette';
 
-/** react-native-image-colors sonucundan (platforma göre) uygun rengi seçer. */
+/** react-native-image-colors v1 sonucundan (platforma göre) uygun rengi seçer. */
 interface ColorsResult {
   platform?: string;
   background?: string;
@@ -12,6 +12,10 @@ interface ColorsResult {
   dominant?: string;
   vibrant?: string;
   average?: string;
+}
+
+interface ImageColorsModule {
+  getColors: (uri: string, opts: object) => Promise<ColorsResult>;
 }
 
 const pickColor = (res: ColorsResult): string | null => {
@@ -26,15 +30,14 @@ const pickColor = (res: ColorsResult): string | null => {
 };
 
 /**
- * ImagePalette portunun react-native-image-colors implementasyonu (GERÇEK renk).
+ * ImagePalette portunun react-native-image-colors (v1, EXPO'SUZ) implementasyonu.
  *
- * Kapağın baskın rengini çıkarır ve arka plan için koyulaştırır (üstteki beyaz
- * metin okunur kalsın). Modül lazy require ile yüklenir; native/Expo kurulu
- * değilse HATA YUTULUR ve deterministik hash rengine düşülür (crash yok, uygulama
- * çalışmaya devam eder). Böylece "gerçek renk" ile "her koşulda çalışır" bir arada.
+ * v1.5.x kendi native modülünü kullanır; expo-modules-core GEREKTİRMEZ (v2 gerektiriyordu
+ * ve "ExpoModulesCore.h not found" derleme hatası veriyordu). Kapağın gerçek baskın
+ * rengini çıkarır, arka plan için koyulaştırır. Modül lazy require ile yüklenir;
+ * herhangi bir hata olursa deterministik hash rengine düşülür (crash yok).
  *
- * Native gereksinim: react-native-image-colors + expo-modules-core
- * (mac: `npx install-expo-modules` + pod install). Bkz. docs/IOS_SETUP.md.
+ * Native gereksinim: sadece `pod install` (Expo adımı yok).
  */
 export class ImageColorsPalette implements ImagePalette {
   private readonly fallback = new HashImagePalette();
@@ -46,16 +49,17 @@ export class ImageColorsPalette implements ImagePalette {
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const mod = require('react-native-image-colors') as {
-        getColors: (u: string, opts: object) => Promise<ColorsResult>;
-      };
-      const res = await mod.getColors(uri, { cache: true, key: uri, quality: 'low' });
+        default?: ImageColorsModule;
+      } & Partial<ImageColorsModule>;
+      const impl = mod.default ?? (mod as ImageColorsModule);
+      const res = await impl.getColors(uri, { cache: true, key: uri, quality: 'low' });
       const raw = pickColor(res);
       const color = raw ? toBackdropColor(raw) : null;
       if (color) {
         return color;
       }
     } catch {
-      // native/expo yok → sessizce fallback
+      // native yok/başarısız → sessizce fallback
     }
     return this.fallback.getDominant(uri);
   }

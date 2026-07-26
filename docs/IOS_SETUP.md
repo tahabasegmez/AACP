@@ -46,12 +46,6 @@ git clone https://github.com/tahabasegmez/AACP.git
 cd AACP
 
 npm install          # .npmrc sayesinde legacy-peer-deps otomatik
-
-# Kapak-rengi arka planlar için Expo Modules altyapısı (tek seferlik).
-# react-native-image-colors gerçek piksel rengini bununla okur.
-# Yapmazsan uygulama yine çalışır: renk deterministik türetilmiş moda düşer.
-npx install-expo-modules@latest
-
 cd ios && pod install && cd ..
 ```
 
@@ -162,6 +156,12 @@ kurulu olduğundan emin ol.
 **İkonlar kutu/görünmüyor**
 `pod install` fontları bundle'lar, `Info.plist` UIAppFonts kaydeder (Ionicons).
 Görünmezse Xcode'da temiz derleme (Product → Clean Build Folder) dene.
+
+**Kapak rengi çalışmıyor / renkler türetilmiş görünüyor**
+`react-native-image-colors@1.5.2` (Expo'suz) kullanılıyor. `pod install` yapıldıysa
+gerçek kapak rengi gelir; native yüklenemezse otomatik olarak deterministik türetilmiş
+renge düşer (crash yok). **v2'ye yükseltme!** — v2 `expo-modules-core` ister ve
+`ExpoModulesCore.h not found` derleme hatası verir.
 
 **react-native-fast-image (New Architecture) derleme sorunu**
 RN 0.86 New Arch kullanır; `react-native-fast-image` bakımı durgundur. Derleme
