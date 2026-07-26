@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, Share, View } from 'react-nat
 import { formatDuration, stripHtml } from '@core/utils';
 import { useTheme } from '../../theme';
 import { BottomSheet, CoverImage, Icon, IconName, Text } from '../../ui';
-import { useSavedEpisodes, useShowsQuery, useToggleSaved } from '../../query';
+import { useEpisodeNotes, useSavedEpisodes, useShowsQuery, useToggleSaved } from '../../query';
 import { useEpisodeSheetStore } from '../../stores';
 import { usePlayEpisode } from '../player/usePlayEpisode';
 import { useDownloads, useDownloadStatus } from '../downloads/useDownloads';
@@ -37,6 +37,8 @@ export const EpisodeSheet: React.FC = () => {
 
   const showTitle =
     (shows.data ?? []).find(s => s.id === episode?.showId)?.title ?? '';
+  // Notlar eksikse (ör. "Dinlemeye devam"dan gelen bölüm) feed'den zenginleştir.
+  const notes = useEpisodeNotes(episode ?? undefined);
 
   const download: {
     icon: IconName;
@@ -128,9 +130,9 @@ export const EpisodeSheet: React.FC = () => {
               />
             </View>
 
-            {!!episode.description && (
+            {!!notes && (
               <Text variant="body" color={theme.colors.textMuted} style={{ marginTop: theme.spacing(2.5) }}>
-                {stripHtml(episode.description)}
+                {stripHtml(notes)}
               </Text>
             )}
           </>

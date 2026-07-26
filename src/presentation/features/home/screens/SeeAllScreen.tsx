@@ -10,14 +10,15 @@ import {
   useFollowedShows,
   useLatestEpisodes,
   useResumeList,
+  useSavedEpisodes,
   useShowsQuery,
 } from '../../../query';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
+import { useEpisodeSheetStore } from '../../../stores';
 import type { RootStackParamList } from '../../../navigation/types';
 import { usePlayEpisode } from '../../player/usePlayEpisode';
+import { EpisodeRow } from '../../shows/components/EpisodeRow';
 import { ShowCard } from '../components/ShowCard';
-import { ContinueCard } from '../components/ContinueCard';
-import { EpisodeCard } from '../components/EpisodeCard';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SeeAll'>;
 
@@ -32,19 +33,30 @@ const progressToEpisode = (p: PlaybackProgress): Episode => ({
   imageUrl: p.artworkUrl,
 });
 
+/** Dikey listede bir satırın verisi (bölüm + kaldığın-yer bilgisi). */
+interface Row {
+  episode: Episode;
+  progress?: number;
+  completed?: boolean;
+}
+
 /**
- * SeeAll — bir carousel'in tam dikey listesi (şovlar grid, bölümler liste).
- * Native header yerine ImmersiveHeader (island'a kadar tam ekran, dairesiz geri).
+ * SeeAll — bir carousel'in tam dikey listesi. Şovlar grid; bölümler ise TÜM
+ * uygulamada ortak olan EpisodeRow (şov detayındaki listeleme) ile gösterilir —
+ * böylece "Dinlemeye devam / Yeni / Sonra dinle" Tümü listeleri şov içi
+ * listelemeyle aynı görünür. Satıra dokunma bölüm panelini (notlar) açar.
  */
 export const SeeAllScreen: React.FC<Props> = ({ route }) => {
   const { kind, title } = route.params;
   const theme = useTheme();
   const navigation = useAppNavigation();
   const play = usePlayEpisode();
+  const openSheet = useEpisodeSheetStore(s => s.open);
   const { width } = useWindowDimensions();
 
   const shows = useShowsQuery();
   const resume = useResumeList();
+  const saved = useSavedEpisodes();
   const followed = useFollowedShows();
   const followedFeedUrls = useMemo(
     () => (followed.data ?? []).map(s => s.feedUrl),
@@ -52,16 +64,27 @@ export const SeeAllScreen: React.FC<Props> = ({ route }) => {
   );
   const latest = useLatestEpisodes(followedFeedUrls);
 
-  const showById = useMemo(() => {
-    const map = new Map<string, Show>();
-    (shows.data ?? []).forEach(s => map.set(s.id, s));
+  // episodeId → kaldığın-yer (dikey satırlarda ilerleme çubuğu için).
+  const progressById = useMemo(() => {
+    const map = new Map<string, PlaybackProgress>();
+    (resume.data ?? []).forEach(p => map.set(p.episodeId, p));
     return map;
-  }, [shows.data]);
+  }, [resume.data]);
+
+  const rowFromProgress = (id: string): Pick<Row, 'progress' | 'completed'> => {
+    const p = progressById.get(id);
+    if (!p) {
+      return {};
+    }
+    return {
+      progress: p.durationSec > 0 ? p.positionSec / p.durationSec : undefined,
+      completed: p.completed,
+    };
+  };
 
   const pad = theme.spacing(2);
   const gap = theme.spacing(1.5);
   const colW = Math.floor((width - pad * 2 - gap) / 2);
-  const fullW = width - pad * 2;
 
   const openShow = (show: Show) =>
     navigation.navigate('ShowDetail', {
@@ -69,6 +92,27 @@ export const SeeAllScreen: React.FC<Props> = ({ route }) => {
       feedUrl: show.feedUrl,
       title: show.title,
     });
+
+  // Bölüm listeli türler için satırları ve boş/yükleniyor durumunu hesapla.
+  const episodeRows: Row[] = useMemo(() => {
+    if (kind === 'continue') {
+      return (resume.data ?? [])
+        .filter(p => p.audioUrl)
+        .map(p => ({
+          episode: progressToEpisode(p),
+          progress: p.durationSec > 0 ? p.positionSec / p.durationSec : undefined,
+          completed: p.completed,
+        }));
+    }
+    if (kind === 'latest') {
+      return (latest.data ?? []).map(ep => ({ episode: ep, ...rowFromProgress(ep.id) }));
+    }
+    if (kind === 'saved') {
+      return (saved.data ?? []).map(ep => ({ episode: ep, ...rowFromProgress(ep.id) }));
+    }
+    return [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, resume.data, latest.data, saved.data, progressById]);
 
   const renderBody = () => {
     if (kind === 'shows') {
@@ -90,60 +134,31 @@ export const SeeAllScreen: React.FC<Props> = ({ route }) => {
       );
     }
 
-    if (kind === 'continue') {
-      const items = (resume.data ?? []).filter(p => p.audioUrl);
-      if (items.length === 0) {
-        return <EmptyState title="Liste boş" description="Yarıda bıraktığın bölüm yok." />;
-      }
-      return (
-        <FlashList
-          data={items}
-          keyExtractor={p => p.episodeId}
-          contentInsetAdjustmentBehavior="never"
-          onScroll={scrimScrollHandler}
-          scrollEventThrottle={16}
-          contentContainerStyle={{ padding: pad, paddingBottom: theme.spacing(12) }}
-          ItemSeparatorComponent={() => <View style={{ height: gap }} />}
-          renderItem={({ item }) => (
-            <ContinueCard
-              progress={item}
-              width={fullW}
-              showTitle={showById.get(item.showId ?? '')?.title ?? ''}
-              onPress={() => play(progressToEpisode(item))}
-            />
-          )}
-        />
-      );
-    }
-
-    // latest
-    const items = latest.data ?? [];
-    if (latest.isLoading) {
+    const loading =
+      (kind === 'latest' && latest.isLoading) || (kind === 'saved' && saved.isLoading);
+    if (loading) {
       return <LoadingView />;
     }
-    if (items.length === 0) {
-      return (
-        <EmptyState
-          title="Henüz yok"
-          description="Takip ettiğin şovlardan yeni bölüm geldiğinde burada listelenir."
-        />
-      );
+    if (episodeRows.length === 0) {
+      return <EmptyState title="Liste boş" description="Burada gösterilecek bölüm yok." />;
     }
+
+    const queue = episodeRows.map(r => r.episode);
     return (
       <FlashList
-        data={items}
-        keyExtractor={ep => ep.id}
+        data={episodeRows}
+        keyExtractor={r => r.episode.id}
         contentInsetAdjustmentBehavior="never"
         onScroll={scrimScrollHandler}
         scrollEventThrottle={16}
-        contentContainerStyle={{ padding: pad, paddingBottom: theme.spacing(12) }}
-        ItemSeparatorComponent={() => <View style={{ height: gap }} />}
-        renderItem={({ item }) => (
-          <EpisodeCard
-            episode={item}
-            width={fullW}
-            showTitle={showById.get(item.showId)?.title ?? ''}
-            onPress={() => play(item)}
+        contentContainerStyle={{ paddingBottom: theme.spacing(12) }}
+        renderItem={({ item, index }) => (
+          <EpisodeRow
+            episode={item.episode}
+            progress={item.progress}
+            completed={item.completed}
+            onPress={() => openSheet(item.episode)}
+            onPlay={() => play(item.episode, { episodes: queue, index })}
           />
         )}
       />

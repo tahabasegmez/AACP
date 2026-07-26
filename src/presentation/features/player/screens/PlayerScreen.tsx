@@ -25,7 +25,7 @@ import {
 } from '../../../ui';
 import { useDependencies } from '../../../di';
 import { usePlayerStore, useSleepTimerStore } from '../../../stores';
-import { useIsFollowed, useToggleFollow } from '../../../query';
+import { useEpisodeNotes, useIsFollowed, useShowsQuery, useToggleFollow } from '../../../query';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { usePlaybackController } from '../usePlaybackController';
 import { useDownloads, useDownloadStatus } from '../../downloads/useDownloads';
@@ -60,6 +60,21 @@ export const PlayerScreen: React.FC = () => {
   const followed = useIsFollowed(episode?.showId ?? '');
   const toggleFollow = useToggleFollow();
   const dlStatus = useDownloadStatus(episode?.id ?? '');
+
+  // Notlar kaynak ne olursa olsun (ör. "Dinlemeye devam") feed'den zenginleştirilir.
+  const notes = useEpisodeNotes(episode ?? undefined);
+  // Kapağa dokununca açılacak şov (feed listesi).
+  const shows = useShowsQuery();
+  const show = (shows.data ?? []).find(s => s.id === episode?.showId);
+  const openShow = () => {
+    if (show) {
+      navigation.replace('ShowDetail', {
+        showId: show.id,
+        feedUrl: show.feedUrl,
+        title: show.title,
+      });
+    }
+  };
 
   const sleepEndsAt = useSleepTimerStore(s => s.endsAt);
   const setSleepEndsAt = useSleepTimerStore(s => s.setEndsAt);
@@ -142,9 +157,16 @@ export const PlayerScreen: React.FC = () => {
           </Pressable>
         </View>
 
-        {/* Kapak: AA PODCAST ile başlık arasında ortalanır (kalan alanı doldurur) */}
+        {/* Kapak: AA PODCAST ile başlık arasında ortalanır (kalan alanı doldurur).
+            Dokununca bölümün ait olduğu şovun listesini açar. */}
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <CoverImage uri={episode?.imageUrl} size={coverSize} radius={theme.radius.lg} />
+          <Pressable
+            onPress={openShow}
+            disabled={!show}
+            accessibilityRole="button"
+            accessibilityLabel={show ? `${show.title} şovunu aç` : undefined}>
+            <CoverImage uri={episode?.imageUrl} size={coverSize} radius={theme.radius.lg} />
+          </Pressable>
         </View>
 
         {/* Alt küme — sabit düzen (her bölümde aynı) */}
@@ -192,7 +214,11 @@ export const PlayerScreen: React.FC = () => {
               {isBusy ? (
                 <ActivityIndicator color={theme.colors.bg} />
               ) : (
-                <Icon name={isPlaying ? 'pause' : 'play'} size={32} color={theme.colors.bg} />
+                // Oynat üçgeni geometrik merkezde optik olarak sola kayık durur;
+                // ~3px sağa iterek yuvarlağın tam ortasında görünmesini sağlıyoruz.
+                <View style={{ marginLeft: isPlaying ? 0 : 3 }}>
+                  <Icon name={isPlaying ? 'pause' : 'play'} size={32} color={theme.colors.bg} />
+                </View>
               )}
             </Pressable>
             <SkipButton direction="forward" onTap={next} onSeekTo={doSeek} getPosition={getPosition} getDuration={getDuration} />
@@ -205,10 +231,10 @@ export const PlayerScreen: React.FC = () => {
           ) : null}
 
           {/* Bölüm notları — başlat/butonlar ile alt araçlar arasında, önizlemeli */}
-          {!!episode?.description && (
+          {!!notes && (
             <Pressable onPress={() => setNotesOpen(true)} style={{ marginTop: theme.spacing(1.75) }}>
               <Text variant="caption" color={theme.colors.textMuted} numberOfLines={2}>
-                {stripHtml(episode.description)}
+                {stripHtml(notes)}
               </Text>
               <Text variant="caption" color={theme.colors.text} style={{ marginTop: 2 }}>
                 devamını oku…
@@ -245,7 +271,7 @@ export const PlayerScreen: React.FC = () => {
       <TextSheet
         visible={notesOpen}
         title="Bölüm notları"
-        text={episode?.description ?? ''}
+        text={notes}
         onClose={() => setNotesOpen(false)}
       />
     </View>

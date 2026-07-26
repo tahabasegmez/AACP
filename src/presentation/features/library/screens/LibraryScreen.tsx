@@ -12,6 +12,7 @@ import { SectionHeader } from '../../home/components/SectionHeader';
 import { HScroll } from '../../home/components/HScroll';
 import { ShowCard } from '../../home/components/ShowCard';
 import { EpisodeCard } from '../../home/components/EpisodeCard';
+import { EpisodeMiniCard } from '../../home/components/EpisodeMiniCard';
 
 const trLower = (s: string) => s.toLocaleLowerCase('tr-TR');
 
@@ -111,13 +112,19 @@ export const LibraryScreen: React.FC = () => {
           contentContainerStyle={{ paddingVertical: theme.spacing(1), paddingBottom: theme.spacing(10) }}>
           {savedList.length > 0 && (
             <View style={{ marginBottom: theme.spacing(2.5) }}>
-              <SectionHeader title="Sonra dinle" />
+              <SectionHeader
+                title="Sonra dinle"
+                onSeeAll={() =>
+                  navigation.navigate('SeeAll', { kind: 'saved', title: 'Sonra dinle' })
+                }
+              />
               <HScroll>
                 {savedList.map(ep => (
-                  <EpisodeCard
+                  <EpisodeMiniCard
                     key={ep.id}
-                    episode={ep}
-                    showTitle={showTitleOf(ep.showId)}
+                    artworkUrl={ep.imageUrl}
+                    title={ep.title}
+                    subtitle={showTitleOf(ep.showId)}
                     onPress={() => play(ep)}
                   />
                 ))}

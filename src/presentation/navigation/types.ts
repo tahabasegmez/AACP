@@ -8,7 +8,7 @@ export type TabParamList = {
 };
 
 /** "Tümü" ile açılan tam liste ekranının türü. */
-export type SeeAllKind = 'shows' | 'continue' | 'latest';
+export type SeeAllKind = 'shows' | 'continue' | 'latest' | 'saved';
 
 /** Kök stack — sekmeler + detay/player/tam-liste (üstte). */
 export type RootStackParamList = {

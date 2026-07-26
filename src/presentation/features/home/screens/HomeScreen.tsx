@@ -15,7 +15,7 @@ import { HomeHeader } from '../components/HomeHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { HScroll } from '../components/HScroll';
 import { ShowCard } from '../components/ShowCard';
-import { ContinueCard } from '../components/ContinueCard';
+import { EpisodeMiniCard } from '../components/EpisodeMiniCard';
 import { EpisodeCard } from '../components/EpisodeCard';
 
 /** progress kaydından (meta'sıyla) çalınabilir bir Episode kurar. */
@@ -74,11 +74,12 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <Screen edges={{ top: false }}>
+      <HomeHeader />
       <ScrollView
         contentInsetAdjustmentBehavior="never"
         onScroll={scrimScrollHandler}
         scrollEventThrottle={16}
-        contentContainerStyle={{ paddingBottom: theme.spacing(10) }}
+        contentContainerStyle={{ paddingTop: theme.spacing(1.5), paddingBottom: theme.spacing(10) }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -86,9 +87,6 @@ export const HomeScreen: React.FC = () => {
             tintColor={theme.colors.textMuted}
           />
         }>
-        <HomeHeader />
-
-        <View style={{ height: theme.spacing(1) }} />
 
         {shows.isLoading ? (
           <LoadingSkeleton />
@@ -104,10 +102,12 @@ export const HomeScreen: React.FC = () => {
                 />
                 <HScroll>
                   {resumeItems.map(p => (
-                    <ContinueCard
+                    <EpisodeMiniCard
                       key={p.episodeId}
-                      progress={p}
-                      showTitle={showById.get(p.showId ?? '')?.title ?? ''}
+                      artworkUrl={p.artworkUrl}
+                      title={p.episodeTitle ?? 'Bölüm'}
+                      subtitle={showById.get(p.showId ?? '')?.title ?? ''}
+                      fraction={p.durationSec > 0 ? p.positionSec / p.durationSec : 0}
                       onPress={() => play(progressToEpisode(p))}
                     />
                   ))}
