@@ -15,11 +15,12 @@ import {
   QueryProvider,
   RootNavigator,
   ThemeProvider,
+  TopScrim,
   navigationRef,
+  resetScrim,
   useDependencies,
   useDownloads,
   usePlayerStore,
-  usePreferencesStore,
   useRouteStore,
   useSleepTimerStore,
   useTheme,
@@ -41,7 +42,6 @@ export const AppRoot: React.FC = () => {
       <SafeAreaProvider>
         <DependencyProvider dependencies={dependencies}>
           <QueryProvider>
-            <PreferencesHydrator />
             <ThemeProvider>
               <PlayerStateBridge />
               <SleepTimerRunner />
@@ -86,6 +86,7 @@ const Navigation: React.FC = () => {
   // Aktif rota adını takip et (global mini player'ın konumu/görünürlüğü için).
   const syncRoute = useCallback(() => {
     setRouteName(navigationRef.getCurrentRoute()?.name);
+    resetScrim(); // yeni ekran en üstten başlar → scrim'i sıfırla
   }, [setRouteName]);
 
   return (
@@ -95,31 +96,10 @@ const Navigation: React.FC = () => {
       </NavigationContainer>
       {/* Global mini player + çevrimdışı şeridi — navigasyonun üstünde overlay. */}
       <GlobalDock />
+      {/* Aşağı kaydırıldıkça island çevresini koyulaştıran üst scrim (tek örnek). */}
+      <TopScrim />
     </View>
   );
-};
-
-/**
- * PreferencesHydrator — açılışta kalıcı tercihleri okuyup store'a yükler.
- * ThemeProvider'ın DIŞINDA (ama DI ve store erişimli) durur ki tema/motion
- * tercihleri ilk render'dan hemen sonra uygulansın.
- */
-const PreferencesHydrator: React.FC = () => {
-  const { getPreferences } = useDependencies();
-  const setPrefs = usePreferencesStore(s => s.setPrefs);
-  useEffect(() => {
-    getPreferences
-      .execute()
-      .then(result => {
-        if (result.ok) {
-          setPrefs(result.value);
-        }
-      })
-      .catch(() => {
-        /* tercih okunamazsa varsayılanlarla devam */
-      });
-  }, [getPreferences, setPrefs]);
-  return null;
 };
 
 /**

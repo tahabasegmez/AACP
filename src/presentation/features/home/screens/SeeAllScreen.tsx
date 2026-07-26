@@ -5,7 +5,7 @@ import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { Episode, PlaybackProgress, Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { EmptyState, LoadingView } from '../../../shared/components';
-import { ImmersiveHeader } from '../../../ui';
+import { ImmersiveHeader, scrimScrollHandler } from '../../../ui';
 import {
   useFollowedShows,
   useLatestEpisodes,
@@ -78,6 +78,8 @@ export const SeeAllScreen: React.FC<Props> = ({ route }) => {
       return (
         <ScrollView
           contentInsetAdjustmentBehavior="never"
+          onScroll={scrimScrollHandler}
+          scrollEventThrottle={16}
           contentContainerStyle={{ padding: pad, paddingBottom: theme.spacing(12) }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
             {(shows.data ?? []).map(s => (
@@ -98,6 +100,8 @@ export const SeeAllScreen: React.FC<Props> = ({ route }) => {
           data={items}
           keyExtractor={p => p.episodeId}
           contentInsetAdjustmentBehavior="never"
+          onScroll={scrimScrollHandler}
+          scrollEventThrottle={16}
           contentContainerStyle={{ padding: pad, paddingBottom: theme.spacing(12) }}
           ItemSeparatorComponent={() => <View style={{ height: gap }} />}
           renderItem={({ item }) => (
@@ -130,6 +134,8 @@ export const SeeAllScreen: React.FC<Props> = ({ route }) => {
         data={items}
         keyExtractor={ep => ep.id}
         contentInsetAdjustmentBehavior="never"
+        onScroll={scrimScrollHandler}
+        scrollEventThrottle={16}
         contentContainerStyle={{ padding: pad, paddingBottom: theme.spacing(12) }}
         ItemSeparatorComponent={() => <View style={{ height: gap }} />}
         renderItem={({ item }) => (

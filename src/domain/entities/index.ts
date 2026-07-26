@@ -5,5 +5,4 @@ export * from './Page';
 export * from './PodcastFeed';
 export * from './PlaybackState';
 export * from './PlaybackProgress';
-export * from './Preferences';
 export * from './Download';

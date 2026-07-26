@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { Episode, PlaybackProgress, Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
-import { Screen, Skeleton } from '../../../ui';
+import { Screen, Skeleton, scrimScrollHandler } from '../../../ui';
 import {
   useFollowedShows,
   useLatestEpisodes,
@@ -76,6 +76,8 @@ export const HomeScreen: React.FC = () => {
     <Screen edges={{ top: false }}>
       <ScrollView
         contentInsetAdjustmentBehavior="never"
+        onScroll={scrimScrollHandler}
+        scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: theme.spacing(10) }}
         refreshControl={
           <RefreshControl

@@ -3,7 +3,7 @@ import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { EmptyState, LoadingView } from '../../../shared/components';
-import { Screen, ScreenHeader, SearchField } from '../../../ui';
+import { Screen, ScreenHeader, SearchField, scrimScrollHandler } from '../../../ui';
 import { useShowsQuery } from '../../../query';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { ShowCard } from '../../home/components/ShowCard';
@@ -53,7 +53,10 @@ export const SearchScreen: React.FC = () => {
       ) : results.length === 0 ? (
         <EmptyState title="Sonuç yok" description={`"${q}" için şov bulunamadı.`} />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: pad, paddingTop: theme.spacing(1), paddingBottom: theme.spacing(10) }}>
+        <ScrollView
+          onScroll={scrimScrollHandler}
+          scrollEventThrottle={16}
+          contentContainerStyle={{ padding: pad, paddingTop: theme.spacing(1), paddingBottom: theme.spacing(10) }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
             {results.map(s => (
               <ShowCard key={s.id} show={s} width={colW} onPress={() => openShow(s)} />

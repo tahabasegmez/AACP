@@ -9,10 +9,6 @@ export * from './follow/ToggleFollow';
 export * from './follow/IsFollowed';
 export * from './follow/GetFollowedShows';
 
-// Tercihler
-export * from './preferences/GetPreferences';
-export * from './preferences/SavePreferences';
-
 // İndirmeler (offline)
 export * from './downloads/DownloadEpisode';
 export * from './downloads/RemoveDownload';

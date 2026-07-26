@@ -8,7 +8,6 @@ import {
   GetLatestEpisodes,
   GetPlaybackProgress,
   GetPodcastFeed,
-  GetPreferences,
   GetResumeList,
   GetSavedEpisodes,
   GetShowCatalog,
@@ -19,7 +18,6 @@ import {
   RemoveDownload,
   ResumePlayback,
   SavePlaybackProgress,
-  SavePreferences,
   SeekTo,
   SetPlaybackRate,
   SkipBy,
@@ -34,7 +32,6 @@ import {
   InMemoryFeedCacheDataSource,
   PlaybackProgressRepositoryImpl,
   PodcastFeedRepositoryImpl,
-  PreferencesRepositoryImpl,
   RemoteCatalogDataSource,
   RssFeedDataSource,
   SavedEpisodesRepositoryImpl,
@@ -88,7 +85,6 @@ export const composeDependencies = (): AppDependencies => {
   );
   const progressRepo = new PlaybackProgressRepositoryImpl(storage);
   const followRepo = new FollowRepositoryImpl(storage);
-  const preferencesRepo = new PreferencesRepositoryImpl(storage);
   const downloadRepo = new DownloadRepositoryImpl(new BlobUtilDownloader(), storage);
   const savedRepo = new SavedEpisodesRepositoryImpl(storage);
 
@@ -102,10 +98,6 @@ export const composeDependencies = (): AppDependencies => {
   const toggleFollow = new ToggleFollow(followRepo);
   const isFollowed = new IsFollowed(followRepo);
   const getFollowedShows = new GetFollowedShows(followRepo, catalogRepo);
-
-  // domain use case'leri — tercihler
-  const getPreferences = new GetPreferences(preferencesRepo);
-  const savePreferences = new SavePreferences(preferencesRepo);
 
   // domain use case'leri — indirmeler (offline)
   const downloadEpisode = new DownloadEpisode(downloadRepo);
@@ -140,8 +132,6 @@ export const composeDependencies = (): AppDependencies => {
     toggleFollow,
     isFollowed,
     getFollowedShows,
-    getPreferences,
-    savePreferences,
     imagePalette,
     downloadEpisode,
     removeDownload,

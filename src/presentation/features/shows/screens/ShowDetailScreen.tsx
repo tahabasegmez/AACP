@@ -5,7 +5,7 @@ import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Episode } from '@domain/entities';
 import { useTheme } from '../../../theme';
-import { CoverGradient, CoverImage, Icon, Text, TextSheet, useHeroCoverSize } from '../../../ui';
+import { CoverGradient, CoverImage, Icon, Text, TextSheet, scrimScrollHandler, useHeroCoverSize } from '../../../ui';
 import { useResumeList, useShowEpisodes } from '../../../query';
 import { useIsFollowed, useToggleFollow } from '../../../query';
 import { EmptyState, ErrorView, LoadingView } from '../../../shared/components';
@@ -181,6 +181,8 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
       keyExtractor={item => item.id}
       ListHeaderComponent={Header}
       contentInsetAdjustmentBehavior="never"
+      onScroll={scrimScrollHandler}
+      scrollEventThrottle={16}
       contentContainerStyle={{ paddingBottom: theme.spacing(14) }}
       renderItem={({ item }: { item: Episode }) => (
         <EpisodeRow

@@ -1,23 +1,15 @@
 import React, { createContext, useContext } from 'react';
-import { useColorScheme } from 'react-native';
-import { usePreferencesStore } from '../stores/preferencesStore';
-import { Theme, darkTheme, lightTheme } from './theme';
+import { Theme, darkTheme } from './theme';
 
 const ThemeContext = createContext<Theme>(darkTheme);
 
 /**
- * ThemeProvider — temayı kullanıcı tercihine + sistem moduna göre seçer.
- * themeMode 'system' ise sistemi izler; aksi halde zorlanan modu kullanır.
- * VARSAYILAN KOYU: sistem "light" demedikçe koyu tema.
+ * ThemeProvider — uygulama teması KOYUYA SABİT (marka kimliği koyu tema üzerine
+ * kuruludur). Tüm token'lar `darkTheme`'den gelir. İleride tekrar açık/otomatik
+ * tema istenirse burada sistem tercihine göre seçim yapılır; bileşenler değişmez.
  */
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
-}) => {
-  const scheme = useColorScheme();
-  const themeMode = usePreferencesStore(s => s.prefs.themeMode);
-  const effective = themeMode === 'system' ? scheme : themeMode;
-  const theme = effective === 'light' ? lightTheme : darkTheme;
-  return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;
-};
+}) => <ThemeContext.Provider value={darkTheme}>{children}</ThemeContext.Provider>;
 
 export const useTheme = (): Theme => useContext(ThemeContext);

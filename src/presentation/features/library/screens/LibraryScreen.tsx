@@ -3,7 +3,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { DownloadItem, Episode, Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { EmptyState } from '../../../shared/components';
-import { Icon, Screen, ScreenHeader, SearchField } from '../../../ui';
+import { Icon, Screen, ScreenHeader, SearchField, scrimScrollHandler } from '../../../ui';
 import { useFollowedShows, useSavedEpisodes, useShowsQuery } from '../../../query';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { usePlayEpisode } from '../../player/usePlayEpisode';
@@ -105,7 +105,10 @@ export const LibraryScreen: React.FC = () => {
           }
         />
       ) : (
-        <ScrollView contentContainerStyle={{ paddingVertical: theme.spacing(1), paddingBottom: theme.spacing(10) }}>
+        <ScrollView
+          onScroll={scrimScrollHandler}
+          scrollEventThrottle={16}
+          contentContainerStyle={{ paddingVertical: theme.spacing(1), paddingBottom: theme.spacing(10) }}>
           {savedList.length > 0 && (
             <View style={{ marginBottom: theme.spacing(2.5) }}>
               <SectionHeader title="Sonra dinle" />
