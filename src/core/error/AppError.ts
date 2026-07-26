@@ -11,6 +11,10 @@ export type AppErrorCode =
   | 'TIMEOUT'
   | 'STORAGE'
   | 'PLAYBACK'
+  /** Kimlik doğrulama/yetki hatası (401/403) — oturum yenilenmeli. */
+  | 'UNAUTHORIZED'
+  /** Sunucu isteği reddetti (4xx) — kalıcı, yeniden denenmez. */
+  | 'BAD_REQUEST'
   | 'UNKNOWN';
 
 export class AppError extends Error {

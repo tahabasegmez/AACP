@@ -36,6 +36,14 @@ class FakeHttp implements HttpClient {
     }
     return this.response ?? '';
   }
+
+  async postJson<T>(): Promise<T | undefined> {
+    this.calls++;
+    if (this.shouldThrow) {
+      throw AppError.network('offline');
+    }
+    return undefined;
+  }
 }
 
 const makeSut = (

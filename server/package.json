@@ -1,0 +1,32 @@
+{
+  "name": "aacp-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AACP backend — katalog, senkron, telemetri ve push kayıt servisi. Sunucudan bağımsız (Raspberry Pi, kurumsal veya kiralık sunucu).",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "main": "dist/main.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "ci": "npm run typecheck && npm test"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.7.2"
+  }
+}

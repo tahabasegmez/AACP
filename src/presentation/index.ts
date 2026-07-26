@@ -14,3 +14,4 @@ export * from './features/player/usePlaybackController';
 export * from './features/player/components/GlobalDock';
 export * from './features/downloads/useDownloads';
 export * from './features/episode/EpisodeSheet';
+export * from './features/sync/SyncRunner';

@@ -1,4 +1,10 @@
-import { FEED_CATALOG, env } from '@core/config';
+import {
+  FEED_CATALOG,
+  env,
+  isAnalyticsEnabled,
+  isSyncEnabled,
+  resolveCatalogUrl,
+} from '@core/config';
 import { ConsoleLogger } from '@core/logger';
 import {
   ContinueEpisode,
@@ -26,21 +32,33 @@ import {
   ToggleSavedEpisode,
 } from '@domain/usecases';
 import {
+  ApiSyncTransport,
   DownloadRepositoryImpl,
+  FeedSource,
   FollowRepositoryImpl,
+  FollowsSyncAdapter,
+  ProgressSyncAdapter,
+  SavedEpisodesSyncAdapter,
+  SyncEngine,
   HybridShowCatalogRepository,
   InMemoryFeedCacheDataSource,
   PlaybackProgressRepositoryImpl,
   PodcastFeedRepositoryImpl,
   RemoteCatalogDataSource,
   RssFeedDataSource,
+  RssFeedSource,
   SavedEpisodesRepositoryImpl,
+  TransistorFeedSource,
 } from '@data';
 import {
+  ApiClient,
+  BatchingAnalytics,
   BlobUtilDownloader,
   FastXmlParser,
   FetchHttpClient,
   ImageColorsPalette,
+  LoggingErrorReporter,
+  NoopAnalytics,
   RetryingHttpClient,
   TrackPlayerAudioService,
   createPersistentStorage,
@@ -70,18 +88,46 @@ export const composeDependencies = (): AppDependencies => {
   // Cihazda MMKV (kalıcı); MMKV yoksa bellek-içi'ne güvenle düşer.
   const storage = createPersistentStorage(logger);
 
+  // Backend erişimi — apiBaseUrl yoksa "kapalı" durumda kalır ve sunucu
+  // gerektiren tüm özellikler (senkron, telemetri) sessizce devre dışı olur.
+  const api = new ApiClient(http, storage, logger, env.apiBaseUrl);
+  const analytics = isAnalyticsEnabled(env)
+    ? new BatchingAnalytics(api, logger, true)
+    : new NoopAnalytics();
+  const errorReporter = new LoggingErrorReporter(logger, analytics);
+
+  // Cihazlar arası senkron: kaldığın yer, takipler, sonra dinle.
+  const syncEngine = new SyncEngine(
+    new ApiSyncTransport(api),
+    [
+      new ProgressSyncAdapter(storage),
+      new FollowsSyncAdapter(storage),
+      new SavedEpisodesSyncAdapter(storage),
+    ],
+    storage,
+    logger,
+  );
+
   // data (kaynaklar + repository implementasyonları)
-  const rssDataSource = new RssFeedDataSource(http, xmlParser);
   const remoteCatalog = new RemoteCatalogDataSource(http);
   const feedCache = new InMemoryFeedCacheDataSource(env.feedCacheTtlMs);
-  const feedRepo = new PodcastFeedRepositoryImpl(rssDataSource, feedCache, logger);
-  // Hibrit katalog: bundled fallback + (varsa) uzak remote-config.
+  // Bölüm kaynağı bir STRATEJİ: RSS (varsayılan) veya Transistor API.
+  // env.episodeSource dışında hiçbir yer bu seçimi bilmez.
+  const feedSource: FeedSource =
+    env.episodeSource === 'transistor'
+      ? new TransistorFeedSource(http, {
+          apiKey: env.transistorApiKey,
+          baseUrl: env.apiBaseUrl ? `${env.apiBaseUrl.replace(/\/+$/, '')}/v1/transistor` : undefined,
+        })
+      : new RssFeedSource(new RssFeedDataSource(http, xmlParser));
+  const feedRepo = new PodcastFeedRepositoryImpl(feedSource, feedCache, logger);
+  // Hibrit katalog: bundled fallback + (varsa) uzak remote-config / backend.
   const catalogRepo = new HybridShowCatalogRepository(
     FEED_CATALOG,
     remoteCatalog,
     storage,
     logger,
-    { remoteUrl: env.remoteCatalogUrl, ttlMs: env.remoteCatalogTtlMs },
+    { remoteUrl: resolveCatalogUrl(env), ttlMs: env.remoteCatalogTtlMs },
   );
   const progressRepo = new PlaybackProgressRepositoryImpl(storage);
   const followRepo = new FollowRepositoryImpl(storage);
@@ -150,5 +196,9 @@ export const composeDependencies = (): AppDependencies => {
     continueEpisode,
     getResumeList,
     audioPlayer,
+    analytics,
+    errorReporter,
+    // Senkron ayarla kapatılabilir; kapalıysa motor yerine boş bir yüzey verilir.
+    sync: isSyncEnabled(env) ? syncEngine : undefined,
   };
 };

@@ -17,4 +17,6 @@ export type RootStackParamList = {
   Player: { episodeId: string } | undefined;
   SeeAll: { kind: SeeAllKind; title: string };
   Settings: undefined;
+  /** Oynatma kuyruğu ("Sıradakiler"). */
+  Queue: undefined;
 };

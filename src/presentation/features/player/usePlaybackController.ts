@@ -19,7 +19,7 @@ const BACK_TO_PREVIOUS_THRESHOLD_SEC = 10;
  * usePlayEpisode bunu sarıp Player'ı açar; Player içi ileri/geri navigasyonsuz kullanır.
  */
 export const usePlaybackController = () => {
-  const { continueEpisode, seekTo } = useDependencies();
+  const { continueEpisode, seekTo, analytics } = useDependencies();
   const setCurrentEpisode = usePlayerStore(s => s.setCurrentEpisode);
   const setQueue = usePlayerQueueStore(s => s.setQueue);
 
@@ -31,9 +31,15 @@ export const usePlaybackController = () => {
         setQueue([episode], 0);
       }
       setCurrentEpisode(episode);
+      // Telemetri: hangi bölüm/şov çalındı (kişisel veri içermez).
+      analytics.track('episode_play', {
+        episodeId: episode.id,
+        showId: episode.showId,
+        durationSec: episode.durationSec,
+      });
       await continueEpisode.execute({ episode });
     },
-    [continueEpisode, setCurrentEpisode, setQueue],
+    [analytics, continueEpisode, setCurrentEpisode, setQueue],
   );
 
   const playIndex = useCallback(

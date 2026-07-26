@@ -66,6 +66,14 @@ yarn-error.log
 # testing
 /coverage
 
+# backend (server/)
+# Gizli değerler ve çalışma zamanı verisi depoya girmez; .env.example yeterlidir.
+server/.env
+server/dist/
+server/data/*.db
+server/data/*.db-shm
+server/data/*.db-wal
+
 # Yarn
 .yarn/*
 !.yarn/patches

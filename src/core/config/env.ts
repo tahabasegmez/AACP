@@ -1,31 +1,164 @@
 /**
  * Uygulama ortam ayarları.
  *
- * Şimdilik sabit; ileride react-native-config / farklı build şemaları ile
- * (dev / staging / prod) beslenebilir. Tek erişim noktası olması önemli.
+ * TEK erişim noktası: kod hiçbir yerde URL/anahtar sabiti yazmaz, `env` okur.
+ *
+ * Ortam seçimi `APP_ENV` (react-native-config / babel env) ile yapılır; yoksa
+ * __DEV__ bayrağına göre dev/prod seçilir. Böylece aynı kod dev, staging ve
+ * prod'da; ayrıca kendi sunucumuzda (ör. Raspberry Pi) veya kurumsal/kiralık
+ * sunucuda değişiklik yapmadan çalışır — yalnızca `apiBaseUrl` farklıdır.
  */
+
+/** Bölüm listesinin hangi kaynaktan çözüleceği. */
+export type EpisodeSourceKind = 'rss' | 'transistor';
+
 export interface AppEnv {
+  /** Ortam adı — loglama/telemetri etiketlemesi için. */
+  readonly name: 'development' | 'staging' | 'production';
+
   /** RSS/HTTP istekleri için varsayılan zaman aşımı (ms). */
   readonly requestTimeoutMs: number;
   /** Feed cache geçerlilik süresi (ms). */
   readonly feedCacheTtlMs: number;
   /** Ağ hatalarında yeniden deneme sayısı. */
   readonly networkRetryCount: number;
+
   /**
-   * Uzak (remote-config) şov kataloğu JSON URL'i. Boş bırakılırsa uygulama
-   * yalnızca bundled (koda gömülü) katalogu kullanır — hibrit devre dışı.
-   * Sunucu tarafı kurulum: docs/REMOTE_CONFIG.md
+   * AACP backend'inin kök adresi (ör. https://podcast.example.com/api).
+   * Boşsa uygulama tamamen sunucusuz (yerel) çalışır: senkron, telemetri ve
+   * uzak katalog devre dışı kalır, hiçbir özellik kırılmaz.
+   */
+  readonly apiBaseUrl?: string;
+
+  /**
+   * Uzak (remote-config) şov kataloğu JSON URL'i. Verilmezse `apiBaseUrl`
+   * üzerinden `/v1/catalog` kullanılır; o da yoksa yalnızca bundled katalog.
    */
   readonly remoteCatalogUrl?: string;
   /** Uzak katalog cache geçerlilik süresi (ms). */
   readonly remoteCatalogTtlMs: number;
+
+  /** Bölümler nereden okunacak: RSS feed (varsayılan) veya Transistor API. */
+  readonly episodeSource: EpisodeSourceKind;
+  /**
+   * Transistor API anahtarı. Yalnızca `episodeSource: 'transistor'` iken gerekir.
+   * İstemciye anahtar gömmek yerine backend proxy'si (apiBaseUrl) önerilir;
+   * bu alan doğrudan-erişim senaryosu (ör. dahili build) içindir.
+   */
+  readonly transistorApiKey?: string;
+
+  /** Kullanım telemetrisi gönderilsin mi (apiBaseUrl gerektirir). */
+  readonly analyticsEnabled: boolean;
+  /** Cihazlar arası senkron açık mı (apiBaseUrl gerektirir). */
+  readonly syncEnabled: boolean;
 }
 
-export const env: AppEnv = {
+/** Tüm ortamlarda ortak, teknoloji kaynaklı varsayılanlar. */
+const base = {
   requestTimeoutMs: 15_000,
   feedCacheTtlMs: 10 * 60_000, // 10 dakika
   networkRetryCount: 2,
-  // TODO: AA sunucusunda shows.json yayınlanınca burayı doldur (bkz. docs/REMOTE_CONFIG.md).
-  remoteCatalogUrl: undefined,
   remoteCatalogTtlMs: 6 * 60 * 60_000, // 6 saat
+  episodeSource: 'rss' as EpisodeSourceKind,
+} as const;
+
+/**
+ * Ortam tanımları. Sunucu adresleri build zamanında `APP_API_BASE_URL` ile
+ * geçersiz kılınabilir (react-native-config); bu sayede aynı binary farklı
+ * sunuculara yönlendirilebilir ve kod değişmez.
+ */
+const ENVIRONMENTS: Record<AppEnv['name'], AppEnv> = {
+  development: {
+    ...base,
+    name: 'development',
+    apiBaseUrl: undefined, // yerel backend için: 'http://10.0.2.2:8080/api'
+    analyticsEnabled: false,
+    syncEnabled: false,
+  },
+  staging: {
+    ...base,
+    name: 'staging',
+    apiBaseUrl: undefined,
+    analyticsEnabled: true,
+    syncEnabled: true,
+  },
+  production: {
+    ...base,
+    name: 'production',
+    apiBaseUrl: undefined,
+    analyticsEnabled: true,
+    syncEnabled: true,
+  },
 };
+
+/** Build zamanı override'ları (react-native-config veya babel inject). */
+interface RawOverrides {
+  APP_ENV?: string;
+  APP_API_BASE_URL?: string;
+  APP_CATALOG_URL?: string;
+  APP_EPISODE_SOURCE?: string;
+  APP_TRANSISTOR_API_KEY?: string;
+}
+
+/**
+ * Build değişkenlerini güvenle okur. `react-native-config` kurulu değilse
+ * (bugünkü durum) sessizce boş döner — kod çalışmaya devam eder.
+ */
+const readOverrides = (): RawOverrides => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require('react-native-config') as { default?: RawOverrides };
+    return mod.default ?? (mod as RawOverrides);
+  } catch {
+    return {};
+  }
+};
+
+const isEnvName = (v: unknown): v is AppEnv['name'] =>
+  v === 'development' || v === 'staging' || v === 'production';
+
+const isSourceKind = (v: unknown): v is EpisodeSourceKind =>
+  v === 'rss' || v === 'transistor';
+
+const trimmed = (v?: string): string | undefined => {
+  const s = v?.trim();
+  return s && s.length > 0 ? s : undefined;
+};
+
+/** Aktif ortamı kurar: taban tanım + build zamanı override'ları. */
+const resolveEnv = (): AppEnv => {
+  const raw = readOverrides();
+  const fallback: AppEnv['name'] =
+    typeof __DEV__ !== 'undefined' && __DEV__ ? 'development' : 'production';
+  const name = isEnvName(raw.APP_ENV) ? raw.APP_ENV : fallback;
+  const preset = ENVIRONMENTS[name];
+
+  return {
+    ...preset,
+    apiBaseUrl: trimmed(raw.APP_API_BASE_URL) ?? preset.apiBaseUrl,
+    remoteCatalogUrl: trimmed(raw.APP_CATALOG_URL) ?? preset.remoteCatalogUrl,
+    episodeSource: isSourceKind(raw.APP_EPISODE_SOURCE)
+      ? raw.APP_EPISODE_SOURCE
+      : preset.episodeSource,
+    transistorApiKey: trimmed(raw.APP_TRANSISTOR_API_KEY) ?? preset.transistorApiKey,
+  };
+};
+
+export const env: AppEnv = resolveEnv();
+
+/**
+ * Katalog JSON adresini çözer: açık `remoteCatalogUrl` > backend `/v1/catalog`
+ * > yok (bundled-only). Tek yerde hesaplanır ki DI ve testler aynı kuralı görsün.
+ */
+export const resolveCatalogUrl = (e: AppEnv = env): string | undefined => {
+  if (e.remoteCatalogUrl) {
+    return e.remoteCatalogUrl;
+  }
+  return e.apiBaseUrl ? `${e.apiBaseUrl.replace(/\/+$/, '')}/v1/catalog` : undefined;
+};
+
+/** Sunucu gerektiren özellikler yalnızca apiBaseUrl varken açılır. */
+export const isBackendEnabled = (e: AppEnv = env): boolean => Boolean(e.apiBaseUrl);
+export const isSyncEnabled = (e: AppEnv = env): boolean => e.syncEnabled && isBackendEnabled(e);
+export const isAnalyticsEnabled = (e: AppEnv = env): boolean =>
+  e.analyticsEnabled && isBackendEnabled(e);

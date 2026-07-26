@@ -3,6 +3,7 @@ import React from 'react';
 import { useTheme } from '../theme';
 import { ShowDetailScreen } from '../features/shows/screens/ShowDetailScreen';
 import { PlayerScreen } from '../features/player/screens/PlayerScreen';
+import { QueueScreen } from '../features/player/screens/QueueScreen';
 import { SeeAllScreen } from '../features/home/screens/SeeAllScreen';
 import { SettingsScreen } from '../features/settings/screens/SettingsScreen';
 import { TabNavigator } from './TabNavigator';
@@ -32,6 +33,7 @@ export const RootNavigator: React.FC = () => {
       />
       <Stack.Screen name="SeeAll" component={SeeAllScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Queue" component={QueueScreen} options={{ headerShown: false }} />
       <Stack.Screen
         name="Player"
         component={PlayerScreen}

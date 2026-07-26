@@ -12,3 +12,5 @@ export * from './storage/createPersistentStorage';
 export * from './download/BlobUtilDownloader';
 export * from './image/HashImagePalette';
 export * from './image/ImageColorsPalette';
+export * from './api';
+export * from './telemetry';

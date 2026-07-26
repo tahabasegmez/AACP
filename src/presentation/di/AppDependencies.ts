@@ -1,4 +1,4 @@
-import { ImagePalette } from '@core/ports';
+import { Analytics, ErrorReporter, ImagePalette } from '@core/ports';
 import { AudioPlayerService } from '@domain/services';
 import {
   ContinueEpisode,
@@ -77,4 +77,23 @@ export interface AppDependencies {
 
   // Kapak görselinden baskın renk (arka plan renklendirme)
   readonly imagePalette: ImagePalette;
+
+  // Telemetri — sunucu yapılandırılmamışsa no-op adaptörlerdir (çağıran bilmez).
+  readonly analytics: Analytics;
+  readonly errorReporter: ErrorReporter;
+
+  /**
+   * Cihazlar arası senkron. Sunucu/ayar kapalıysa `undefined` olur; UI bunu
+   * "senkron yok" olarak yorumlar ve tamamen yerel çalışır.
+   */
+  readonly sync?: SyncService;
+}
+
+/**
+ * SyncService — presentation'ın senkrondan ihtiyaç duyduğu asgari yüzey.
+ * (Somut `SyncEngine`'e bağımlılık kurmamak için dar bir arayüz.)
+ */
+export interface SyncService {
+  readonly enabled: boolean;
+  syncAll(): Promise<void>;
 }

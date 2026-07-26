@@ -17,6 +17,13 @@ class FlakyHttp implements HttpClient {
     }
     return this.success;
   }
+  async postJson<T>(): Promise<T | undefined> {
+    this.calls++;
+    if (this.calls <= this.failTimes) {
+      throw this.error;
+    }
+    return undefined;
+  }
 }
 
 // baseDelayMs=0 → testler beklemesin.

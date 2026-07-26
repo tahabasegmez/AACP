@@ -253,7 +253,7 @@ export const PlayerScreen: React.FC = () => {
             </Pressable>
             <View style={{ flexDirection: 'row', gap: theme.spacing(2.5) }}>
               <Tool icon="timer" label="Uyku" active={sleepEndsAt != null} onPress={openSleepTimer} />
-              <Tool icon="list" label="Kuyruk" onPress={() => showHint('Yakında: Kuyruk')} />
+              <Tool icon="list" label="Kuyruk" onPress={() => navigation.navigate('Queue')} />
               <Tool
                 icon={dlStatus === 'downloaded' ? 'downloaded' : 'download'}
                 label="İndir"

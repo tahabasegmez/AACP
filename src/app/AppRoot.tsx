@@ -14,6 +14,7 @@ import {
   GlobalDock,
   QueryProvider,
   RootNavigator,
+  SyncRunner,
   ThemeProvider,
   TopScrim,
   navigationRef,
@@ -46,6 +47,7 @@ export const AppRoot: React.FC = () => {
               <PlayerStateBridge />
               <SleepTimerRunner />
               <DownloadsHydrator />
+              <SyncRunner />
               <Navigation />
               <EpisodeSheet />
             </ThemeProvider>
