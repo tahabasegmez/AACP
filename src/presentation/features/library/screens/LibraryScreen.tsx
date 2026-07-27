@@ -15,12 +15,18 @@ import { EpisodeMiniCard } from '../../home/components/EpisodeMiniCard';
 
 const trLower = (s: string) => s.toLocaleLowerCase('tr-TR');
 
+/**
+ * İndirme kaydından çalınabilir bölüm üretir.
+ *
+ * `audioUrl` kayıttan gelir: indirme silinse bile bölüm uzaktan çalınabilsin ve
+ * yeniden indirilebilsin diye uzak adres indirme kaydında saklanır.
+ */
 const downloadToEpisode = (d: DownloadItem): Episode => ({
   id: d.episodeId,
   showId: d.showId ?? '',
   title: d.episodeTitle ?? 'Bölüm',
   description: '',
-  audioUrl: '',
+  audioUrl: d.audioUrl ?? '',
   durationSec: d.durationSec ?? 0,
   publishedAt: d.publishedAt ?? '',
   imageUrl: d.artworkUrl,
@@ -124,6 +130,8 @@ export const LibraryScreen: React.FC = () => {
                     artworkUrl={ep.imageUrl}
                     title={ep.title}
                     subtitle={showTitleOf(ep.showId)}
+                    publishedAt={ep.publishedAt}
+                    durationSec={ep.durationSec}
                     onPress={() => play(ep)}
                   />
                 ))}

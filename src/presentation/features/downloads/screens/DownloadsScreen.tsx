@@ -11,13 +11,16 @@ import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { usePlayEpisode } from '../../player/usePlayEpisode';
 import { useDownloads } from '../useDownloads';
 
-/** DownloadItem → çalınabilir Episode (meta indirme kaydında saklanır). */
+/**
+ * DownloadItem → çalınabilir Episode (meta indirme kaydında saklanır).
+ * `audioUrl` kayıttan gelir; indirme silinse bile bölüm uzaktan çalınabilir.
+ */
 const toEpisode = (d: DownloadItem): Episode => ({
   id: d.episodeId,
   showId: d.showId ?? '',
   title: d.episodeTitle ?? 'Bölüm',
   description: '',
-  audioUrl: '',
+  audioUrl: d.audioUrl ?? '',
   durationSec: d.durationSec ?? 0,
   publishedAt: d.publishedAt ?? '',
   imageUrl: d.artworkUrl,

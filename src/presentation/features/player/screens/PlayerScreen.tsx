@@ -27,7 +27,14 @@ import {
 } from '../../../ui';
 import { useDependencies } from '../../../di';
 import { usePlayerStore, useSleepTimerStore } from '../../../stores';
-import { useEpisodeNotes, useIsFollowed, useShowsQuery, useToggleFollow } from '../../../query';
+import {
+  useEpisodeNotes,
+  useIsFollowed,
+  useSavedEpisodes,
+  useShowsQuery,
+  useToggleFollow,
+  useToggleSaved,
+} from '../../../query';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { usePlaybackController } from '../usePlaybackController';
 import { useDownloads, useDownloadStatus } from '../../downloads/useDownloads';
@@ -62,6 +69,11 @@ export const PlayerScreen: React.FC = () => {
   const followed = useIsFollowed(episode?.showId ?? '');
   const toggleFollow = useToggleFollow();
   const dlStatus = useDownloadStatus(episode?.id ?? '');
+
+  // "Sonra dinle" — dinlerken bölümü listeye eklemenin doğal yeri burasıdır.
+  const saved = useSavedEpisodes();
+  const toggleSaved = useToggleSaved();
+  const isSaved = (saved.data ?? []).some(e => e.id === episode?.id);
 
   // Notlar kaynak ne olursa olsun (ör. "Dinlemeye devam") feed'den zenginleştirilir.
   const notes = useEpisodeNotes(episode ?? undefined);
@@ -267,7 +279,18 @@ export const PlayerScreen: React.FC = () => {
               style={{ backgroundColor: theme.colors.accentSoft, paddingVertical: 6, paddingHorizontal: theme.spacing(1.5), borderRadius: theme.radius.pill, opacity: ad ? 0.4 : 1 }}>
               <Text variant="subtitle" color={theme.colors.accent}>{playback.rate}×</Text>
             </Pressable>
-            <View style={{ flexDirection: 'row', gap: theme.spacing(2.5) }}>
+            <View style={{ flexDirection: 'row', gap: theme.spacing(1.75) }}>
+              <Tool
+                icon={isSaved ? 'bookmark' : 'bookmark-outline'}
+                label="Sonra dinle"
+                active={isSaved}
+                onPress={() => {
+                  if (episode) {
+                    toggleSaved.mutate(episode);
+                    showHint(isSaved ? 'Sonra dinle listesinden çıkarıldı' : 'Sonra dinle listesine eklendi');
+                  }
+                }}
+              />
               <Tool icon="timer" label="Uyku" active={sleepEndsAt != null} onPress={openSleepTimer} />
               <Tool icon="list" label="Kuyruk" onPress={() => navigation.navigate('Queue')} />
               <Tool

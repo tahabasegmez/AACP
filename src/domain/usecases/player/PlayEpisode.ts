@@ -1,5 +1,5 @@
 import { Result } from '@core/error';
-import { Episode } from '../../entities';
+import { Episode, isPlayableOffline } from '../../entities';
 import { DownloadRepository } from '../../repositories';
 import { AudioPlayerService } from '../../services';
 import { UseCase } from '../UseCase';
@@ -37,17 +37,33 @@ export class PlayEpisode implements UseCase<PlayEpisodeParams, void> {
     });
   }
 
-  /** İndirilmişse audioUrl'i yerel dosyaya çevirir; değilse olduğu gibi döner. */
+  /**
+   * İndirilmişse audioUrl'i yerel dosyaya çevirir; değilse olduğu gibi döner.
+   *
+   * Repository yalnızca dosyası GERÇEKTEN var olan kayıtlara `localPath` verir
+   * (kaybolan dosyaların kaydı temizlenir), bu yüzden burada ek kontrol gerekmez
+   * ve silinmiş/taşınmış bir indirme sessizce uzak adrese düşer.
+   *
+   * Bölümün kendi `audioUrl`'i boşsa (ör. "İndirilenler"den üretilmiş bir kayıt)
+   * indirme kaydında saklanan uzak adres kullanılır.
+   */
   private async resolveSource(episode: Episode): Promise<Episode> {
     if (!this.downloads) {
       return episode;
     }
     const result = await this.downloads.get(episode.id);
-    if (result.ok && result.value?.status === 'downloaded' && result.value.localPath) {
-      const path = result.value.localPath;
+    if (!result.ok || !result.value) {
+      return episode;
+    }
+
+    const item = result.value;
+    if (isPlayableOffline(item) && item.localPath) {
+      const path = item.localPath;
       const url = path.startsWith('file://') ? path : `file://${path}`;
       return { ...episode, audioUrl: url };
     }
-    return episode;
+
+    // İndirme yok/geçersiz: bölümün adresi boşsa kayıttaki uzak adrese düş.
+    return episode.audioUrl ? episode : { ...episode, audioUrl: item.audioUrl ?? '' };
   }
 }

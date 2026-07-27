@@ -74,8 +74,87 @@ describe('DownloadRepositoryImpl', () => {
     const { dl, repo } = make();
     await repo.download(episode);
     await repo.remove(episode.id);
-    expect(dl.removed).toEqual(['/dl/guid-1_abc.mp3']);
+    expect(dl.removed).toContain('/dl/guid-1_abc.mp3');
     const got = await repo.get(episode.id);
     expect(got.ok && got.value).toBeNull();
+  });
+
+  it('bölümün uzak adresini saklar (silinse de yeniden indirilebilsin)', async () => {
+    const { repo } = make();
+    const res = await repo.download(episode);
+    expect(res.ok && res.value.audioUrl).toBe('https://media/x.mp3');
+  });
+
+  it('silinen bölüm tekrar indirilebilir', async () => {
+    const { dl, repo } = make();
+    await repo.download(episode);
+    await repo.remove(episode.id);
+
+    const again = await repo.download(episode);
+    expect(again.ok).toBe(true);
+    expect(again.ok && again.value.status).toBe('downloaded');
+    const got = await repo.get(episode.id);
+    expect(got.ok && got.value?.status).toBe('downloaded');
+    expect(dl.downloaded).toHaveLength(2);
+  });
+
+  it('dosyası kaybolan kaydı listede göstermez ve temizler', async () => {
+    const { dl, repo } = make();
+    await repo.download(episode);
+
+    // Dosya uygulama dışında silinmiş gibi davran (ör. iOS container değişimi).
+    await dl.remove('/dl/guid-1_abc.mp3');
+
+    const list = await repo.list();
+    expect(list.ok && list.value).toHaveLength(0);
+
+    // Kayıt kalıcı olarak temizlenmeli.
+    const got = await repo.get(episode.id);
+    expect(got.ok && got.value).toBeNull();
+  });
+
+  it('dosya adı saklanır; tam yol güncel dizinden türetilir', async () => {
+    // iOS'ta uygulama container'ı (dolayısıyla mutlak yol) kurulumda değişir.
+    // Aynı depo yeni bir dizinle okunduğunda kayıt yine çözülmelidir.
+    const storage = new InMemoryKeyValueStorage();
+    const oldDir = new FakeDownloader();
+    const repoOld = new DownloadRepositoryImpl(oldDir, storage);
+    await repoOld.download(episode);
+
+    // Yeni "kurulum": farklı dizin, dosya orada mevcut.
+    class NewDirDownloader extends FakeDownloader {
+      downloadsDir() {
+        return '/yeni-container/dl';
+      }
+    }
+    const newDir = new NewDirDownloader();
+    await newDir.download('https://media/x.mp3', '/yeni-container/dl/guid-1_abc.mp3');
+
+    const repoNew = new DownloadRepositoryImpl(newDir, storage);
+    const got = await repoNew.get(episode.id);
+    expect(got.ok && got.value?.localPath).toBe('/yeni-container/dl/guid-1_abc.mp3');
+  });
+
+  it('yalnızca mutlak yol içeren ESKİ kayıtları da çözer (geriye dönük uyum)', async () => {
+    const storage = new InMemoryKeyValueStorage();
+    // Eski sürümün yazdığı biçim: fileName yok, mutlak localPath var.
+    storage.set(
+      'downloads_v1',
+      JSON.stringify({
+        'guid-1/abc': {
+          episodeId: 'guid-1/abc',
+          status: 'downloaded',
+          localPath: '/eski-container/dl/guid-1_abc.mp3',
+          episodeTitle: 'Bölüm',
+        },
+      }),
+    );
+
+    const dl = new FakeDownloader();
+    await dl.download('https://media/x.mp3', '/dl/guid-1_abc.mp3'); // güncel dizinde mevcut
+
+    const repo = new DownloadRepositoryImpl(dl, storage);
+    const got = await repo.get('guid-1/abc');
+    expect(got.ok && got.value?.localPath).toBe('/dl/guid-1_abc.mp3');
   });
 });
