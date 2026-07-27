@@ -9,8 +9,11 @@ const USER_KEY = 'aacp.user.profile';
 /** Sunucudan dönen oturum yanıtı. */
 interface AuthSessionDto {
   readonly token?: string;
+  readonly refreshToken?: string;
   readonly userId?: string;
   readonly user?: PublicUserDto;
+  /** E-posta doğrulaması açıksa kayıt jeton döndürmez. */
+  readonly pendingEmailConfirmation?: boolean;
 }
 
 interface PublicUserDto {
@@ -25,7 +28,7 @@ export interface UserApi {
   readonly enabled: boolean;
   post<T>(path: string, body: unknown): Promise<T | undefined>;
   get<T>(path: string): Promise<T | undefined>;
-  setToken(token?: string): void;
+  setToken(token?: string, refreshToken?: string): void;
   getDeviceId(): string;
   ensureSession(): Promise<string | undefined>;
 }
@@ -140,10 +143,20 @@ export class UserRepositoryImpl implements UserRepository {
         email: input.email.trim().toLowerCase(),
         password: input.password,
       });
+
+      // Sunucuda e-posta doğrulaması açıksa oturum hemen açılmaz.
+      if (session?.pendingEmailConfirmation) {
+        return fail(
+          AppError.validation(
+            'Hesabını doğrulamak için e-postana gönderdiğimiz bağlantıya tıkla.',
+          ),
+        );
+      }
+
       if (!session?.token || !session.user?.id) {
         return fail(AppError.network('Oturum açılamadı'));
       }
-      this.api.setToken(session.token);
+      this.api.setToken(session.token, session.refreshToken);
       const user = toUser(session.user);
       this.writeCache(user);
       return ok(user);

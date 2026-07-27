@@ -1,8 +1,9 @@
 module.exports = {
   preset: '@react-native/jest-preset',
-  // server/ ayrı bir Node projesidir; kendi jest yapılandırmasıyla koşar
-  // (`cd server && npm run ci`). Buradan hariç tutulur ki testler çift koşmasın.
-  testPathIgnorePatterns: ['/node_modules/', '/server/'],
+  // worker/ ayrı bir Cloudflare Workers projesidir; kendi test koşucusuyla
+  // çalışır (`cd worker && npm run ci`). Buradan hariç tutulur ki testler
+  // çift koşmasın.
+  testPathIgnorePatterns: ['/node_modules/', '/worker/'],
   // React Navigation ve react-native-* paketleri ESM olarak yayınlanıyor;
   // jest'in bunları da Babel'den geçirmesi için node_modules istisnasına ekle.
   transformIgnorePatterns: [

@@ -1,0 +1,26 @@
+# Yerel geliştirme gizli değerleri (wrangler dev).
+#
+# Bu dosyayı `.dev.vars` olarak kopyalayın ve doldurun — `.dev.vars` git'e
+# GİRMEZ. Yayınlanan Worker bu dosyayı kullanmaz; orada değerler
+# `wrangler secret put <AD>` ile eklenir.
+#
+# Ayrıntı: docs/CLOUDFLARE-SUPABASE-KURULUM.md
+
+# Supabase → Project Settings → API
+SUPABASE_ANON_KEY=
+# GİZLİ: RLS'i bypass eder, yalnızca yönetim işlerinde kullanılır.
+SUPABASE_SERVICE_KEY=
+# GİZLİ: kullanıcı jetonlarını doğrulamak için (Settings → API → JWT Settings).
+SUPABASE_JWT_SECRET=
+
+# Yönetim uçlarını korur (katalog yayınlama, feed tarama).
+# Üretmek için: openssl rand -hex 24
+ADMIN_TOKEN=
+
+# Transistor proxy (opsiyonel) — anahtarı uygulamaya gömmemek için.
+TRANSISTOR_API_KEY=
+
+# APNs (opsiyonel) — boşsa bildirim gönderilmez, tarama yine çalışır.
+APNS_KEY=
+APNS_KEY_ID=
+APNS_TEAM_ID=

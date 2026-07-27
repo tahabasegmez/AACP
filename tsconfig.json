@@ -21,7 +21,7 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  // server/ ayrı bir Node projesidir (kendi tsconfig'i ve tip kümesi vardır);
-  // React Native tipleriyle karışmaması için buradan hariç tutulur.
-  "exclude": ["**/node_modules", "**/Pods", "server"]
+  // worker/ ayrı bir Cloudflare Workers projesidir (kendi tsconfig'i ve tip
+  // kümesi vardır); React Native tipleriyle karışmaması için hariç tutulur.
+  "exclude": ["**/node_modules", "**/Pods", "worker"]
 }

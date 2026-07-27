@@ -4,9 +4,12 @@ import { HttpClient, KeyValueStorage } from '@core/ports';
 
 const DEVICE_ID_KEY = 'aacp.device.id';
 const TOKEN_KEY = 'aacp.auth.token';
+const REFRESH_TOKEN_KEY = 'aacp.auth.refresh';
 
 interface AuthSessionDto {
   readonly token?: string;
+  /** Erişim jetonu kısa ömürlüdür; yenileme bununla yapılır. */
+  readonly refreshToken?: string;
   readonly userId?: string;
   readonly expiresInSec?: number;
 }
@@ -24,6 +27,7 @@ interface AuthSessionDto {
  */
 export class ApiClient {
   private token?: string;
+  private refreshToken?: string;
   /** Aynı anda birden çok isteğin kimlik doğrulamaya girmesini önler. */
   private pendingAuth?: Promise<string | undefined>;
 
@@ -34,6 +38,7 @@ export class ApiClient {
     private readonly baseUrl?: string,
   ) {
     this.token = storage.getString(TOKEN_KEY) ?? undefined;
+    this.refreshToken = storage.getString(REFRESH_TOKEN_KEY) ?? undefined;
   }
 
   get enabled(): boolean {
@@ -80,13 +85,17 @@ export class ApiClient {
 
   /**
    * Oturum jetonunu dışarıdan ayarlar (giriş/kayıt sonrası).
-   * `undefined` verilirse oturum kapatılır ve bir sonraki istekte cihaz
-   * kimliğiyle yeniden anonim oturum açılır.
+   * `undefined` verilirse oturum kapatılır ve bir sonraki istekte yeniden
+   * anonim oturum açılır.
    */
-  setToken(token?: string): void {
+  setToken(token?: string, refreshToken?: string): void {
     if (token) {
       this.token = token;
       this.storage.set(TOKEN_KEY, token);
+      if (refreshToken) {
+        this.refreshToken = refreshToken;
+        this.storage.set(REFRESH_TOKEN_KEY, refreshToken);
+      }
     } else {
       this.clearToken();
     }
@@ -112,22 +121,62 @@ export class ApiClient {
     return this.pendingAuth;
   }
 
+  /**
+   * Oturum açar.
+   *
+   * Önce YENİLEME denenir (kullanıcı giriş yapmışsa hesabı korunur); yenileme
+   * yoksa ya da başarısızsa anonim oturuma düşülür. Bu sıralama önemlidir:
+   * aksi halde jetonun süresi dolan bir kullanıcı sessizce misafire dönerdi.
+   */
   private async authenticate(): Promise<string | undefined> {
+    const refreshed = await this.refreshSession();
+    if (refreshed) {
+      return refreshed;
+    }
     try {
+      // Anonim oturum — kimlik bilgisi istemez.
       const session = await this.http.postJson<AuthSessionDto>(
         this.url('/v1/auth/device'),
         { deviceId: this.deviceId() },
       );
-      if (session?.token) {
-        this.token = session.token;
-        this.storage.set(TOKEN_KEY, session.token);
-        return session.token;
-      }
+      return this.storeSession(session);
     } catch (error) {
       // Oturum açılamazsa uygulama çevrimdışı/yerel çalışmaya devam eder.
       this.logger.warn('Oturum açılamadı', error);
+      return undefined;
     }
-    return undefined;
+  }
+
+  /** Yenileme jetonuyla erişim jetonunu tazeler; yoksa undefined. */
+  private async refreshSession(): Promise<string | undefined> {
+    if (!this.refreshToken) {
+      return undefined;
+    }
+    try {
+      const session = await this.http.postJson<AuthSessionDto>(this.url('/v1/auth/refresh'), {
+        refreshToken: this.refreshToken,
+      });
+      return this.storeSession(session);
+    } catch {
+      // Yenileme jetonu da geçersiz: temizlenir, anonim oturuma düşülür.
+      this.refreshToken = undefined;
+      this.storage.delete(REFRESH_TOKEN_KEY);
+      return undefined;
+    }
+  }
+
+  /** Oturum yanıtını kalıcı olarak saklar. */
+  private storeSession(session?: AuthSessionDto): string | undefined {
+    if (!session?.token) {
+      return undefined;
+    }
+    this.token = session.token;
+    this.storage.set(TOKEN_KEY, session.token);
+    if (session.refreshToken) {
+      this.refreshToken = session.refreshToken;
+      this.storage.set(REFRESH_TOKEN_KEY, session.refreshToken);
+    }
+    return session.token;
   }
 
   /** Cihaza özgü kalıcı anonim kimlik (kişisel veri içermez). */
@@ -148,7 +197,9 @@ export class ApiClient {
 
   private clearToken(): void {
     this.token = undefined;
+    this.refreshToken = undefined;
     this.storage.delete(TOKEN_KEY);
+    this.storage.delete(REFRESH_TOKEN_KEY);
   }
 
   private url(path: string): string {

@@ -3,10 +3,12 @@
  *
  * TEK erişim noktası: kod hiçbir yerde URL/anahtar sabiti yazmaz, `env` okur.
  *
- * Ortam seçimi `APP_ENV` (react-native-config / babel env) ile yapılır; yoksa
- * __DEV__ bayrağına göre dev/prod seçilir. Böylece aynı kod dev, staging ve
- * prod'da; ayrıca kendi sunucumuzda (ör. Raspberry Pi) veya kurumsal/kiralık
- * sunucuda değişiklik yapmadan çalışır — yalnızca `apiBaseUrl` farklıdır.
+ * Ortam seçimi `APP_ENV` (react-native-config → kökteki `.env`) ile yapılır;
+ * yoksa __DEV__ bayrağına göre dev/prod seçilir. Böylece aynı kod dev, staging
+ * ve prod'da değişiklik yapmadan çalışır — yalnızca `apiBaseUrl` farklıdır.
+ *
+ * API, Cloudflare Workers üzerinde çalışır (bkz. worker/); sağlayıcı değişse
+ * bile uygulama tarafında yalnızca bu adres değişir.
  */
 
 /** Bölüm listesinin hangi kaynaktan çözüleceği. */

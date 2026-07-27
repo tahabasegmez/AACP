@@ -8,17 +8,20 @@ Uygulamanın kimlik modeli, verinin nerede yaşadığı ve senkronun nasıl çal
 `User` entity'si vardır; hesap bağlandığında aynı kayıt zenginleşir:
 
 ```
-ilk açılış          →  User { id, deviceId }                (anonim)
-hesap oluşturulur   →  User { id, deviceId, email, ... }    (aynı id!)
+ilk açılış          →  User { id }                 (anonim)
+hesap oluşturulur   →  User { id, email, ... }     (aynı id!)
 ```
 
 Bunun sonucu kritiktir: **anonimken biriken veri hesaba geçerken taşınmaz,
 çünkü zaten aynı kullanıcıya aittir.** Ayrı bir göç adımı, veri kopyalama ya da
 "hesabına aktar" akışı yoktur.
 
-Sunucuda `AuthService.register()` bunu şöyle uygular: istek oturumlu geldiyse ve
-o kullanıcının e-postası yoksa YENİ kullanıcı yaratılmaz, mevcut kayıt
-yükseltilir.
+Bu, Supabase Auth'un iki özelliğiyle sağlanır:
+1. **Anonymous sign-in** — ilk açılışta kalıcı bir kullanıcı üretilir,
+2. **User update** — kayıt sırasında aynı kullanıcıya e-posta/şifre eklenir.
+
+Worker'daki `/v1/auth/register` ucu bunu uygular: istek oturumlu geldiyse ve
+kullanıcı anonimse YENİ kullanıcı yaratılmaz, mevcut kayıt yükseltilir.
 
 ## 2. Katmanlar
 
@@ -29,7 +32,8 @@ yükseltilir.
 | data | [UserRepositoryImpl.ts](../src/data/repositories/UserRepositoryImpl.ts) | API çağrıları + yerel profil önbelleği |
 | presentation | [useAccount.ts](../src/presentation/query/useAccount.ts) | Query/mutation hook'ları |
 | presentation | [AuthSheet.tsx](../src/presentation/features/account/AuthSheet.tsx) | Giriş/kayıt paneli |
-| server | [AuthService.ts](../server/src/modules/auth/AuthService.ts) | Cihaz + e-posta kimliği |
+| worker | [routes/auth.ts](../worker/src/routes/auth.ts) | Supabase Auth proxy'si |
+| worker | [auth.ts](../worker/src/auth.ts) | Jeton doğrulama (yerel, HS256) |
 
 ## 3. Hangi veri nerede yaşar?
 
@@ -67,36 +71,51 @@ kaydedilenleri yok etmesin diye adaptör bunu reddeder.
 
 Bu, kurulumun güvenli varsayılanıdır.
 
-## 6. Uçlar (server)
+## 6. Uçlar
 
 | Uç | Açıklama |
 |---|---|
-| `POST /v1/auth/device` | Cihaz kimliğiyle anonim oturum |
+| `POST /v1/auth/device` | Anonim oturum (Supabase anonymous sign-in) |
 | `POST /v1/auth/register` | Hesap oluştur (oturumlu gelirse anonim kullanıcıyı yükseltir) |
 | `POST /v1/auth/login` | E-posta + şifre ile giriş |
+| `POST /v1/auth/refresh` | Erişim jetonunu yeniler |
 | `GET /v1/auth/me` | Oturumdaki kullanıcının profili |
 | `POST /v1/auth/profile` | Görünen adı güncelle |
+| `POST /v1/auth/reset-password` | Şifre sıfırlama e-postası |
 
 ### Güvenlik notları
 
-- Şifreler **scrypt** ile özetlenir (Node çekirdeği; bcrypt/argon2 native
-  derleme gerektirdiği için ARM kurulumunu zorlaştırırdı).
-- Şifre karşılaştırması sabit zamanlıdır (`timingSafeEqual`).
-- "Kullanıcı yok" ve "şifre yanlış" **aynı** hata mesajını döner — hangi
-  e-postaların kayıtlı olduğu sızmaz.
-- E-posta benzersizliği veritabanı indeksiyle güvence altındadır (NULL'lar
-  serbest: anonim kullanıcılar).
+- **Şifreleri biz saklamıyoruz.** Kimlik doğrulama Supabase Auth'ta yapılır;
+  Worker yalnızca proxy'dir. Şifre özetleme, sızıntı koruması ve oran sınırlama
+  platformun sorumluluğundadır.
+- **Jetonlar yerelde doğrulanır** (HS256 + JWT secret). Her istekte Supabase'e
+  sormak edge'in hız avantajını yok ederdi.
+- **Yetki veritabanında zorunlu** (RLS). Worker'da bir hata olsa bile kullanıcı
+  başkasının verisini okuyamaz.
+- **Şifre sıfırlama yanıtı her durumda aynıdır** — hesabın var olup olmadığı
+  sızmaz.
+- `service_role` anahtarı yalnızca kullanıcıya ait olmayan işlerde kullanılır
+  (katalog, feed tarama) ve asla uygulamaya gömülmez.
 
-## 7. Şema göçü
+## 7. Jeton yenileme
 
-`users` tablosuna `email`, `password_hash`, `display_name` sütunları eklendi.
-Çalışan bir kurulumda `CREATE TABLE IF NOT EXISTS` bu sütunları eklemeyeceği
-için [SqliteStore.migrate()](../server/src/storage/SqliteStore.ts) eksik
-sütunları tespit edip ekler. Yeni bir sütun eklemek = o dizide bir satır.
+Supabase erişim jetonları kısa ömürlüdür (varsayılan 1 saat). `ApiClient`
+oturumu şöyle korur:
+
+```
+istek 401 alır
+  └─ refreshToken varsa  → POST /v1/auth/refresh   (hesap korunur)
+  └─ yoksa/başarısızsa   → POST /v1/auth/device    (anonime düşer)
+```
+
+Bu sıralama önemlidir: aksi halde jetonu eskiyen bir kullanıcı sessizce
+misafire dönerdi.
 
 ## 8. Kalanlar
 
-- **Şifre sıfırlama** yok (e-posta gönderimi gerekir).
-- **SSO** (Apple/Google ile giriş) yok.
+- **SSO** (Apple/Google ile giriş) — Supabase destekliyor, uç eklenmedi.
 - **Oturum listesi / uzaktan çıkış** yok.
 - Profil yalnızca görünen ad içerir; avatar yok.
+
+> Şifre sıfırlama artık **var** (Supabase Auth e-posta gönderir); uygulamada
+> arayüzü henüz bağlanmadı — uç hazır.

@@ -9,13 +9,15 @@
  *
  * Kullanım:
  *   node scripts/generate-shows-json.js [çıktı-yolu]
- *   node scripts/generate-shows-json.js server/data/shows.json
+ *   node scripts/generate-shows-json.js shows.json
  *
- * Yayınlama (sunucu çalışırken):
- *   curl -X POST https://<sunucu>/v1/catalog \
+ * Yayınlama (API ayaktayken):
+ *   curl -X POST https://<worker-adresi>/v1/catalog \
  *        -H "x-admin-token: $ADMIN_TOKEN" \
  *        -H "Content-Type: application/json" \
  *        --data @shows.json
+ *
+ * Ayrıntı: docs/CLOUDFLARE-SUPABASE-KURULUM.md
  */
 const fs = require('node:fs');
 const path = require('node:path');

@@ -1,0 +1,21 @@
+{
+  "name": "aacp-worker",
+  "version": "1.0.0",
+  "private": true,
+  "//": "AACP API — Cloudflare Workers. Çalışma zamanı bağımlılığı YOKTUR: Supabase'e ve APNs'e doğrudan fetch ile gidilir, bu sayede bundle küçük kalır ve soğuk başlatma hızlıdır.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "tail": "wrangler tail",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "ci": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9",
+    "wrangler": "^3.99.0"
+  }
+}

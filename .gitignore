@@ -66,13 +66,13 @@ yarn-error.log
 # testing
 /coverage
 
-# backend (server/)
-# Gizli değerler ve çalışma zamanı verisi depoya girmez; .env.example yeterlidir.
-server/.env
-server/dist/
-server/data/*.db
-server/data/*.db-shm
-server/data/*.db-wal
+# uygulama build değişkenleri — gizli değerler depoya girmez (.env.example yeterli)
+.env
+
+# API (worker/) — Cloudflare Workers
+worker/.dev.vars
+worker/.wrangler/
+worker/dist/
 
 # Yarn
 .yarn/*

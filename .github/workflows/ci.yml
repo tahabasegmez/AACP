@@ -31,13 +31,14 @@ jobs:
       - name: Test
         run: npm test -- --ci
 
-  # Backend ayrı bir Node projesi (server/): kendi bağımlılıkları ve testleri var.
-  # Ayrı iş olarak koşar ki biri kırılınca diğerinin sonucu yine görünsün.
-  server:
+  # API ayrı bir Cloudflare Workers projesi (worker/): kendi bağımlılıkları ve
+  # testleri var. Ayrı iş olarak koşar ki biri kırılınca diğerinin sonucu yine
+  # görünsün.
+  worker:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: server
+        working-directory: worker
     steps:
       - uses: actions/checkout@v4
 
@@ -45,14 +46,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: server/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Typecheck + Test
         run: npm run ci
-
-      - name: Docker imajı derlenebiliyor mu
-        run: docker build -t aacp-server:ci .

@@ -1,0 +1,48 @@
+# AACP — Cloudflare Workers yapılandırması
+#
+# Gizli değerler BURAYA YAZILMAZ; `wrangler secret put <AD>` ile eklenir
+# (bkz. docs/CLOUDFLARE-SUPABASE-KURULUM.md).
+
+name = "aacp-api"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+
+# Node yerleşiklerinin (crypto vb.) Workers'ta çalışması için.
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+# --- Gizli olmayan ayarlar ----------------------------------------------------
+[vars]
+# Supabase proje adresi (gizli değil; anahtarlar gizlidir).
+SUPABASE_URL = ""
+# Telemetri toplansın mı.
+ANALYTICS_ENABLED = "true"
+# Transistor API tabanı (proxy için).
+TRANSISTOR_BASE_URL = "https://api.transistor.fm/v1"
+# APNs: üretim sunucusu mu kullanılsın (false → sandbox).
+APNS_PRODUCTION = "false"
+# Bildirimlerin apns-topic değeri (uygulamanın bundle kimliği).
+APNS_BUNDLE_ID = "com.aa.podcast"
+# İzin verilen CORS kaynakları (virgülle). Boş = yalnızca native istemciler.
+CORS_ORIGINS = ""
+
+# --- Zamanlanmış görevler -----------------------------------------------------
+# Takip edilen şovlarda yeni bölüm taraması (30 dakikada bir).
+[triggers]
+crons = ["*/30 * * * *"]
+
+# --- Ortamlar -----------------------------------------------------------------
+# Staging'i ayrı bir Worker olarak yayınlamak için:
+#   wrangler deploy --env staging
+[env.staging]
+name = "aacp-api-staging"
+
+[env.staging.vars]
+SUPABASE_URL = ""
+ANALYTICS_ENABLED = "true"
+TRANSISTOR_BASE_URL = "https://api.transistor.fm/v1"
+APNS_PRODUCTION = "false"
+APNS_BUNDLE_ID = "com.aa.podcast"
+CORS_ORIGINS = ""

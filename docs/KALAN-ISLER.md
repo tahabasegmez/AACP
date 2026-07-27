@@ -14,15 +14,14 @@ Kod tarafı hazır; yalnızca Xcode adımları kaldı.
 ### Push bildirimleri
 
 **Var:** Sunucu tarafı uçtan uca hazır — jeton kayıt uçları,
-[FeedWatcher](../server/src/modules/push/FeedWatcher.ts) (yeni bölüm tarama +
-takipçi eşleştirme), [ApnsPushSender](../server/src/modules/push/ApnsPushSender.ts)
-(HTTP/2 + JWT ile doğrudan APNs; harici kütüphane yok), zamanlayıcı.
+[FeedWatcher](../worker/src/push/FeedWatcher.ts) (yeni bölüm tarama + takipçi
+eşleştirme), [ApnsSender](../worker/src/push/ApnsSender.ts) (fetch + Web Crypto
+ile doğrudan APNs; harici kütüphane yok), Cloudflare Cron Trigger.
 
 **Eksik (mac):**
 1. Xcode → Signing & Capabilities → **Push Notifications** ekle.
-2. Apple Developer'dan `.p8` anahtarı indir; sunucuda `.env`'e yaz:
-   `APNS_KEY`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`.
-   (Anahtar tek satır olacaksa satır sonlarını `\n` olarak yaz.)
+2. Apple Developer'dan `.p8` anahtarı indir ve Worker gizli değerlerine ekle:
+   `wrangler secret put APNS_KEY` (+ `APNS_KEY_ID`, `APNS_TEAM_ID`).
 3. **İstemci tarafı**: bildirim izni isteme ve cihaz jetonunu
    `POST /v1/push/register`'a gönderme — henüz yazılmadı.
 
@@ -90,6 +89,6 @@ Hazırlık yapıldı, geçiş iOS 26 SDK'sı ile — bkz. [LIQUID_GLASS.md](LIQU
 ## Sunucu ayağa kalkınca
 
 1. `.env` oluştur (kök dizin): `cp .env.example .env` → `APP_API_BASE_URL` doldur
-2. Sunucuda kataloğu yayınla: `node scripts/generate-shows-json.js`
+2. Kataloğu yayınla: `node scripts/generate-shows-json.js shows.json`
 
-Bkz. [SUNUCU-KURULUM.md](SUNUCU-KURULUM.md).
+Bkz. [CLOUDFLARE-SUPABASE-KURULUM.md](CLOUDFLARE-SUPABASE-KURULUM.md).
