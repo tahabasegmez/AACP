@@ -12,7 +12,10 @@ import {
   useResumeList,
   useSavedEpisodes,
   useShowsQuery,
+  usePlaylists,
+  userPlaylists,
 } from '../../../query';
+import { PlaylistCard } from '../../playlists/components/PlaylistCard';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { useEpisodeSheetStore } from '../../../stores';
 import type { RootStackParamList } from '../../../navigation/types';
@@ -57,6 +60,7 @@ export const SeeAllScreen: React.FC<Props> = ({ route }) => {
   const shows = useShowsQuery();
   const resume = useResumeList();
   const saved = useSavedEpisodes();
+  const playlists = usePlaylists();
   const followed = useFollowedShows();
   const followedFeedUrls = useMemo(
     () => (followed.data ?? []).map(s => s.feedUrl),
@@ -115,6 +119,32 @@ export const SeeAllScreen: React.FC<Props> = ({ route }) => {
   }, [kind, resume.data, latest.data, saved.data, progressById]);
 
   const renderBody = () => {
+    // Kullanıcı listeleri — şovlarla aynı ızgara düzeninde.
+    if (kind === 'playlists') {
+      const items = userPlaylists(playlists.data);
+      if (items.length === 0) {
+        return <EmptyState title="Liste yok" description="Kütüphaneden yeni liste oluşturabilirsin." />;
+      }
+      return (
+        <ScrollView
+          contentInsetAdjustmentBehavior="never"
+          onScroll={scrimScrollHandler}
+          scrollEventThrottle={16}
+          contentContainerStyle={{ padding: pad, paddingBottom: theme.spacing(12) }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
+            {items.map(playlist => (
+              <PlaylistCard
+                key={playlist.id}
+                playlist={playlist}
+                width={colW}
+                onPress={() => navigation.navigate('PlaylistDetail', { playlistId: playlist.id })}
+              />
+            ))}
+          </View>
+        </ScrollView>
+      );
+    }
+
     if (kind === 'shows') {
       if (shows.isLoading) {
         return <LoadingView />;

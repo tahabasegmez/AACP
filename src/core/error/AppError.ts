@@ -40,6 +40,11 @@ export class AppError extends Error {
     return new AppError('NOT_FOUND', message, cause);
   }
 
+  /** Geçersiz girdi/işlem — kullanıcıya doğrudan gösterilebilir. */
+  static validation(message: string, cause?: unknown): AppError {
+    return new AppError('BAD_REQUEST', message, cause);
+  }
+
   static from(cause: unknown, code: AppErrorCode = 'UNKNOWN'): AppError {
     if (cause instanceof AppError) {
       return cause;

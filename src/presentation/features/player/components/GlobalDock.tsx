@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { OfflineBar } from '../../../shared/components';
 import { AnimatedTabBar } from '../../../navigation/AnimatedTabBar';
 import { useRouteStore } from '../../../stores';
 import { openPlayer } from '../../../navigation/navigationRef';
@@ -61,7 +60,6 @@ export const GlobalDock: React.FC = () => {
           transform: [{ translateY: miniTranslate }],
         }}>
         <MiniPlayer onOpen={openPlayer} />
-        <OfflineBar />
       </Animated.View>
 
       {/* Animasyonlu tab bar (en altta) */}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, View } from 'react-native';
 import { formatDuration, stripHtml } from '@core/utils';
 import { useTheme } from '../../theme';
@@ -7,6 +7,7 @@ import { useEpisodeNotes, useSavedEpisodes, useShowsQuery, useToggleSaved } from
 import { useEpisodeSheetStore } from '../../stores';
 import { usePlayEpisode } from '../player/usePlayEpisode';
 import { useDownloads, useDownloadStatus } from '../downloads/useDownloads';
+import { AddToPlaylistSheet } from '../playlists/components/AddToPlaylistSheet';
 
 const formatDate = (iso: string): string => {
   if (!iso) {
@@ -25,6 +26,7 @@ const formatDate = (iso: string): string => {
  */
 export const EpisodeSheet: React.FC = () => {
   const theme = useTheme();
+  const [playlistOpen, setPlaylistOpen] = useState(false);
   const episode = useEpisodeSheetStore(s => s.episode);
   const close = useEpisodeSheetStore(s => s.close);
   const play = usePlayEpisode();
@@ -122,6 +124,11 @@ export const EpisodeSheet: React.FC = () => {
                 busy={download.busy}
               />
               <SheetAction
+                icon="list"
+                label="Listeye ekle"
+                onPress={() => setPlaylistOpen(true)}
+              />
+              <SheetAction
                 icon="share"
                 label="Paylaş"
                 onPress={() =>
@@ -138,6 +145,13 @@ export const EpisodeSheet: React.FC = () => {
           </>
         )}
       </ScrollView>
+
+      {/* Listeye ekle paneli — bölüm paneli açıkken üstte açılır. */}
+      <AddToPlaylistSheet
+        visible={playlistOpen}
+        episode={episode}
+        onClose={() => setPlaylistOpen(false)}
+      />
     </BottomSheet>
   );
 };

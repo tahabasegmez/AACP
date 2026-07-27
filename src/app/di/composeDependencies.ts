@@ -9,7 +9,13 @@ import {
 import { DEFAULT_AD_POLICY } from '@domain/entities';
 import { ConsoleLogger } from '@core/logger';
 import {
+  AddEpisodeToPlaylist,
   ContinueEpisode,
+  CreatePlaylist,
+  DeletePlaylist,
+  GetPlaylists,
+  RemoveEpisodeFromPlaylist,
+  UpdatePlaylist,
   DownloadEpisode,
   GetDownloads,
   GetFollowedShows,
@@ -50,6 +56,7 @@ import {
   RssFeedDataSource,
   RssFeedSource,
   SavedEpisodesRepositoryImpl,
+  PlaylistRepositoryImpl,
   TransistorFeedSource,
   VastAdRepository,
 } from '@data';
@@ -61,6 +68,7 @@ import {
   FastXmlParser,
   FetchHttpClient,
   ImageColorsPalette,
+  LibraryImagePicker,
   LoggingErrorReporter,
   NoopAnalytics,
   RetryingHttpClient,
@@ -88,6 +96,8 @@ export const composeDependencies = (): AppDependencies => {
   );
   const xmlParser = new FastXmlParser();
   const imagePalette = new ImageColorsPalette();
+  // Görsel seçici kurulu değilse kapak seçimi UI'da sessizce pasifleşir.
+  const imagePicker = new LibraryImagePicker(logger);
   // Cihazda MMKV (kalıcı); MMKV yoksa bellek-içi'ne güvenle düşer.
   const storage = createPersistentStorage(logger);
 
@@ -170,6 +180,15 @@ export const composeDependencies = (): AppDependencies => {
   const toggleSavedEpisode = new ToggleSavedEpisode(savedRepo);
   const getSavedEpisodes = new GetSavedEpisodes(savedRepo);
 
+  // Kullanıcı listeleri — "Sonra dinle" burada bir sistem listesi olarak yaşar.
+  const playlistRepo = new PlaylistRepositoryImpl(storage);
+  const getPlaylists = new GetPlaylists(playlistRepo);
+  const createPlaylist = new CreatePlaylist(playlistRepo);
+  const updatePlaylist = new UpdatePlaylist(playlistRepo);
+  const deletePlaylist = new DeletePlaylist(playlistRepo);
+  const addEpisodeToPlaylist = new AddEpisodeToPlaylist(playlistRepo);
+  const removeEpisodeFromPlaylist = new RemoveEpisodeFromPlaylist(playlistRepo);
+
   // domain use case'leri — oynatıcı transport
   // PlayEpisode indirilen bölümlerde yerel dosyayı tercih eder (downloadRepo).
   const playEpisode = new PlayEpisode(audioPlayer, downloadRepo);
@@ -195,11 +214,18 @@ export const composeDependencies = (): AppDependencies => {
     isFollowed,
     getFollowedShows,
     imagePalette,
+    imagePicker,
     downloadEpisode,
     removeDownload,
     getDownloads,
     toggleSavedEpisode,
     getSavedEpisodes,
+    getPlaylists,
+    createPlaylist,
+    updatePlaylist,
+    deletePlaylist,
+    addEpisodeToPlaylist,
+    removeEpisodeFromPlaylist,
     playEpisode,
     pausePlayback,
     resumePlayback,

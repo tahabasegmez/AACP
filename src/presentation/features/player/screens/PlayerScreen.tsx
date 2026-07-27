@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import {
-  ActionSheetIOS,
   ActivityIndicator,
-  Alert,
   Linking,
-  Platform,
   Pressable,
   Share,
   StatusBar,
@@ -29,27 +26,19 @@ import { useDependencies } from '../../../di';
 import { usePlayerStore, useSleepTimerStore } from '../../../stores';
 import {
   useEpisodeNotes,
-  useIsFollowed,
   useSavedEpisodes,
   useShowsQuery,
-  useToggleFollow,
   useToggleSaved,
 } from '../../../query';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { usePlaybackController } from '../usePlaybackController';
 import { useDownloads, useDownloadStatus } from '../../downloads/useDownloads';
 import { SkipButton } from '../components/SkipButton';
+import { PlayerMenuSheet } from '../components/PlayerMenuSheet';
+import { QueueSheet } from '../components/QueueSheet';
+import { SleepTimerSheet } from '../components/SleepTimerSheet';
 
 const SPEEDS = [1, 1.25, 1.5, 1.75, 2];
-const SLEEP_OPTIONS: ReadonlyArray<{ label: string; minutes: number }> = [
-  { label: 'Kapalı', minutes: 0 },
-  { label: '5 dakika', minutes: 5 },
-  { label: '10 dakika', minutes: 10 },
-  { label: '15 dakika', minutes: 15 },
-  { label: '30 dakika', minutes: 30 },
-  { label: '45 dakika', minutes: 45 },
-  { label: '60 dakika', minutes: 60 },
-];
 
 /**
  * PlayerScreen — tam ekran "Şimdi Çalıyor".
@@ -66,8 +55,6 @@ export const PlayerScreen: React.FC = () => {
 
   const playback = usePlayerStore(s => s.playback);
   const episode = usePlayerStore(s => s.currentEpisode);
-  const followed = useIsFollowed(episode?.showId ?? '');
-  const toggleFollow = useToggleFollow();
   const dlStatus = useDownloadStatus(episode?.id ?? '');
 
   // "Sonra dinle" — dinlerken bölümü listeye eklemenin doğal yeri burasıdır.
@@ -95,6 +82,10 @@ export const PlayerScreen: React.FC = () => {
 
   const [notesOpen, setNotesOpen] = useState(false);
   const [hint, setHint] = useState('');
+  // Alttan açılan paneller — hepsi ortak BottomSheet bileşenini kullanır.
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [sleepOpen, setSleepOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const isPlaying = playback.status === 'playing';
   const isBusy = playback.status === 'loading' || playback.status === 'buffering';
@@ -113,28 +104,6 @@ export const PlayerScreen: React.FC = () => {
 
   const applySleep = (minutes: number) =>
     setSleepEndsAt(minutes > 0 ? Date.now() + minutes * 60_000 : null);
-
-  const openSleepTimer = () => {
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          title: 'Uyku zamanlayıcı',
-          options: [...SLEEP_OPTIONS.map(o => o.label), 'İptal'],
-          cancelButtonIndex: SLEEP_OPTIONS.length,
-        },
-        i => {
-          if (i < SLEEP_OPTIONS.length) {
-            applySleep(SLEEP_OPTIONS[i].minutes);
-          }
-        },
-      );
-    } else {
-      Alert.alert('Uyku zamanlayıcı', undefined, [
-        ...SLEEP_OPTIONS.map(o => ({ text: o.label, onPress: () => applySleep(o.minutes) })),
-        { text: 'İptal', style: 'cancel' as const },
-      ]);
-    }
-  };
 
   const sleepRemainingMin =
     sleepEndsAt != null ? Math.max(0, Math.ceil((sleepEndsAt - Date.now()) / 60_000)) : null;
@@ -168,7 +137,7 @@ export const PlayerScreen: React.FC = () => {
           <Text variant="label" color={theme.colors.text} uppercase numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
             AA PODCAST
           </Text>
-          <Pressable onPress={() => showHint('Yakında: Seçenekler')} hitSlop={10} accessibilityLabel="Seçenekler">
+          <Pressable onPress={() => setMenuOpen(true)} hitSlop={10} accessibilityLabel="Seçenekler">
             <Icon name="ellipsis" size={22} color={theme.colors.text} />
           </Pressable>
         </View>
@@ -198,13 +167,14 @@ export const PlayerScreen: React.FC = () => {
             </View>
             {episode && !ad && (
               <Pressable
-                onPress={() => toggleFollow.mutate(episode.showId)}
+                onPress={() => toggleSaved.mutate(episode)}
                 hitSlop={10}
-                accessibilityLabel={followed.data ? 'Takibi bırak' : 'Takip et'}>
+                accessibilityRole="button"
+                accessibilityLabel={isSaved ? 'Sonra dinleden çıkar' : 'Sonra dinleye ekle'}>
                 <Icon
-                  name={followed.data ? 'heart' : 'heart-outline'}
+                  name={isSaved ? 'bookmark' : 'bookmark-outline'}
                   size={26}
-                  color={followed.data ? theme.colors.accent : theme.colors.textMuted}
+                  color={isSaved ? theme.colors.accent : theme.colors.textMuted}
                 />
               </Pressable>
             )}
@@ -250,9 +220,10 @@ export const PlayerScreen: React.FC = () => {
             )}
           </View>
 
-          {(sleepRemainingMin != null && sleepRemainingMin > 0) || hint ? (
-            <Text variant="caption" color={hint ? theme.colors.textMuted : theme.colors.accent} style={{ textAlign: 'center', marginTop: theme.spacing(1) }}>
-              {hint || `Uyku zamanlayıcı: ~${sleepRemainingMin} dk`}
+          {/* Yalnızca geçici bilgi mesajı; uyku süresi artık timer tuşunda görünür. */}
+          {hint ? (
+            <Text variant="caption" color={theme.colors.textMuted} style={{ textAlign: 'center', marginTop: theme.spacing(1) }}>
+              {hint}
             </Text>
           ) : null}
 
@@ -280,19 +251,22 @@ export const PlayerScreen: React.FC = () => {
               <Text variant="subtitle" color={theme.colors.accent}>{playback.rate}×</Text>
             </Pressable>
             <View style={{ flexDirection: 'row', gap: theme.spacing(1.75) }}>
-              <Tool
-                icon={isSaved ? 'bookmark' : 'bookmark-outline'}
-                label="Sonra dinle"
-                active={isSaved}
-                onPress={() => {
-                  if (episode) {
-                    toggleSaved.mutate(episode);
-                    showHint(isSaved ? 'Sonra dinle listesinden çıkarıldı' : 'Sonra dinle listesine eklendi');
-                  }
-                }}
-              />
-              <Tool icon="timer" label="Uyku" active={sleepEndsAt != null} onPress={openSleepTimer} />
-              <Tool icon="list" label="Kuyruk" onPress={() => navigation.navigate('Queue')} />
+              {/* Uyku zamanlayıcı: kuruluyken simge yerine kalan dakikayı gösterir. */}
+              {sleepRemainingMin != null && sleepRemainingMin > 0 ? (
+                <Pressable
+                  onPress={() => setSleepOpen(true)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Uyku zamanlayıcı, ${sleepRemainingMin} dakika kaldı`}
+                  style={{ width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text variant="subtitle" color={theme.colors.accent}>
+                    {sleepRemainingMin}
+                  </Text>
+                </Pressable>
+              ) : (
+                <Tool icon="timer" label="Uyku" onPress={() => setSleepOpen(true)} />
+              )}
+              <Tool icon="list" label="Sıradakiler" onPress={() => setQueueOpen(true)} />
               <Tool
                 icon={dlStatus === 'downloaded' ? 'downloaded' : 'download'}
                 label="İndir"
@@ -312,6 +286,21 @@ export const PlayerScreen: React.FC = () => {
         title="Bölüm notları"
         text={notes}
         onClose={() => setNotesOpen(false)}
+      />
+
+      {/* Alttan açılan paneller — hepsi ortak BottomSheet üzerine kuruludur. */}
+      <QueueSheet visible={queueOpen} onClose={() => setQueueOpen(false)} />
+      <SleepTimerSheet
+        visible={sleepOpen}
+        activeMinutes={sleepRemainingMin ?? 0}
+        onSelect={applySleep}
+        onClose={() => setSleepOpen(false)}
+      />
+      <PlayerMenuSheet
+        visible={menuOpen}
+        episode={episode}
+        onClose={() => setMenuOpen(false)}
+        onFeedback={showHint}
       />
     </View>
   );

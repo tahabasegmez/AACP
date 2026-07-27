@@ -24,17 +24,25 @@ export const EpisodeRow: React.FC<{
   /** 0..1 arası kaldığın yer; yoksa çubuk gösterilmez. */
   progress?: number;
   completed?: boolean;
+  /**
+   * Meta satırında tarihin yerine gösterilecek metin (ör. listelerde şovun adı).
+   * Verildiğinde ilerleme çubuğu yerine bu metin öne çıkar.
+   */
+  subtitle?: string;
   /** Satıra dokunma → ayrıntı paneli. */
   onPress: () => void;
   /** Çal ikonu → doğrudan oynat. */
   onPlay: () => void;
-}> = ({ episode, progress, completed, onPress, onPlay }) => {
+  /** Uzun basma → bağlama özel eylem (ör. listeden çıkar). */
+  onLongPress?: () => void;
+}> = ({ episode, progress, completed, subtitle, onPress, onPlay, onLongPress }) => {
   const theme = useTheme();
   const dim = completed ? 0.5 : 1;
 
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
       accessibilityRole="button"
       accessibilityLabel={`${episode.title} — ayrıntılar`}
       style={{
@@ -58,11 +66,17 @@ export const EpisodeRow: React.FC<{
             gap: theme.spacing(1),
             marginTop: theme.spacing(0.75),
           }}>
-          <Text variant="caption" color={theme.colors.textMuted}>
-            {formatDate(episode.publishedAt)}
+          <Text variant="caption" color={theme.colors.textMuted} numberOfLines={1}>
+            {subtitle || formatDate(episode.publishedAt)}
           </Text>
           <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: theme.colors.textMuted }} />
-          {completed ? (
+          {/* subtitle verildiyse (ör. liste görünümü) süre gösterilir; kaldığın
+              yer çubuğu yalnızca şov listelerinde anlamlıdır. */}
+          {subtitle ? (
+            <Text variant="caption" color={theme.colors.textMuted}>
+              {formatDuration(episode.durationSec)}
+            </Text>
+          ) : completed ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
               <Icon name="checkmark" size={13} color={theme.colors.accent} />
               <Text variant="caption" color={theme.colors.accent}>

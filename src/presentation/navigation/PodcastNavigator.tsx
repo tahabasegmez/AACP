@@ -4,10 +4,10 @@ import { NavigationState, useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme';
 import { ShowDetailScreen } from '../features/shows/screens/ShowDetailScreen';
 import { PlayerScreen } from '../features/player/screens/PlayerScreen';
-import { QueueScreen } from '../features/player/screens/QueueScreen';
 import { SeeAllScreen } from '../features/home/screens/SeeAllScreen';
 import { SettingsScreen } from '../features/settings/screens/SettingsScreen';
 import { DownloadsScreen } from '../features/downloads/screens/DownloadsScreen';
+import { PlaylistDetailScreen } from '../features/playlists/screens/PlaylistDetailScreen';
 import { TabNavigator } from './TabNavigator';
 import { useRouteStore } from '../stores';
 import { resetScrim } from '../ui';
@@ -52,10 +52,14 @@ export const PodcastNavigator: React.FC = () => {
         />
         <Stack.Screen name="SeeAll" component={SeeAllScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Queue" component={QueueScreen} options={{ headerShown: false }} />
         <Stack.Screen
           name="Downloads"
           component={DownloadsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="PlaylistDetail"
+          component={PlaylistDetailScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

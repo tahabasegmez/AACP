@@ -3,8 +3,16 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { DownloadItem, Episode, Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { EmptyState } from '../../../shared/components';
-import { Icon, Screen, ScreenHeader, SearchField, scrimScrollHandler } from '../../../ui';
-import { useFollowedShows, useSavedEpisodes, useShowsQuery } from '../../../query';
+import { Icon, Screen, ScreenHeader, SearchField, Text, scrimScrollHandler } from '../../../ui';
+import {
+  useFollowedShows,
+  usePlaylists,
+  useSavedEpisodes,
+  useShowsQuery,
+  userPlaylists,
+} from '../../../query';
+import { NewPlaylistCard, PlaylistCard } from '../../playlists/components/PlaylistCard';
+import { PlaylistEditorSheet } from '../../playlists/components/PlaylistEditorSheet';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { usePlayEpisode } from '../../player/usePlayEpisode';
 import { useDownloads } from '../../downloads/useDownloads';
@@ -45,7 +53,9 @@ export const LibraryScreen: React.FC = () => {
   const shows = useShowsQuery();
   const followed = useFollowedShows();
   const saved = useSavedEpisodes();
+  const playlists = usePlaylists();
   const { items, hydrate } = useDownloads();
+  const [editorOpen, setEditorOpen] = useState(false);
 
   useEffect(() => {
     hydrate();
@@ -77,6 +87,13 @@ export const LibraryScreen: React.FC = () => {
       title: show.title,
     });
 
+  // Kullanıcının kendi listeleri (sistem listesi hariç), arama filtresine tabi.
+  const myPlaylists = userPlaylists(playlists.data).filter(
+    p => !query || trLower(p.name).includes(query),
+  );
+
+  // "Listelerim" şeridi her zaman görünür (yeni liste kısayolu için), bu yüzden
+  // boşluk kararında sayılmaz.
   const empty = savedList.length === 0 && followedList.length === 0 && downloadsList.length === 0;
   // Kütüphanede hiç içerik yok mu (filtreden önce)? Öyleyse arama kutusunu gizle
   // ki "boş" mesajı ekranın tam ortasına gelsin.
@@ -101,20 +118,14 @@ export const LibraryScreen: React.FC = () => {
       />
       {hasAnyLibrary && <SearchField value={q} onChangeText={setQ} placeholder="Kütüphanende ara" />}
 
-      {empty ? (
-        <EmptyState
-          title={query ? 'Sonuç yok' : 'Kütüphanen boş'}
-          description={
-            query
-              ? `"${q}" için bir şey bulunamadı.`
-              : 'Şov takip et, bölüm indir ya da "Sonra dinle"ye ekle.'
-          }
-        />
+      {empty && myPlaylists.length === 0 && query ? (
+        <EmptyState title="Sonuç yok" description={`"${q}" için bir şey bulunamadı.`} />
       ) : (
         <ScrollView
           onScroll={scrimScrollHandler}
           scrollEventThrottle={16}
           contentContainerStyle={{ paddingVertical: theme.spacing(1), paddingBottom: theme.spacing(10) }}>
+          {/* 1. Sonra dinle (sistem listesi) */}
           {savedList.length > 0 && (
             <View style={{ marginBottom: theme.spacing(2.5) }}>
               <SectionHeader
@@ -139,17 +150,7 @@ export const LibraryScreen: React.FC = () => {
             </View>
           )}
 
-          {followedList.length > 0 && (
-            <View style={{ marginBottom: theme.spacing(2.5) }}>
-              <SectionHeader title="Takip ettiğin şovlar" />
-              <HScroll>
-                {followedList.map(s => (
-                  <ShowCard key={s.id} show={s} onPress={() => openShow(s)} />
-                ))}
-              </HScroll>
-            </View>
-          )}
-
+          {/* 2. İndirilenler */}
           {downloadsList.length > 0 && (
             <View style={{ marginBottom: theme.spacing(2.5) }}>
               <SectionHeader
@@ -173,8 +174,54 @@ export const LibraryScreen: React.FC = () => {
               </HScroll>
             </View>
           )}
+
+          {/* 3. Kendi listelerim — her zaman görünür ("+" ile yeni liste). */}
+          <View style={{ marginBottom: theme.spacing(2.5) }}>
+            <SectionHeader
+              title="Listelerim"
+              onSeeAll={
+                myPlaylists.length > 0
+                  ? () => navigation.navigate('SeeAll', { kind: 'playlists', title: 'Listelerim' })
+                  : undefined
+              }
+            />
+            {empty && myPlaylists.length === 0 && (
+              <Text
+                variant="caption"
+                color={theme.colors.textMuted}
+                style={{ paddingHorizontal: theme.spacing(2), paddingBottom: theme.spacing(1) }}>
+                Kendi listelerini oluştur, bölümleri istediğin gibi topla.
+              </Text>
+            )}
+            <HScroll>
+              <NewPlaylistCard onPress={() => setEditorOpen(true)} />
+              {myPlaylists.map(playlist => (
+                <PlaylistCard
+                  key={playlist.id}
+                  playlist={playlist}
+                  onPress={() =>
+                    navigation.navigate('PlaylistDetail', { playlistId: playlist.id })
+                  }
+                />
+              ))}
+            </HScroll>
+          </View>
+
+          {/* 4. Takip ettiğin şovlar */}
+          {followedList.length > 0 && (
+            <View style={{ marginBottom: theme.spacing(2.5) }}>
+              <SectionHeader title="Takip ettiğin şovlar" />
+              <HScroll>
+                {followedList.map(s => (
+                  <ShowCard key={s.id} show={s} onPress={() => openShow(s)} />
+                ))}
+              </HScroll>
+            </View>
+          )}
         </ScrollView>
       )}
+
+      <PlaylistEditorSheet visible={editorOpen} onClose={() => setEditorOpen(false)} />
     </Screen>
   );
 };

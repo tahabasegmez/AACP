@@ -8,7 +8,7 @@ export type TabParamList = {
 };
 
 /** "Tümü" ile açılan tam liste ekranının türü. */
-export type SeeAllKind = 'shows' | 'continue' | 'latest' | 'saved';
+export type SeeAllKind = 'shows' | 'continue' | 'latest' | 'saved' | 'playlists';
 
 /** Kök stack — sekmeler + detay/player/tam-liste (üstte). */
 export type RootStackParamList = {
@@ -17,8 +17,8 @@ export type RootStackParamList = {
   Player: { episodeId: string } | undefined;
   SeeAll: { kind: SeeAllKind; title: string };
   Settings: undefined;
-  /** Oynatma kuyruğu ("Sıradakiler"). */
-  Queue: undefined;
   /** İndirilen bölümlerin yönetimi. */
   Downloads: undefined;
+  /** Kullanıcı listesinin içeriği. */
+  PlaylistDetail: { playlistId: string };
 };

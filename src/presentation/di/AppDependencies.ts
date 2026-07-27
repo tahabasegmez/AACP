@@ -1,12 +1,16 @@
-import { Analytics, ErrorReporter, ImagePalette } from '@core/ports';
+import { Analytics, ErrorReporter, ImagePalette, ImagePicker } from '@core/ports';
 import { AudioPlayerService } from '@domain/services';
 import {
+  AddEpisodeToPlaylist,
   ContinueEpisode,
+  CreatePlaylist,
+  DeletePlaylist,
   DownloadEpisode,
   GetDownloads,
   GetFollowedShows,
   GetLatestEpisodes,
   GetPlaybackProgress,
+  GetPlaylists,
   GetPodcastFeed,
   GetResumeList,
   GetSavedEpisodes,
@@ -16,6 +20,7 @@ import {
   PausePlayback,
   PlayEpisode,
   RemoveDownload,
+  RemoveEpisodeFromPlaylist,
   ResumePlayback,
   SavePlaybackProgress,
   SeekTo,
@@ -24,6 +29,7 @@ import {
   StopPlayback,
   ToggleFollow,
   ToggleSavedEpisode,
+  UpdatePlaylist,
 } from '@domain/usecases';
 
 /**
@@ -57,6 +63,14 @@ export interface AppDependencies {
   readonly toggleSavedEpisode: ToggleSavedEpisode;
   readonly getSavedEpisodes: GetSavedEpisodes;
 
+  // Kullanıcı listeleri (playlist) — "Sonra dinle" de bir sistem listesidir
+  readonly getPlaylists: GetPlaylists;
+  readonly createPlaylist: CreatePlaylist;
+  readonly updatePlaylist: UpdatePlaylist;
+  readonly deletePlaylist: DeletePlaylist;
+  readonly addEpisodeToPlaylist: AddEpisodeToPlaylist;
+  readonly removeEpisodeFromPlaylist: RemoveEpisodeFromPlaylist;
+
   // Oynatıcı transport
   readonly playEpisode: PlayEpisode;
   readonly pausePlayback: PausePlayback;
@@ -77,6 +91,8 @@ export interface AppDependencies {
 
   // Kapak görselinden baskın renk (arka plan renklendirme)
   readonly imagePalette: ImagePalette;
+  /** Cihazdan görsel seçme (playlist kapağı). Kullanılamıyorsa özellik pasifleşir. */
+  readonly imagePicker: ImagePicker;
 
   // Telemetri — sunucu yapılandırılmamışsa no-op adaptörlerdir (çağıran bilmez).
   readonly analytics: Analytics;

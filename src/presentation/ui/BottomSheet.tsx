@@ -22,8 +22,14 @@ export const BottomSheet: React.FC<{
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  /** Panelin ekranın en fazla ne kadarını kaplayacağı (0..1). */
   maxHeightRatio?: number;
-}> = ({ visible, onClose, children, maxHeightRatio = 0.85 }) => {
+  /**
+   * Panelin AÇILDIĞINDA kaplayacağı yükseklik oranı. Verilmezse içerik kadar
+   * yer kaplar. Örn. kuyruk paneli için 0.5 → ekranın yarısı.
+   */
+  heightRatio?: number;
+}> = ({ visible, onClose, children, maxHeightRatio = 0.85, heightRatio }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -82,6 +88,7 @@ export const BottomSheet: React.FC<{
           right: 0,
           bottom: 0,
           maxHeight: height * maxHeightRatio,
+          ...(heightRatio ? { height: height * heightRatio } : null),
           backgroundColor: theme.colors.elevated,
           borderTopLeftRadius: theme.radius.xl,
           borderTopRightRadius: theme.radius.xl,
