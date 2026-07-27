@@ -26,8 +26,30 @@ export class MemoryStore implements Store {
     return [...this.users.values()].find(u => u.deviceId === deviceId);
   }
 
+  async findUserById(userId: string): Promise<UserRecord | undefined> {
+    return this.users.get(userId);
+  }
+
+  async findUserByEmail(email: string): Promise<UserRecord | undefined> {
+    return [...this.users.values()].find(u => u.email === email);
+  }
+
   async createUser(user: UserRecord): Promise<void> {
     this.users.set(user.id, user);
+  }
+
+  async updateUser(
+    userId: string,
+    patch: Partial<Pick<UserRecord, 'email' | 'passwordHash' | 'displayName' | 'deviceId'>>,
+  ): Promise<void> {
+    const existing = this.users.get(userId);
+    if (existing) {
+      // undefined alanlar mevcut değeri korur (kısmi güncelleme).
+      const defined = Object.fromEntries(
+        Object.entries(patch).filter(([, value]) => value !== undefined),
+      );
+      this.users.set(userId, { ...existing, ...defined });
+    }
   }
 
   async listSyncRecords(

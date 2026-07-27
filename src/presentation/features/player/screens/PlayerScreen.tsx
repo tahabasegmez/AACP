@@ -51,7 +51,8 @@ export const PlayerScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useAppNavigation();
-  const { pausePlayback, resumePlayback, seekTo, setPlaybackRate } = useDependencies();
+  const { pausePlayback, resumePlayback, seekTo, setPlaybackRate, routePicker } =
+    useDependencies();
   const { next, previous } = usePlaybackController();
   const { start: startDownload } = useDownloads();
 
@@ -311,7 +312,15 @@ export const PlayerScreen: React.FC = () => {
                 busy={dlStatus === 'downloading'}
                 onPress={onDownload}
               />
-              <Tool icon="cast" label="Cihaz" onPress={() => showHint('Yakında: Cihaz')} />
+              <Tool
+                icon="cast"
+                label="Cihaz"
+                onPress={() =>
+                  routePicker.available
+                    ? routePicker.present()
+                    : showHint('Cihaz seçimi bu platformda kullanılamıyor')
+                }
+              />
               <Tool icon="share" label="Paylaş" onPress={() => episode && Share.share({ message: `${episode.title} — Anadolu Ajansı Podcast` }).catch(() => {})} />
             </View>
           </View>

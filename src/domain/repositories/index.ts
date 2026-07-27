@@ -5,4 +5,5 @@ export * from './FollowRepository';
 export * from './SavedEpisodesRepository';
 export * from './DownloadRepository';
 export * from './PlaylistRepository';
+export * from './UserRepository';
 export * from './AdRepository';

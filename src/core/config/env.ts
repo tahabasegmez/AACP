@@ -117,8 +117,10 @@ interface RawOverrides {
 }
 
 /**
- * Build değişkenlerini güvenle okur. `react-native-config` kurulu değilse
- * (bugünkü durum) sessizce boş döner — kod çalışmaya devam eder.
+ * Build değişkenlerini güvenle okur (`react-native-config` → kökteki `.env`).
+ *
+ * Paket bulunamazsa sessizce boş döner ve preset'ler kullanılır; böylece
+ * `.env` dosyası olmayan bir kurulumda da uygulama çalışır.
  */
 const readOverrides = (): RawOverrides => {
   try {

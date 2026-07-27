@@ -34,8 +34,16 @@ export interface PushRegistration {
 
 export interface UserRecord {
   readonly id: string;
-  /** Anonim cihaz kullanıcıları için cihaz kimliği; hesaplı kullanıcılarda null. */
+  /**
+   * Cihaz kimliği (anonim giriş için). Kullanıcı hesap oluşturduğunda da
+   * KORUNUR: aynı kayıt e-posta ile zenginleşir, veri taşınması gerekmez.
+   */
   readonly deviceId?: string;
+  /** Hesap bağlandıysa e-posta (normalize: küçük harf, kırpılmış). */
+  readonly email?: string;
+  /** Şifre doğrulaması için `salt:hash` (scrypt). Anonim kullanıcıda yok. */
+  readonly passwordHash?: string;
+  readonly displayName?: string;
   readonly createdAt: number;
 }
 
@@ -45,7 +53,15 @@ export interface Store {
 
   // --- kullanıcılar -------------------------------------------------------
   findUserByDeviceId(deviceId: string): Promise<UserRecord | undefined>;
+  findUserById(userId: string): Promise<UserRecord | undefined>;
+  /** E-posta ile arama (giriş ve "bu e-posta alınmış mı" kontrolü). */
+  findUserByEmail(email: string): Promise<UserRecord | undefined>;
   createUser(user: UserRecord): Promise<void>;
+  /** Verilen alanları günceller (hesap bağlama, profil düzenleme). */
+  updateUser(
+    userId: string,
+    patch: Partial<Pick<UserRecord, 'email' | 'passwordHash' | 'displayName' | 'deviceId'>>,
+  ): Promise<void>;
 
   // --- senkron ------------------------------------------------------------
   /** Belirtilen zamandan SONRA değişmiş kayıtları döner (delta senkron). */

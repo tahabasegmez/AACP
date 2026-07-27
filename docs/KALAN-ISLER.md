@@ -5,80 +5,76 @@ ayrıştırıldı ki devam eden geliştirme sıfırdan başlamasın.
 
 Son güncelleme: 2026-07-27
 
-> Kaydırma jestleri (sağa=sıraya ekle, sola=listeye ekle) ve player'ı aşağı
-> sürükleyip kapatma **tamamlandı** — bkz. `SwipeableRow`, `SwipeableEpisodeRow`.
-
 ---
 
-## Kullanıcı hesabı sistemi — YAPILMADI (öncelikli)
+## iOS'ta yapılması gerekenler (mac gerekir)
 
-İstenen: uygulamada kullanıcı mantığı; yerel kalması gerekenler (indirmeler)
-dışındaki tüm kullanıcı verisi ileride sunucuda tutulabilmeli, tekrar eden
-entity olmamalı.
+Kod tarafı hazır; yalnızca Xcode adımları kaldı.
 
-**Var:** Sunucuda cihaz tabanlı anonim kimlik (`deviceId` → kalıcı kullanıcı +
-HMAC jeton), `users` tablosu, senkron altyapısı (`SyncEngine` + koleksiyon
-adaptörleri: progress, follows, saved).
+### Push bildirimleri
 
-**Eksik:**
-- İstemcide bir **`User` domain entity'si ve `UserRepository` portu** yok.
-  Bugün kullanıcı kavramı yalnızca sunucu tarafında var; uygulama anonim.
-- **Playlist senkronu yok.** `PlaylistRepository` yereldir; senkron koleksiyonu
-  (`playlists`) ne istemcide ne sunucuda tanımlı. Playlist entity'si bunu
-  destekleyecek şekilde tasarlandı (`updatedAt` alanı mevcut).
-- **Oturum/profil UI'ı yok** (giriş, çıkış, hesap ekranı).
-- **Sunucu tarafı güncellemesi** (madde 12): playlist koleksiyonu için
-  `sync_records` şeması hazır ama uç/adaptör eklenmeli.
-
-Sıralama önerisi: önce `User` entity + `UserRepository` portu → sonra playlist
-senkron adaptörü (istemci) → sonra sunucu ucu → en son giriş UI'ı.
-
-## Push bildirimleri — yarım
-
-**Var:** Jeton kayıt/silme uçları, `push_registrations` tablosu,
+**Var:** Sunucu tarafı uçtan uca hazır — jeton kayıt uçları,
 [FeedWatcher](../server/src/modules/push/FeedWatcher.ts) (yeni bölüm tarama +
-takipçi eşleştirme, 6 test), `PushSender` portu + log adaptörü, zamanlayıcı.
+takipçi eşleştirme), [ApnsPushSender](../server/src/modules/push/ApnsPushSender.ts)
+(HTTP/2 + JWT ile doğrudan APNs; harici kütüphane yok), zamanlayıcı.
 
-**Eksik:**
-- **APNs gönderici** — `.p8` anahtarı + Key ID + Team ID gerekir.
-- **iOS istemci tarafı** — bildirim izni ve jetonu `/v1/push/register`'a
-  gönderme. Xcode'da *Push Notifications* capability → **yalnızca mac'te.**
+**Eksik (mac):**
+1. Xcode → Signing & Capabilities → **Push Notifications** ekle.
+2. Apple Developer'dan `.p8` anahtarı indir; sunucuda `.env`'e yaz:
+   `APNS_KEY`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`.
+   (Anahtar tek satır olacaksa satır sonlarını `\n` olarak yaz.)
+3. **İstemci tarafı**: bildirim izni isteme ve cihaz jetonunu
+   `POST /v1/push/register`'a gönderme — henüz yazılmadı.
 
-## Playlist kapağı seçimi — altyapı hazır, paket kurulu değil
+### AirPlay
 
-`ImagePicker` portu ve [LibraryImagePicker](../src/infrastructure/image/LibraryImagePicker.ts)
-adaptörü yazıldı. Paket kurulu olmadığından kapak seçimi UI'da otomatik olarak
-pasif görünür (uygulama çalışır, kapaksız liste oluşturulur).
+**Var:** [RoutePicker](../src/core/ports/RoutePicker.ts) portu,
+[NativeRoutePicker](../src/infrastructure/audio/NativeRoutePicker.ts) adaptörü ve
+native modül ([AirPlayRoutePicker.swift](../ios/AACP/AirPlayRoutePicker.swift) +
+`.m` köprüsü). Player'daki "Cihaz" düğmesi bağlı.
 
-Etkinleştirmek için:
+**Eksik (mac):** Swift/ObjC dosyalarının **Xcode projesine eklenmesi** (Xcode'da
+sürükle-bırak ya da hedefe dahil etme). Dosyalar diskte hazır ama `.xcodeproj`
+referansı Windows'tan güvenle eklenemez. Modül bulunamazsa düğme kendiliğinden
+pasifleşir; uygulama çalışmaya devam eder.
+
+### Kurulum sonrası
+
+`npm install` yapıldı (`react-native-image-picker`, `react-native-config`).
+Mac'te ek olarak:
+
 ```bash
-npm i react-native-image-picker && npx pod-install
+npx pod-install
 ```
-iOS `Info.plist`'e `NSPhotoLibraryUsageDescription` eklenmelidir.
 
-## AirPlay / "Cihaz" tuşu — yok
+`Info.plist`'e eklenmeli:
+- `NSPhotoLibraryUsageDescription` (playlist kapağı seçimi)
 
-iOS'ta `AVRoutePickerView` native köprüsü gerekir. Windows'ta yazılıp
-doğrulanamaz → **mac'te yapılmalı.**
+## Şifre sıfırlama / SSO — yok
+
+Hesap sistemi e-posta + şifre ile çalışıyor. Şifre sıfırlama e-posta gönderimi
+(SMTP/servis) gerektirir; Apple/Google ile giriş ayrı bir entegrasyondur.
+Bkz. [KULLANICI-VE-HESAP.md](KULLANICI-VE-HESAP.md) §8.
 
 ## Telemetri paneli — yok
 
 Olaylar `analytics_events` tablosuna yazılıyor, görselleştirme arayüzü yok.
+SQL ile sorgulanabilir:
+
+```sql
+SELECT name, COUNT(*) FROM analytics_events
+WHERE occurred_at > strftime('%s','now','-7 days') * 1000
+GROUP BY name;
+```
 
 ## E2E test — yok
 
-Birim testleri var (uygulama 160, backend 28). Uçtan uca akış testi (Detox veya
+Birim testleri var (uygulama 175, backend 42). Uçtan uca akış testi (Detox veya
 Maestro) yok.
 
 ## i18n — yok
 
-Metinler Türkçe sabit.
-
-## react-native-config kurulu değil
-
-[env.ts](../src/core/config/env.ts) build-zamanı override'larını okumaya hazır
-(`APP_API_BASE_URL`, `APP_EPISODE_SOURCE`, `APP_AD_TAG_URL`) ama paket kurulu
-değil; ortam preset'leri koddan geliyor.
+Metinler Türkçe sabit. Çoklu dil gerekirse `i18next` altyapısı kurulmalı.
 
 ## Reklam — post-roll hazır, mid-roll yok
 
@@ -91,10 +87,9 @@ Hazırlık yapıldı, geçiş iOS 26 SDK'sı ile — bkz. [LIQUID_GLASS.md](LIQU
 
 ---
 
-## Öncelik notu
+## Sunucu ayağa kalkınca
 
-Sunucu ayağa kalkınca ilk iş:
-1. `env.apiBaseUrl`'i doldur ([env.ts](../src/core/config/env.ts))
-2. Kataloğu yayınla: `node scripts/generate-shows-json.js`
+1. `.env` oluştur (kök dizin): `cp .env.example .env` → `APP_API_BASE_URL` doldur
+2. Sunucuda kataloğu yayınla: `node scripts/generate-shows-json.js`
 
 Bkz. [SUNUCU-KURULUM.md](SUNUCU-KURULUM.md).

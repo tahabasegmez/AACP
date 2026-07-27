@@ -59,6 +59,16 @@ export interface ServerEnv {
    * 0 veya negatif → tarayıcı devre dışı.
    */
   readonly feedWatchIntervalMs: number;
+
+  // --- APNs (iOS push) ------------------------------------------------------
+  /** `.p8` anahtar içeriği (PEM). Boşsa push gönderimi kapalıdır. */
+  readonly apnsKey?: string;
+  readonly apnsKeyId?: string;
+  readonly apnsTeamId?: string;
+  /** Uygulamanın bundle kimliği (apns-topic). */
+  readonly apnsBundleId?: string;
+  /** Üretim APNs sunucusu mu kullanılsın (false → sandbox). */
+  readonly apnsProduction: boolean;
 }
 
 export const loadEnv = (source: NodeJS.ProcessEnv = process.env): ServerEnv => {
@@ -78,5 +88,11 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): ServerEnv => {
     rateLimitPerMin: int(source.RATE_LIMIT_PER_MIN, 120),
     analyticsEnabled: bool(source.ANALYTICS_ENABLED, true),
     feedWatchIntervalMs: Number(source.FEED_WATCH_INTERVAL_MS ?? 30 * 60_000) || 0,
+    // `.p8` içeriği .env'de tek satır olarak taşınabilsin diye `\n` çözülür.
+    apnsKey: source.APNS_KEY?.trim().replace(/\\n/g, '\n') || undefined,
+    apnsKeyId: source.APNS_KEY_ID?.trim() || undefined,
+    apnsTeamId: source.APNS_TEAM_ID?.trim() || undefined,
+    apnsBundleId: source.APNS_BUNDLE_ID?.trim() || undefined,
+    apnsProduction: bool(source.APNS_PRODUCTION, false),
   };
 };

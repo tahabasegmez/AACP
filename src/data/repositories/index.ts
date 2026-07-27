@@ -5,4 +5,5 @@ export * from './FollowRepositoryImpl';
 export * from './SavedEpisodesRepositoryImpl';
 export * from './DownloadRepositoryImpl';
 export * from './PlaylistRepositoryImpl';
+export * from './UserRepositoryImpl';
 export * from './VastAdRepository';

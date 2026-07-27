@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { env } from '@core/config';
+import { isAnonymous, userDisplayName } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { Icon, IconName, Screen, ScreenHeader, Text, scrimScrollHandler } from '../../../ui';
 import { useDependencies } from '../../../di';
+import { useAccountsAvailable, useCurrentUser, useSignOut } from '../../../query';
+import { AuthSheet } from '../../account/AuthSheet';
 
 /**
  * SettingsScreen — Ayarlar.
@@ -19,6 +22,30 @@ export const SettingsScreen: React.FC = () => {
   const { sync, analytics, errorReporter } = useDependencies();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<string>('');
+
+  // Hesap durumu
+  const accountsAvailable = useAccountsAvailable();
+  const { data: user } = useCurrentUser();
+  const signOut = useSignOut();
+  const [authOpen, setAuthOpen] = useState(false);
+  const signedIn = !!user && !isAnonymous(user);
+
+  const confirmSignOut = (): void => {
+    Alert.alert(
+      'Çıkış yap',
+      'Bu cihazda misafir olarak devam edeceksin. Hesabındaki veriler sunucuda korunur.',
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        {
+          text: 'Çıkış yap',
+          style: 'destructive',
+          onPress: () => {
+            signOut.mutate(undefined, { onSuccess: () => setStatus('Çıkış yapıldı') });
+          },
+        },
+      ],
+    );
+  };
 
   const syncNow = async (): Promise<void> => {
     if (!sync?.enabled) {
@@ -50,6 +77,35 @@ export const SettingsScreen: React.FC = () => {
         onScroll={scrimScrollHandler}
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: theme.spacing(10) }}>
+        {/* Hesap — yalnızca sunucu yapılandırılmışsa anlamlıdır. */}
+        {accountsAvailable && (
+          <Section title="Hesap">
+            {signedIn ? (
+              <>
+                <Row
+                  icon="info"
+                  title={userDisplayName(user)}
+                  subtitle={user?.email ?? 'Hesabın bu cihaza bağlı'}
+                  onPress={() => {}}
+                />
+                <Row
+                  icon="close"
+                  title="Çıkış yap"
+                  subtitle="Verilerin sunucuda kalır; bu cihazda misafir olarak devam edersin."
+                  onPress={confirmSignOut}
+                />
+              </>
+            ) : (
+              <Row
+                icon="library"
+                title="Giriş yap veya hesap oluştur"
+                subtitle="Listelerin ve kaldığın yer tüm cihazlarında aynı olsun."
+                onPress={() => setAuthOpen(true)}
+              />
+            )}
+          </Section>
+        )}
+
         <Section title="Senkron">
           <Row
             icon="refresh"
@@ -101,6 +157,12 @@ export const SettingsScreen: React.FC = () => {
           </Text>
         </View>
       </ScrollView>
+
+      <AuthSheet
+        visible={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onFeedback={setStatus}
+      />
     </Screen>
   );
 };

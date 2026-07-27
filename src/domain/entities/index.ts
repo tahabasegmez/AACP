@@ -7,5 +7,6 @@ export * from './PlaybackState';
 export * from './PlaybackProgress';
 export * from './Download';
 export * from './Playlist';
+export * from './User';
 export * from './Ad';
 export * from './adPolicy';

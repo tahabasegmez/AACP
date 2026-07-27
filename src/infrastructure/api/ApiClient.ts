@@ -78,6 +78,25 @@ export class ApiClient {
     }
   }
 
+  /**
+   * Oturum jetonunu dışarıdan ayarlar (giriş/kayıt sonrası).
+   * `undefined` verilirse oturum kapatılır ve bir sonraki istekte cihaz
+   * kimliğiyle yeniden anonim oturum açılır.
+   */
+  setToken(token?: string): void {
+    if (token) {
+      this.token = token;
+      this.storage.set(TOKEN_KEY, token);
+    } else {
+      this.clearToken();
+    }
+  }
+
+  /** Cihazın kalıcı anonim kimliği (hesap işlemlerinde de kullanılır). */
+  getDeviceId(): string {
+    return this.deviceId();
+  }
+
   /** Oturum jetonunu döner; yoksa cihaz kimliğiyle yeni oturum açar. */
   async ensureSession(): Promise<string | undefined> {
     if (!this.baseUrl) {

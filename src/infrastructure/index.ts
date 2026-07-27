@@ -8,6 +8,7 @@ export * from './rss/FastXmlParser';
 export * from './audio/TrackPlayerAudioService';
 export * from './audio/AdAwareAudioPlayer';
 export * from './image/LibraryImagePicker';
+export * from './audio/NativeRoutePicker';
 export * from './storage/KeyValueStorage';
 export * from './storage/MmkvKeyValueStorage';
 export * from './storage/createPersistentStorage';

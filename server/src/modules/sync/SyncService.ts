@@ -5,7 +5,7 @@ import type { Store, SyncRecord } from '../../storage/Store';
  * Senkronlanabilir koleksiyonlar — istemcinin gönderebileceği alanlar sabittir
  * (açık liste), böylece rastgele koleksiyon adlarıyla depo şişirilemez.
  */
-export const SYNC_COLLECTIONS = ['progress', 'follows', 'saved'] as const;
+export const SYNC_COLLECTIONS = ['progress', 'follows', 'saved', 'playlists'] as const;
 export type SyncCollection = (typeof SYNC_COLLECTIONS)[number];
 
 /** Tek istekte kabul edilen en fazla kayıt — kötüye kullanımı sınırlar. */

@@ -4,4 +4,5 @@ export * from './KeyValueStorage';
 export * from './Downloader';
 export * from './ImagePalette';
 export * from './ImagePicker';
+export * from './RoutePicker';
 export * from './Telemetry';

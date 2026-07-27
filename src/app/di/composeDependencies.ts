@@ -45,8 +45,10 @@ import {
   FeedSource,
   FollowRepositoryImpl,
   FollowsSyncAdapter,
+  PlaylistSyncAdapter,
   ProgressSyncAdapter,
   SavedEpisodesSyncAdapter,
+  UserRepositoryImpl,
   SyncEngine,
   HybridShowCatalogRepository,
   InMemoryFeedCacheDataSource,
@@ -69,6 +71,7 @@ import {
   FetchHttpClient,
   ImageColorsPalette,
   LibraryImagePicker,
+  NativeRoutePicker,
   LoggingErrorReporter,
   NoopAnalytics,
   RetryingHttpClient,
@@ -98,6 +101,8 @@ export const composeDependencies = (): AppDependencies => {
   const imagePalette = new ImageColorsPalette();
   // Görsel seçici kurulu değilse kapak seçimi UI'da sessizce pasifleşir.
   const imagePicker = new LibraryImagePicker(logger);
+  // AirPlay: yalnızca iOS'ta ve native modül varsa etkin.
+  const routePicker = new NativeRoutePicker();
   // Cihazda MMKV (kalıcı); MMKV yoksa bellek-içi'ne güvenle düşer.
   const storage = createPersistentStorage(logger);
 
@@ -108,6 +113,8 @@ export const composeDependencies = (): AppDependencies => {
     ? new BatchingAnalytics(api, logger, true)
     : new NoopAnalytics();
   const errorReporter = new LoggingErrorReporter(logger, analytics);
+  // Kullanıcı kimliği — sunucu kapalıysa yalnızca yerel profil önbelleği çalışır.
+  const userRepository = new UserRepositoryImpl(api, storage);
 
   // Oynatıcı: reklam yapılandırılmışsa gerçek oynatıcı bir DECORATOR ile sarılır.
   // Reklam mantığı tek yerde toplanır; use case'ler, UI ve CarPlay aynı portu
@@ -122,13 +129,16 @@ export const composeDependencies = (): AppDependencies => {
       )
     : basePlayer;
 
-  // Cihazlar arası senkron: kaldığın yer, takipler, sonra dinle.
+  // Cihazlar arası senkron: kaldığın yer, takipler, sonra dinle, listeler.
+  // Playlist adaptörü ayrıca tutulur çünkü silmeleri repository ona bildirir.
+  const playlistSync = new PlaylistSyncAdapter(storage);
   const syncEngine = new SyncEngine(
     new ApiSyncTransport(api),
     [
       new ProgressSyncAdapter(storage),
       new FollowsSyncAdapter(storage),
       new SavedEpisodesSyncAdapter(storage),
+      playlistSync,
     ],
     storage,
     logger,
@@ -181,7 +191,9 @@ export const composeDependencies = (): AppDependencies => {
   const getSavedEpisodes = new GetSavedEpisodes(savedRepo);
 
   // Kullanıcı listeleri — "Sonra dinle" burada bir sistem listesi olarak yaşar.
-  const playlistRepo = new PlaylistRepositoryImpl(storage);
+  const playlistRepo = new PlaylistRepositoryImpl(storage, undefined, (id, nowMs) =>
+    playlistSync.markDeleted(id, nowMs),
+  );
   const getPlaylists = new GetPlaylists(playlistRepo);
   const createPlaylist = new CreatePlaylist(playlistRepo);
   const updatePlaylist = new UpdatePlaylist(playlistRepo);
@@ -215,6 +227,8 @@ export const composeDependencies = (): AppDependencies => {
     getFollowedShows,
     imagePalette,
     imagePicker,
+    userRepository,
+    routePicker,
     downloadEpisode,
     removeDownload,
     getDownloads,

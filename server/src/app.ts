@@ -8,6 +8,7 @@ import type { Logger } from './core/logger';
 import { AnalyticsService } from './modules/analytics/AnalyticsService';
 import { AuthService } from './modules/auth/AuthService';
 import { CatalogService } from './modules/catalog/CatalogService';
+import { ApnsPushSender } from './modules/push/ApnsPushSender';
 import { FeedWatcher } from './modules/push/FeedWatcher';
 import { PushScheduler } from './modules/push/PushScheduler';
 import { LoggingPushSender } from './modules/push/PushSender';
@@ -51,8 +52,20 @@ export const createApp = (env: ServerEnv, logger: Logger): App => {
   const transistor = new TransistorProxy(env.transistorBaseUrl, env.transistorApiKey);
 
   // Yeni bölüm bildirimi: tarayıcı + zamanlayıcı.
-  // Gönderici bir PORTtur; APNs anahtarı hazır olunca yalnızca burası değişir.
-  const pushSender = new LoggingPushSender(logger);
+  // APNs yapılandırılmışsa gerçek gönderici, değilse kuru çalıştırma (log).
+  const apns = new ApnsPushSender(
+    {
+      key: env.apnsKey ?? '',
+      keyId: env.apnsKeyId ?? '',
+      teamId: env.apnsTeamId ?? '',
+      bundleId: env.apnsBundleId ?? '',
+      production: env.apnsProduction,
+    },
+    logger,
+    // Geçersiz cihaz jetonları kayıttan düşürülür.
+    token => store.removePushRegistration(token),
+  );
+  const pushSender = apns.enabled ? apns : new LoggingPushSender(logger);
   const feedWatcher = new FeedWatcher(store, catalog, pushSender, logger);
   const scheduler = new PushScheduler(feedWatcher, logger, env.feedWatchIntervalMs);
 
@@ -69,6 +82,34 @@ export const createApp = (env: ServerEnv, logger: Logger): App => {
   router.post('/v1/auth/device', async ctx => {
     const body = (ctx.body ?? {}) as { deviceId?: string };
     return created(await auth.authenticateDevice(body.deviceId ?? ''));
+  });
+
+  // Hesap oluşturma. Oturumdaki (anonim) kullanıcı varsa YÜKSELTİLİR; böylece
+  // anonimken biriken veri hesaba taşınır, ayrı bir göç adımı gerekmez.
+  router.post('/v1/auth/register', async ctx => {
+    const body = (ctx.body ?? {}) as { email?: string; password?: string };
+    const currentUserId = auth.userIdFromHeader(ctx.headers.authorization);
+    return created(
+      await auth.register(body.email ?? '', body.password ?? '', currentUserId),
+    );
+  });
+
+  // E-posta + şifre ile giriş.
+  router.post('/v1/auth/login', async ctx => {
+    const body = (ctx.body ?? {}) as { email?: string; password?: string };
+    return ok(await auth.signIn(body.email ?? '', body.password ?? ''));
+  });
+
+  // Oturumdaki kullanıcının profili.
+  router.get('/v1/auth/me', async ctx => {
+    const userId = auth.requireUserId(ctx.headers.authorization);
+    return ok(await auth.profile(userId));
+  });
+
+  router.post('/v1/auth/profile', async ctx => {
+    const userId = auth.requireUserId(ctx.headers.authorization);
+    const body = (ctx.body ?? {}) as { displayName?: string };
+    return ok(await auth.updateProfile(userId, body.displayName));
   });
 
   // --- katalog -----------------------------------------------------------

@@ -1,4 +1,11 @@
-import { Analytics, ErrorReporter, ImagePalette, ImagePicker } from '@core/ports';
+import {
+  Analytics,
+  ErrorReporter,
+  ImagePalette,
+  ImagePicker,
+  RoutePicker,
+} from '@core/ports';
+import { UserRepository } from '@domain/repositories';
 import { AudioPlayerService } from '@domain/services';
 import {
   AddEpisodeToPlaylist,
@@ -93,6 +100,12 @@ export interface AppDependencies {
   readonly imagePalette: ImagePalette;
   /** Cihazdan görsel seçme (playlist kapağı). Kullanılamıyorsa özellik pasifleşir. */
   readonly imagePicker: ImagePicker;
+
+  /** Kullanıcı kimliği ve profili (anonim ya da hesaplı). */
+  readonly userRepository: UserRepository;
+
+  /** Ses çıkış cihazı (AirPlay) seçici. Kullanılamıyorsa düğme pasifleşir. */
+  readonly routePicker: RoutePicker;
 
   // Telemetri — sunucu yapılandırılmamışsa no-op adaptörlerdir (çağıran bilmez).
   readonly analytics: Analytics;

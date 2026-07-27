@@ -19,6 +19,16 @@ import type {
  *
  * WAL modu açıktır: okuma ve yazma birbirini bloklamaz.
  */
+/** `users` tablosunun ham satır şekli. */
+interface UserRow {
+  id: string;
+  device_id: string | null;
+  email: string | null;
+  password_hash: string | null;
+  display_name: string | null;
+  created_at: number;
+}
+
 export class SqliteStore implements Store {
   private readonly db: Database.Database;
 
@@ -71,21 +81,112 @@ export class SqliteStore implements Store {
         value TEXT NOT NULL
       );
     `);
+
+    this.migrate();
+  }
+
+  /**
+   * Şema göçleri — var olan kurulumları bozmadan sütun ekler.
+   *
+   * `CREATE TABLE IF NOT EXISTS` yalnızca yeni kurulumları kapsar; çalışan bir
+   * sunucuda tablo zaten vardır ve yeni sütunlar eklenmez. Bu yüzden eksik
+   * sütunlar burada tek tek kontrol edilip eklenir. Adım eklemek = diziye bir
+   * satır eklemek.
+   */
+  private migrate(): void {
+    const columns = (table: string): Set<string> =>
+      new Set(
+        (this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(
+          c => c.name,
+        ),
+      );
+
+    const userColumns = columns('users');
+    const userMigrations: Array<[string, string]> = [
+      ['email', 'ALTER TABLE users ADD COLUMN email TEXT'],
+      ['password_hash', 'ALTER TABLE users ADD COLUMN password_hash TEXT'],
+      ['display_name', 'ALTER TABLE users ADD COLUMN display_name TEXT'],
+    ];
+    for (const [column, sql] of userMigrations) {
+      if (!userColumns.has(column)) {
+        this.db.exec(sql);
+      }
+    }
+
+    // E-posta benzersiz olmalı ama NULL'lar serbest (anonim kullanıcılar).
+    this.db.exec(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email) WHERE email IS NOT NULL',
+    );
+  }
+
+  /** Satırı domain kaydına çevirir (null → undefined). */
+  private toUser(row: UserRow): UserRecord {
+    return {
+      id: row.id,
+      deviceId: row.device_id ?? undefined,
+      email: row.email ?? undefined,
+      passwordHash: row.password_hash ?? undefined,
+      displayName: row.display_name ?? undefined,
+      createdAt: row.created_at,
+    };
+  }
+
+  private selectUser(where: string, param: string): UserRecord | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT id, device_id, email, password_hash, display_name, created_at
+           FROM users WHERE ${where} = ?`,
+      )
+      .get(param) as UserRow | undefined;
+    return row ? this.toUser(row) : undefined;
   }
 
   async findUserByDeviceId(deviceId: string): Promise<UserRecord | undefined> {
-    const row = this.db
-      .prepare('SELECT id, device_id, created_at FROM users WHERE device_id = ?')
-      .get(deviceId) as { id: string; device_id: string | null; created_at: number } | undefined;
-    return row
-      ? { id: row.id, deviceId: row.device_id ?? undefined, createdAt: row.created_at }
-      : undefined;
+    return this.selectUser('device_id', deviceId);
+  }
+
+  async findUserById(userId: string): Promise<UserRecord | undefined> {
+    return this.selectUser('id', userId);
+  }
+
+  async findUserByEmail(email: string): Promise<UserRecord | undefined> {
+    return this.selectUser('email', email);
   }
 
   async createUser(user: UserRecord): Promise<void> {
     this.db
-      .prepare('INSERT INTO users (id, device_id, created_at) VALUES (?, ?, ?)')
-      .run(user.id, user.deviceId ?? null, user.createdAt);
+      .prepare(
+        `INSERT INTO users (id, device_id, email, password_hash, display_name, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        user.id,
+        user.deviceId ?? null,
+        user.email ?? null,
+        user.passwordHash ?? null,
+        user.displayName ?? null,
+        user.createdAt,
+      );
+  }
+
+  async updateUser(
+    userId: string,
+    patch: Partial<Pick<UserRecord, 'email' | 'passwordHash' | 'displayName' | 'deviceId'>>,
+  ): Promise<void> {
+    const columnOf: Record<string, string> = {
+      email: 'email',
+      passwordHash: 'password_hash',
+      displayName: 'display_name',
+      deviceId: 'device_id',
+    };
+    const entries = Object.entries(patch).filter(([, value]) => value !== undefined);
+    if (entries.length === 0) {
+      return;
+    }
+    const assignments = entries.map(([key]) => `${columnOf[key]} = ?`).join(', ');
+    this.db
+      .prepare(`UPDATE users SET ${assignments} WHERE id = ?`)
+      .run(...entries.map(([, value]) => value), userId);
   }
 
   async listSyncRecords(

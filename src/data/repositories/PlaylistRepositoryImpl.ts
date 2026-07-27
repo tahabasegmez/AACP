@@ -42,6 +42,11 @@ export class PlaylistRepositoryImpl implements PlaylistRepository {
   constructor(
     private readonly storage: KeyValueStorage,
     private readonly now: () => number = () => Date.now(),
+    /**
+     * Silmeleri senkrona bildirmek için. Verilmezse (sunucusuz kurulum)
+     * silme yalnızca yerelde kalır — davranış bozulmaz.
+     */
+    private readonly onDeleted?: (playlistId: string, nowMs: number) => void,
   ) {}
 
   async list(): Promise<Result<readonly Playlist[]>> {
@@ -110,6 +115,8 @@ export class PlaylistRepositoryImpl implements PlaylistRepository {
         return fail(AppError.validation('Bu liste silinemez'));
       }
       this.writeAll(all.filter(p => p.id !== playlistId));
+      // Silme senkrona bildirilir; aksi halde diğer cihazda liste geri gelirdi.
+      this.onDeleted?.(playlistId, this.now());
       return ok(undefined);
     } catch (error) {
       return fail(AppError.from(error, 'STORAGE'));
