@@ -21,8 +21,20 @@ export const Seekbar: React.FC<{
   durationSec: number;
   buffering?: boolean;
   disabled?: boolean;
+  /** Önden yüklenmiş konum (saniye) — çalınan noktadan sonrası açık tonla çizilir. */
+  bufferedSec?: number;
+  /** Bölüm tamamen hazırsa (indirilmiş) çubuk baştan sona dolu görünür. */
+  fullyBuffered?: boolean;
   onSeek: (sec: number) => void;
-}> = ({ positionSec, durationSec, buffering, disabled, onSeek }) => {
+}> = ({
+  positionSec,
+  durationSec,
+  buffering,
+  disabled,
+  bufferedSec = 0,
+  fullyBuffered,
+  onSeek,
+}) => {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
   const [scrubbing, setScrubbing] = useState(false);
@@ -88,6 +100,15 @@ export const Seekbar: React.FC<{
   const fraction = durationSec > 0 ? Math.max(0, Math.min(1, current / durationSec)) : 0;
   const knobX = fraction * width;
 
+  // Önden yüklenmiş kısım — yalnızca geçerli konumdan SONRASI çizilir.
+  // `fullyBuffered` (indirilmiş bölüm) durumunda çubuk baştan sona doludur.
+  const bufferedFraction = fullyBuffered
+    ? 1
+    : durationSec > 0
+      ? Math.max(0, Math.min(1, bufferedSec / durationSec))
+      : 0;
+  const bufferedWidth = Math.max(0, bufferedFraction * width - knobX);
+
   return (
     <View
       onLayout={onLayout}
@@ -103,6 +124,20 @@ export const Seekbar: React.FC<{
           overflow: 'hidden',
           opacity: buffering ? pulse : 1,
         }}>
+        {/* Önden yüklenmiş kısım — çalınan konumdan sonrası, daha açık ton. */}
+        {bufferedWidth > 0 && (
+          <View
+            style={{
+              position: 'absolute',
+              left: knobX,
+              top: 0,
+              bottom: 0,
+              width: bufferedWidth,
+              backgroundColor: theme.colors.accentSoft,
+            }}
+          />
+        )}
+        {/* Çalınmış kısım. */}
         <View
           style={{
             position: 'absolute',

@@ -3,7 +3,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { Episode } from '@domain/entities';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
-import { BottomSheet, CoverImage, NowPlayingBars, Text } from '../../../ui';
+import { BottomSheet, CoverImage, Icon, NowPlayingBars, Text } from '../../../ui';
 import { usePlayerQueueStore, usePlayerStore } from '../../../stores';
 import { usePlaybackController } from '../usePlaybackController';
 
@@ -24,6 +24,7 @@ export const QueueSheet: React.FC<{ visible: boolean; onClose: () => void }> = (
   const theme = useTheme();
   const episodes = usePlayerQueueStore(s => s.episodes);
   const index = usePlayerQueueStore(s => s.index);
+  const removeAt = usePlayerQueueStore(s => s.removeAt);
   const current = usePlayerStore(s => s.currentEpisode);
   const playback = usePlayerStore(s => s.playback);
   const { play } = usePlaybackController();
@@ -31,9 +32,9 @@ export const QueueSheet: React.FC<{ visible: boolean; onClose: () => void }> = (
   // Çalan bölüm + sonrasındakiler (geçmiş gösterilmez).
   const visibleQueue = index >= 0 ? episodes.slice(index) : current ? [current] : [];
 
-  const jumpTo = (episode: Episode): void => {
-    const target = episodes.findIndex(e => e.id === episode.id);
-    void play(episode, { episodes, index: target >= 0 ? target : 0 });
+  /** Kuyruktaki KONUMA atlar (aynı bölüm birden çok kez bulunabilir). */
+  const jumpTo = (episode: Episode, position: number): void => {
+    void play(episode, { episodes, index: position });
     onClose();
   };
 
@@ -47,15 +48,20 @@ export const QueueSheet: React.FC<{ visible: boolean; onClose: () => void }> = (
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ paddingBottom: theme.spacing(2) }}>
-          {visibleQueue.map((item, i) => (
-            <QueueRow
-              key={item.id}
-              episode={item}
-              active={i === 0}
-              playing={playback.status === 'playing'}
-              onPress={() => (i === 0 ? onClose() : jumpTo(item))}
-            />
-          ))}
+          {visibleQueue.map((item, i) => {
+            // Kuyruk kopya içerebildiği için anahtar KONUMU da taşır.
+            const position = (index >= 0 ? index : 0) + i;
+            return (
+              <QueueRow
+                key={`${item.id}-${position}`}
+                episode={item}
+                active={i === 0}
+                playing={playback.status === 'playing'}
+                onPress={() => (i === 0 ? onClose() : jumpTo(item, position))}
+                onRemove={i === 0 ? undefined : () => removeAt(position)}
+              />
+            );
+          })}
         </ScrollView>
       )}
     </BottomSheet>
@@ -68,7 +74,9 @@ const QueueRow: React.FC<{
   active?: boolean;
   playing?: boolean;
   onPress: () => void;
-}> = ({ episode, active, playing, onPress }) => {
+  /** Verilirse satırın sağında kuyruktan çıkarma düğmesi görünür. */
+  onRemove?: () => void;
+}> = ({ episode, active, playing, onPress, onRemove }) => {
   const theme = useTheme();
   return (
     <Pressable
@@ -95,6 +103,15 @@ const QueueRow: React.FC<{
         </Text>
       </View>
       {active && <NowPlayingBars playing={playing} />}
+      {onRemove && (
+        <Pressable
+          onPress={onRemove}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Kuyruktan çıkar">
+          <Icon name="close" size={18} color={theme.colors.textMuted} />
+        </Pressable>
+      )}
     </Pressable>
   );
 };

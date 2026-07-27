@@ -2,10 +2,11 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FlashList } from '@shopify/flash-list';
 import React, { useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
-import { Episode, playlistCoverUri, playlistDurationSec } from '@domain/entities';
+import { Episode, playlistDurationSec } from '@domain/entities';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
-import { CoverImage, Icon, ImmersiveHeader, Text, scrimScrollHandler } from '../../../ui';
+import { Icon, ImmersiveHeader, Text, scrimScrollHandler } from '../../../ui';
+import { PlaylistCover } from '../components/PlaylistCover';
 import { EmptyState } from '../../../shared/components';
 import {
   useDeletePlaylist,
@@ -17,7 +18,7 @@ import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import type { RootStackParamList } from '../../../navigation/types';
 import { usePlayEpisode } from '../../player/usePlayEpisode';
 import { useEpisodeSheetStore } from '../../../stores';
-import { EpisodeRow } from '../../shows/components/EpisodeRow';
+import { SwipeableEpisodeRow } from '../../episode/SwipeableEpisodeRow';
 import { PlaylistEditorSheet } from '../components/PlaylistEditorSheet';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
@@ -89,25 +90,7 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
   const Header = (
     <View style={{ paddingHorizontal: theme.spacing(2), paddingBottom: theme.spacing(2) }}>
       <View style={{ alignItems: 'center' }}>
-        {playlistCoverUri(playlist) ? (
-          <CoverImage uri={playlistCoverUri(playlist)} size={180} radius={theme.radius.lg} />
-        ) : (
-          <View
-            style={{
-              width: 180,
-              height: 180,
-              borderRadius: theme.radius.lg,
-              backgroundColor: theme.colors.surface,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            <Icon
-              name={playlist.system ? 'bookmark' : 'list'}
-              size={48}
-              color={theme.colors.textDim}
-            />
-          </View>
-        )}
+        <PlaylistCover playlist={playlist} size={180} />
       </View>
 
       <Text variant="title" numberOfLines={2} style={{ marginTop: theme.spacing(2) }}>
@@ -185,7 +168,7 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
           scrollEventThrottle={16}
           contentContainerStyle={{ paddingBottom: theme.spacing(14) }}
           renderItem={({ item, index }) => (
-            <EpisodeRow
+            <SwipeableEpisodeRow
               episode={item}
               // Listelerde "kaldığın yer" yerine bölümün ait olduğu ŞOV yazar.
               subtitle={showTitleOf(item.showId)}

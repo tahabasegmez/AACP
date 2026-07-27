@@ -1,8 +1,9 @@
 import React from 'react';
 import { Pressable, View } from 'react-native';
-import { Playlist, playlistCoverUri } from '@domain/entities';
+import { Playlist } from '@domain/entities';
 import { useTheme } from '../../../theme';
-import { CoverImage, Icon, Text } from '../../../ui';
+import { Text } from '../../../ui';
+import { PlaylistCover } from './PlaylistCover';
 
 const DEFAULT_W = 132;
 
@@ -19,7 +20,6 @@ export const PlaylistCard: React.FC<{
   width?: number;
 }> = ({ playlist, onPress, width = DEFAULT_W }) => {
   const theme = useTheme();
-  const cover = playlistCoverUri(playlist);
   const count = playlist.episodes.length;
 
   return (
@@ -28,25 +28,7 @@ export const PlaylistCard: React.FC<{
       accessibilityRole="button"
       accessibilityLabel={`${playlist.name}, ${count} bölüm`}
       style={{ width }}>
-      {cover ? (
-        <CoverImage uri={cover} size={width} radius={theme.radius.lg} />
-      ) : (
-        <View
-          style={{
-            width,
-            height: width,
-            borderRadius: theme.radius.lg,
-            backgroundColor: theme.colors.surface,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-          <Icon
-            name={playlist.system ? 'bookmark' : 'list'}
-            size={30}
-            color={theme.colors.textDim}
-          />
-        </View>
-      )}
+      <PlaylistCover playlist={playlist} size={width} />
       <Text variant="subtitle" numberOfLines={1} style={{ marginTop: theme.spacing(1) }}>
         {playlist.name}
       </Text>

@@ -4,7 +4,7 @@ import { formatDuration, stripHtml } from '@core/utils';
 import { useTheme } from '../../theme';
 import { BottomSheet, CoverImage, Icon, IconName, Text } from '../../ui';
 import { useEpisodeNotes, useSavedEpisodes, useShowsQuery, useToggleSaved } from '../../query';
-import { useEpisodeSheetStore } from '../../stores';
+import { useEpisodeSheetStore, usePlayerQueueStore } from '../../stores';
 import { usePlayEpisode } from '../player/usePlayEpisode';
 import { useDownloads, useDownloadStatus } from '../downloads/useDownloads';
 import { AddToPlaylistSheet } from '../playlists/components/AddToPlaylistSheet';
@@ -27,6 +27,7 @@ const formatDate = (iso: string): string => {
 export const EpisodeSheet: React.FC = () => {
   const theme = useTheme();
   const [playlistOpen, setPlaylistOpen] = useState(false);
+  const enqueue = usePlayerQueueStore(s => s.enqueue);
   const episode = useEpisodeSheetStore(s => s.episode);
   const close = useEpisodeSheetStore(s => s.close);
   const play = usePlayEpisode();
@@ -86,7 +87,15 @@ export const EpisodeSheet: React.FC = () => {
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', gap: theme.spacing(1.5), marginTop: theme.spacing(2) }}>
+            {/* Aksiyon satırı — yalnızca simgeler. Çal belirgin (dolu daire),
+                diğerleri eşit aralıkta. Etiketler erişilebilirlikte taşınır. */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginTop: theme.spacing(2.5),
+              }}>
               <Pressable
                 onPress={() => {
                   play(episode);
@@ -95,24 +104,22 @@ export const EpisodeSheet: React.FC = () => {
                 accessibilityRole="button"
                 accessibilityLabel="Çal"
                 style={{
-                  flex: 1,
-                  flexDirection: 'row',
+                  width: 52,
+                  height: 52,
+                  borderRadius: 26,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 6,
                   backgroundColor: theme.colors.accent,
-                  paddingVertical: theme.spacing(1.5),
-                  borderRadius: theme.radius.pill,
                 }}>
-                <Icon name="play" size={18} color={theme.colors.onAccent} />
-                <Text variant="bodyStrong" color={theme.colors.onAccent}>
-                  Çal
-                </Text>
+                {/* Üçgen optik olarak sola kayık durur; hafifçe sağa itilir. */}
+                <View style={{ marginLeft: 2 }}>
+                  <Icon name="play" size={24} color={theme.colors.onAccent} />
+                </View>
               </Pressable>
 
               <SheetAction
                 icon={isSaved ? 'bookmark' : 'bookmark-outline'}
-                label="Sonra dinle"
+                label={isSaved ? 'Sonra dinleden çıkar' : 'Sonra dinleye ekle'}
                 color={isSaved ? theme.colors.accent : undefined}
                 onPress={() => toggleSaved.mutate(episode)}
               />
@@ -125,8 +132,18 @@ export const EpisodeSheet: React.FC = () => {
               />
               <SheetAction
                 icon="list"
+                badge="add"
                 label="Listeye ekle"
                 onPress={() => setPlaylistOpen(true)}
+              />
+              <SheetAction
+                icon="queue"
+                badge="add"
+                label="Sıraya ekle"
+                onPress={() => {
+                  enqueue(episode);
+                  close();
+                }}
               />
               <SheetAction
                 icon="share"
@@ -156,35 +173,56 @@ export const EpisodeSheet: React.FC = () => {
   );
 };
 
+/**
+ * SheetAction — panelin simge butonu.
+ *
+ * Etiket yalnızca erişilebilirlik için taşınır, ekranda gösterilmez; böylece
+ * aksiyonlar tek satıra sığar ve düzen bozulmaz. `badge` verilirse simgenin sağ
+ * altına küçük bir işaret eklenir (ör. "listeye ekle" için artı).
+ */
 const SheetAction: React.FC<{
   icon: IconName;
   label: string;
   onPress?: () => void;
   color?: string;
   busy?: boolean;
-}> = ({ icon, label, onPress, color, busy }) => {
+  badge?: IconName;
+}> = ({ icon, label, onPress, color, busy, badge }) => {
   const theme = useTheme();
+  const tint = color ?? theme.colors.text;
   return (
     <Pressable
       onPress={onPress}
       disabled={!onPress || busy}
       accessibilityRole="button"
       accessibilityLabel={label}
+      hitSlop={8}
       style={{
+        width: 44,
+        height: 44,
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 3,
-        paddingHorizontal: theme.spacing(1.5),
         opacity: onPress || busy ? 1 : 0.5,
       }}>
       {busy ? (
-        <ActivityIndicator size="small" color={theme.colors.accent} style={{ height: 22 }} />
+        <ActivityIndicator size="small" color={theme.colors.accent} />
       ) : (
-        <Icon name={icon} size={22} color={color ?? theme.colors.text} />
+        <View>
+          <Icon name={icon} size={24} color={tint} />
+          {badge && (
+            <View
+              style={{
+                position: 'absolute',
+                right: -6,
+                bottom: -4,
+                borderRadius: 8,
+                backgroundColor: theme.colors.elevated,
+              }}>
+              <Icon name={badge} size={13} color={tint} />
+            </View>
+          )}
+        </View>
       )}
-      <Text variant="caption" color={theme.colors.textMuted}>
-        {label}
-      </Text>
     </Pressable>
   );
 };

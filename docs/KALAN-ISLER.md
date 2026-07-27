@@ -5,6 +5,9 @@ ayrıştırıldı ki devam eden geliştirme sıfırdan başlamasın.
 
 Son güncelleme: 2026-07-27
 
+> Kaydırma jestleri (sağa=sıraya ekle, sola=listeye ekle) ve player'ı aşağı
+> sürükleyip kapatma **tamamlandı** — bkz. `SwipeableRow`, `SwipeableEpisodeRow`.
+
 ---
 
 ## Kullanıcı hesabı sistemi — YAPILMADI (öncelikli)
@@ -29,30 +32,6 @@ adaptörleri: progress, follows, saved).
 
 Sıralama önerisi: önce `User` entity + `UserRepository` portu → sonra playlist
 senkron adaptörü (istemci) → sonra sunucu ucu → en son giriş UI'ı.
-
-## Bölüm satırlarında kaydırma (swipe) hareketleri — YAPILMADI
-
-İstenen: bir bölüm satırını **sağa** kaydırınca kuyruğa ekle, **sola**
-kaydırınca listeye ekle (panel açılsın).
-
-**Var:** Her iki eylemin de hedefi hazır — `usePlayerQueueStore.enqueue()` ve
-`AddToPlaylistSheet` (çakışma uyarısı dahil) çalışıyor; bugün bölüm panelinden
-erişiliyor.
-
-**Eksik:** Satır seviyesinde kaydırma jesti. `EpisodeRow`'u saran bir
-`SwipeableRow` bileşeni gerekir (PanResponder ile; `react-native-gesture-handler`
-zaten kurulu). Eşik aşılınca eylem, aşılmazsa geri yaylanma.
-
-## Tam ekran player'ı aşağı kaydırıp mini player'a küçültme — YAPILMADI
-
-İstenen: Player'da aşağı doğru sürükleyip bırakınca kapanıp mini player'a
-dönmesi.
-
-**Var:** Player bir `fullScreenModal`; mini player (`GlobalDock`) zaten ayrı bir
-katman, yani "küçülme" aslında modal'ın kapanmasıdır.
-
-**Eksik:** Player kökünde dikey sürükleme jesti + eşik aşılınca `goBack()`.
-Sürüklerken ekranın aşağı kayması (translateY) ve arka planın soluklaşması.
 
 ## Push bildirimleri — yarım
 

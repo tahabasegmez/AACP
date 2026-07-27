@@ -3,6 +3,7 @@ export * from './Icon';
 export * from './CoverImage';
 export * from './Waveform';
 export * from './NowPlayingBars';
+export * from './SwipeableRow';
 export * from './Skeleton';
 export * from './Seekbar';
 export * from './Screen';

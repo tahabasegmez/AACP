@@ -13,7 +13,7 @@ import { usePlayEpisode } from '../../player/usePlayEpisode';
 import { useEpisodeSheetStore } from '../../../stores';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import type { RootStackParamList } from '../../../navigation/types';
-import { EpisodeRow } from '../components/EpisodeRow';
+import { SwipeableEpisodeRow } from '../../episode/SwipeableEpisodeRow';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ShowDetail'>;
 
@@ -185,7 +185,7 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
       scrollEventThrottle={16}
       contentContainerStyle={{ paddingBottom: theme.spacing(14) }}
       renderItem={({ item }: { item: Episode }) => (
-        <EpisodeRow
+        <SwipeableEpisodeRow
           episode={item}
           progress={progressById.get(item.id)}
           onPress={() => openSheet(item)}

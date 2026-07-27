@@ -38,7 +38,10 @@ export type IconName =
   | 'cloud-offline'
   | 'checkmark'
   | 'info'
-  | 'ellipsis';
+  | 'ellipsis'
+  | 'add'
+  /** Oynatma kuyruğu (sıraya ekle). */
+  | 'queue';
 
 const GLYPHS: Record<IconName, string> = {
   play: 'play',
@@ -70,6 +73,8 @@ const GLYPHS: Record<IconName, string> = {
   checkmark: 'checkmark',
   info: 'information-circle-outline',
   ellipsis: 'ellipsis-horizontal',
+  add: 'add',
+  queue: 'albums-outline',
 };
 
 interface Props {

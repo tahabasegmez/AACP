@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, View } from 'react-native';
-import { Episode, Playlist, playlistCoverUri, playlistHasEpisode } from '@domain/entities';
+import { Episode, Playlist, playlistHasEpisode } from '@domain/entities';
 import { useTheme } from '../../../theme';
-import { BottomSheet, CoverImage, Icon, Text } from '../../../ui';
+import { BottomSheet, Icon, Text } from '../../../ui';
 import { useAddEpisodeToPlaylist, usePlaylists } from '../../../query';
+import { PlaylistCover } from './PlaylistCover';
 import { PlaylistEditorSheet } from './PlaylistEditorSheet';
 
 /**
@@ -108,29 +109,7 @@ export const AddToPlaylistSheet: React.FC<{
                 paddingHorizontal: theme.spacing(2.5),
                 paddingVertical: theme.spacing(1.25),
               }}>
-              {playlistCoverUri(playlist) ? (
-                <CoverImage
-                  uri={playlistCoverUri(playlist)}
-                  size={44}
-                  radius={theme.radius.md}
-                />
-              ) : (
-                <View
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: theme.radius.md,
-                    backgroundColor: theme.colors.surface,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                  <Icon
-                    name={playlist.system ? 'bookmark' : 'list'}
-                    size={18}
-                    color={theme.colors.textDim}
-                  />
-                </View>
-              )}
+              <PlaylistCover playlist={playlist} size={44} radius={theme.radius.md} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text variant="bodyStrong" numberOfLines={1}>
                   {playlist.name}

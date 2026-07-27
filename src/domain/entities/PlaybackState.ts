@@ -46,6 +46,14 @@ export interface PlaybackState {
   readonly durationSec: number;
   /** Oynatma hızı (1.0 = normal). */
   readonly rate: number;
+  /**
+   * Önden yüklenmiş (buffer'lanmış) konum — saniye.
+   *
+   * Seek çubuğunda geçerli konumdan SONRA ne kadarının hazır olduğunu
+   * göstermek için kullanılır. Yerel dosya çalınırken tamamı hazırdır ve bu
+   * değer süreye eşit olur.
+   */
+  readonly bufferedSec: number;
   /** Dolu ise çalan şey bir reklamdır (bkz. AdPlaybackState). */
   readonly ad?: AdPlaybackState;
 }
@@ -56,6 +64,7 @@ export const INITIAL_PLAYBACK_STATE: PlaybackState = {
   positionSec: 0,
   durationSec: 0,
   rate: 1,
+  bufferedSec: 0,
 };
 
 /** Şu anda reklam mı çalıyor? (Tek yerde tanımlı yardımcı.) */

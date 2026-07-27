@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Linking,
+  PanResponder,
   Pressable,
   Share,
   StatusBar,
@@ -117,20 +119,52 @@ export const PlayerScreen: React.FC = () => {
     }
   };
 
+  /**
+   * Aşağı sürükleyip bırakınca player kapanır ve mini player'a döner.
+   * Player bir tam-ekran modal olduğu için "küçülme" = modal'ın kapanmasıdır;
+   * mini player zaten alttaki kalıcı katmanda durur.
+   */
+  const dragY = useRef(new Animated.Value(0)).current;
+  const dismissPan = useRef(
+    PanResponder.create({
+      // Yalnızca belirgin AŞAĞI hareketlerde devral (yatay jestleri bozmasın).
+      onMoveShouldSetPanResponder: (_e, g) => g.dy > 8 && g.dy > Math.abs(g.dx) * 1.5,
+      onPanResponderMove: (_e, g) => {
+        if (g.dy > 0) {
+          dragY.setValue(g.dy);
+        }
+      },
+      onPanResponderRelease: (_e, g) => {
+        // Yeterince aşağı çekildiyse (ya da hızlı savrulduysa) kapat.
+        if (g.dy > 120 || g.vy > 1.2) {
+          navigation.goBack();
+          return;
+        }
+        Animated.spring(dragY, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(dragY, { toValue: 0, useNativeDriver: true }).start();
+      },
+    }),
+  ).current;
+
   const getPosition = () => usePlayerStore.getState().playback.positionSec;
   const getDuration = () => usePlayerStore.getState().playback.durationSec;
   const doSeek = (sec: number) => seekTo.execute({ positionSec: sec });
   const coverSize = useHeroCoverSize();
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+    <Animated.View
+      style={{ flex: 1, backgroundColor: theme.colors.bg, transform: [{ translateY: dragY }] }}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       {/* Arka plan: kapağın baskın renginden tema zeminine degrade */}
       <CoverGradient uri={episode?.imageUrl} style={StyleSheet.absoluteFill} />
 
       <View style={{ flex: 1, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12, paddingHorizontal: theme.spacing(3) }}>
-        {/* Üst bar */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* Üst bar — buradan aşağı sürüklemek player'ı kapatır (mini player'a döner). */}
+        <View
+          {...dismissPan.panHandlers}
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Pressable onPress={() => navigation.goBack()} hitSlop={10} accessibilityLabel="Kapat">
             <Icon name="chevron-down" size={26} color={theme.colors.text} />
           </Pressable>
@@ -185,6 +219,9 @@ export const PlayerScreen: React.FC = () => {
               positionSec={playback.positionSec}
               durationSec={playback.durationSec}
               buffering={playback.status === 'buffering'}
+              bufferedSec={playback.bufferedSec}
+              // İndirilmiş bölümde tamamı hazırdır — çubuk baştan sona dolu.
+              fullyBuffered={dlStatus === 'downloaded'}
               // Reklam atlanamaz: sarma devre dışı (oynatıcı da ayrıca engeller).
               disabled={!!ad}
               onSeek={doSeek}
@@ -302,7 +339,7 @@ export const PlayerScreen: React.FC = () => {
         onClose={() => setMenuOpen(false)}
         onFeedback={showHint}
       />
-    </View>
+    </Animated.View>
   );
 };
 

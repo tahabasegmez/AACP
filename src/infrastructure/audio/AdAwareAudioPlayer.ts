@@ -295,6 +295,7 @@ export class AdAwareAudioPlayer implements AudioPlayerService {
       positionSec: 0,
       durationSec: this.hostEpisode?.durationSec ?? 0,
       rate: 1,
+      bufferedSec: 0,
     });
   }
 

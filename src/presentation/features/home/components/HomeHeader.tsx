@@ -15,7 +15,7 @@ const LOGO_HEIGHT = 34;
  * Dikey ölçüler `headerMetrics`ten gelir — Ara/Kütüphane'deki ScreenHeader ile
  * AYNI kaynak. Bu sayede sekmeler arasında geçerken başlığın ALT HİZASI birebir
  * aynı yerde kalır ve içerik zıplamaz. Fark yalnızca içerikte: başlık metni
- * yerine "AA PODCAST" logosu ve marka mavisi zemin.
+ * yerine ORTALANMIŞ "AA PODCAST" logosu ve marka mavisi zemin.
  *
  * Üst güvenli alan header'ın içine alınır; böylece mavi, Dynamic Island /
  * status bar arkasına kadar kenardan kenara dolar.
@@ -31,7 +31,12 @@ export const HomeHeader: React.FC = () => {
         paddingBottom: headerMetrics.paddingBottom,
         paddingHorizontal: headerMetrics.paddingHorizontal,
       }}>
-      <View style={{ minHeight: headerMetrics.minHeight, justifyContent: 'center' }}>
+      <View
+        style={{
+          minHeight: headerMetrics.minHeight,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}>
         <Image
           source={AA_LOGO}
           resizeMode="contain"

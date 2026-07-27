@@ -20,7 +20,7 @@ import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import { useEpisodeSheetStore } from '../../../stores';
 import type { RootStackParamList } from '../../../navigation/types';
 import { usePlayEpisode } from '../../player/usePlayEpisode';
-import { EpisodeRow } from '../../shows/components/EpisodeRow';
+import { SwipeableEpisodeRow } from '../../episode/SwipeableEpisodeRow';
 import { ShowCard } from '../components/ShowCard';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SeeAll'>;
@@ -183,7 +183,7 @@ export const SeeAllScreen: React.FC<Props> = ({ route }) => {
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: theme.spacing(12) }}
         renderItem={({ item, index }) => (
-          <EpisodeRow
+          <SwipeableEpisodeRow
             episode={item.episode}
             progress={item.progress}
             completed={item.completed}

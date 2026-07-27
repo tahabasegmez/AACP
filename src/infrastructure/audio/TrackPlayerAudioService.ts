@@ -103,6 +103,7 @@ export class TrackPlayerAudioService implements AudioPlayerService {
         status: mapTrackPlayerState(state),
         positionSec: progress.position,
         durationSec: progress.duration || this.state.durationSec,
+        bufferedSec: progress.buffered ?? 0,
       });
     } catch {
       // Player henüz hazır değilse mevcut (son bilinen) durumu döneriz.
@@ -126,8 +127,14 @@ export class TrackPlayerAudioService implements AudioPlayerService {
       }),
       TrackPlayer.addEventListener(
         Event.PlaybackProgressUpdated,
-        ({ position, duration }) => {
-          this.update({ positionSec: position, durationSec: duration });
+        ({ position, duration, buffered }) => {
+          this.update({
+            positionSec: position,
+            durationSec: duration,
+            // Yerel dosyada buffer raporlanmayabilir; süreye eşitlemek yerine
+            // ham değer taşınır ve yorumu UI yapar.
+            bufferedSec: buffered ?? 0,
+          });
         },
       ),
       TrackPlayer.addEventListener(
