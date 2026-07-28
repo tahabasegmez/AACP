@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { bearerToken, verifyToken } from '../auth';
+import type { Env } from '../env';
 
 const SECRET = 'test-jwt-secret-en-az-32-karakter-olmali';
+
+/** HS256 doğrulaması için yeterli sahte ortam. */
+const envWith = (secret?: string): Env =>
+  ({ SUPABASE_JWT_SECRET: secret, SUPABASE_URL: 'https://test.supabase.co' }) as Env;
 
 /** Test için HS256 imzalı bir JWT üretir (Supabase'in ürettiğiyle aynı biçim). */
 const makeToken = async (
@@ -39,31 +44,78 @@ const future = () => Math.floor(Date.now() / 1000) + 3600;
 const past = () => Math.floor(Date.now() / 1000) - 10;
 
 describe('verifyToken', () => {
-  it('geçerli jetonu çözer', async () => {
+  it('geçerli HS256 jetonunu çözer', async () => {
     const token = await makeToken({ sub: 'user-1', email: 'a@b.com', exp: future() });
-    const claims = await verifyToken(token, SECRET);
+    const claims = await verifyToken(token, envWith(SECRET));
 
     expect(claims.sub).toBe('user-1');
     expect(claims.email).toBe('a@b.com');
   });
 
+  it('HS256 jetonu için secret yoksa açık hata verir', async () => {
+    const token = await makeToken({ sub: 'user-1', exp: future() });
+    await expect(verifyToken(token, envWith(undefined))).rejects.toThrow(
+      /SUPABASE_JWT_SECRET/,
+    );
+  });
+
+  it('ES256 jetonunu JWKS ile doğrular (asimetrik — yeni projeler)', async () => {
+    // Gerçek bir ECDSA anahtar çifti üretip Supabase'in JWKS ucunu taklit et.
+    const pair = (await crypto.subtle.generateKey(
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      true,
+      ['sign', 'verify'],
+    )) as CryptoKeyPair;
+    const publicJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+
+    const encode = (value: unknown): string =>
+      btoa(JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const header = encode({ alg: 'ES256', kid: 'anahtar-1', typ: 'JWT' });
+    const payload = encode({ sub: 'user-es', exp: future() });
+
+    const signature = await crypto.subtle.sign(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      pair.privateKey,
+      new TextEncoder().encode(`${header}.${payload}`),
+    );
+    const bytes = new Uint8Array(signature);
+    let binary = '';
+    bytes.forEach(b => {
+      binary += String.fromCharCode(b);
+    });
+    const sig = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ keys: [{ ...publicJwk, kid: 'anahtar-1' }] }), {
+        headers: { 'Content-Type': 'application/json' },
+      })) as typeof fetch;
+
+    try {
+      const claims = await verifyToken(`${header}.${payload}.${sig}`, envWith());
+      expect(claims.sub).toBe('user-es');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('BAŞKA anahtarla imzalanmış jetonu reddeder', async () => {
     const token = await makeToken({ sub: 'user-1', exp: future() }, 'baska-gizli-anahtar');
-    await expect(verifyToken(token, SECRET)).rejects.toThrow(/imza/i);
+    await expect(verifyToken(token, envWith(SECRET))).rejects.toThrow(/imza/i);
   });
 
   it('süresi dolmuş jetonu reddeder', async () => {
     const token = await makeToken({ sub: 'user-1', exp: past() });
-    await expect(verifyToken(token, SECRET)).rejects.toThrow(/süre/i);
+    await expect(verifyToken(token, envWith(SECRET))).rejects.toThrow(/süre/i);
   });
 
   it('kullanıcısız jetonu reddeder', async () => {
     const token = await makeToken({ exp: future() });
-    await expect(verifyToken(token, SECRET)).rejects.toThrow();
+    await expect(verifyToken(token, envWith(SECRET))).rejects.toThrow();
   });
 
   it('bozuk biçimi reddeder', async () => {
-    await expect(verifyToken('bozuk-jeton', SECRET)).rejects.toThrow(/biçim/i);
+    await expect(verifyToken('bozuk-jeton', envWith(SECRET))).rejects.toThrow(/biçim/i);
   });
 
   it('yükü kurcalanmış jetonu reddeder', async () => {
@@ -75,7 +127,9 @@ describe('verifyToken', () => {
       .replace(/\//g, '_')
       .replace(/=+$/, '');
 
-    await expect(verifyToken(`${header}.${forged}.${signature}`, SECRET)).rejects.toThrow();
+    await expect(
+      verifyToken(`${header}.${forged}.${signature}`, envWith(SECRET)),
+    ).rejects.toThrow();
   });
 });
 

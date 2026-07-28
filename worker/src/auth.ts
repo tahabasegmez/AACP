@@ -1,3 +1,4 @@
+import type { Env } from './env';
 import { HttpError } from './errors';
 import type { Ctx } from './router';
 
@@ -9,6 +10,63 @@ interface JwtClaims {
   readonly role?: string;
 }
 
+/** JWT başlığı — imza algoritmasını ve anahtar kimliğini taşır. */
+interface JwtHeader {
+  readonly alg?: string;
+  readonly kid?: string;
+}
+
+/** JWKS'ten gelen açık anahtar. */
+interface Jwk {
+  readonly kid?: string;
+  readonly kty?: string;
+  readonly crv?: string;
+  readonly alg?: string;
+}
+
+/**
+ * JWKS önbelleği.
+ *
+ * Worker örneği istekler arasında yaşadığı için anahtarlar bir kez çekilip
+ * saklanır; her istekte JWKS indirmek edge'in hız avantajını yok ederdi.
+ * Anahtar rotasyonunu kaçırmamak için TTL uygulanır, ayrıca bilinmeyen bir
+ * `kid` görülürse önbellek anında tazelenir.
+ */
+let jwksCache: { keys: Jwk[]; fetchedAt: number } | undefined;
+const JWKS_TTL_MS = 10 * 60_000;
+
+const fetchJwks = async (supabaseUrl: string, force = false): Promise<Jwk[]> => {
+  const now = Date.now();
+  if (!force && jwksCache && now - jwksCache.fetchedAt < JWKS_TTL_MS) {
+    return jwksCache.keys;
+  }
+  const response = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/auth/v1/.well-known/jwks.json`);
+  if (!response.ok) {
+    throw HttpError.internal(`JWKS alınamadı (${response.status})`);
+  }
+  const body = (await response.json()) as { keys?: Jwk[] };
+  const keys = body.keys ?? [];
+  jwksCache = { keys, fetchedAt: now };
+  return keys;
+};
+
+/** `kid` ile eşleşen anahtarı bulur; yoksa JWKS'i bir kez tazeleyip tekrar arar. */
+const findKey = async (supabaseUrl: string, kid?: string): Promise<Jwk> => {
+  const pick = (keys: Jwk[]): Jwk | undefined =>
+    kid ? keys.find(k => k.kid === kid) : keys[0];
+
+  const cached = pick(await fetchJwks(supabaseUrl));
+  if (cached) {
+    return cached;
+  }
+  // Anahtar döndürülmüş olabilir — önbelleği zorla tazele.
+  const fresh = pick(await fetchJwks(supabaseUrl, true));
+  if (!fresh) {
+    throw HttpError.unauthorized('Jetonu doğrulayacak anahtar bulunamadı');
+  }
+  return fresh;
+};
+
 /** Doğrulanmış oturum bilgisi. */
 export interface Session {
   readonly userId: string;
@@ -18,36 +76,39 @@ export interface Session {
 }
 
 /**
- * Supabase erişim jetonunu YERELDE doğrular (HS256 + JWT secret).
+ * Supabase erişim jetonunu YERELDE doğrular.
  *
  * Her istekte Supabase'e "bu jeton geçerli mi" diye sormak edge'in hız
  * avantajını yok ederdi; imza doğrulaması Web Crypto ile birkaç mikrosaniye
- * sürer. Jetonun süresi ayrıca kontrol edilir.
+ * sürer.
  *
- * Not: Supabase asimetrik anahtarlara (RS256/ES256) geçilirse burası JWKS
- * doğrulamasıyla değiştirilmelidir — çağıran kod etkilenmez.
+ * İKİ İMZA TÜRÜ desteklenir çünkü Supabase projeleri ikisini de kullanabilir:
+ *  - **ES256/RS256 (asimetrik)** — yeni projelerin varsayılanı. Açık anahtar
+ *    projenin JWKS ucundan alınır; gizli anahtar hiçbir zaman bizde bulunmaz.
+ *    Bu daha güvenlidir: Worker sızsa bile jeton ÜRETİLEMEZ, yalnızca
+ *    doğrulanabilir.
+ *  - **HS256 (simetrik)** — eski projeler. `SUPABASE_JWT_SECRET` gerekir.
+ *
+ * Hangisinin kullanılacağı jetonun başlığındaki `alg` alanından anlaşılır.
  */
-export const verifyToken = async (token: string, secret: string): Promise<JwtClaims> => {
+export const verifyToken = async (token: string, env: Env): Promise<JwtClaims> => {
   const parts = token.split('.');
   if (parts.length !== 3) {
     throw HttpError.unauthorized('Jeton biçimi geçersiz');
   }
   const [headerPart, payloadPart, signaturePart] = parts;
 
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['verify'],
-  );
+  const header = JSON.parse(
+    new TextDecoder().decode(base64UrlToBytes(headerPart)),
+  ) as JwtHeader;
+  const signature = base64UrlToBytes(signaturePart);
+  const signed = new TextEncoder().encode(`${headerPart}.${payloadPart}`);
 
-  const valid = await crypto.subtle.verify(
-    'HMAC',
-    key,
-    base64UrlToBytes(signaturePart),
-    new TextEncoder().encode(`${headerPart}.${payloadPart}`),
-  );
+  const valid =
+    header.alg === 'HS256'
+      ? await verifyHmac(signed, signature, env.SUPABASE_JWT_SECRET)
+      : await verifyAsymmetric(signed, signature, header, env.SUPABASE_URL);
+
   if (!valid) {
     throw HttpError.unauthorized('Jeton imzası geçersiz');
   }
@@ -61,6 +122,54 @@ export const verifyToken = async (token: string, secret: string): Promise<JwtCla
     throw HttpError.unauthorized('Jetonda kullanıcı yok');
   }
   return claims;
+};
+
+/** HS256 — paylaşılan gizli anahtarla imza doğrulaması (eski projeler). */
+const verifyHmac = async (
+  signed: Uint8Array,
+  signature: Uint8Array,
+  secret?: string,
+): Promise<boolean> => {
+  if (!secret) {
+    throw HttpError.internal('SUPABASE_JWT_SECRET tanımlı değil (HS256 jetonu için gerekli)');
+  }
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['verify'],
+  );
+  return crypto.subtle.verify('HMAC', key, signature, signed);
+};
+
+/** ES256/RS256 — JWKS'ten alınan AÇIK anahtarla imza doğrulaması. */
+const verifyAsymmetric = async (
+  signed: Uint8Array,
+  signature: Uint8Array,
+  header: JwtHeader,
+  supabaseUrl: string,
+): Promise<boolean> => {
+  const jwk = await findKey(supabaseUrl, header.kid);
+
+  // Anahtar türüne göre algoritma parametreleri.
+  const isEc = (jwk.kty ?? '') === 'EC';
+  const algorithm = isEc
+    ? { name: 'ECDSA', namedCurve: jwk.crv ?? 'P-256' }
+    : { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
+  const verifyParams = isEc ? { name: 'ECDSA', hash: 'SHA-256' } : { name: 'RSASSA-PKCS1-v1_5' };
+
+  const key = await crypto.subtle.importKey(
+    'jwk',
+    // `key_ops`/`use` alanları içe aktarmayı reddettirebilir; yalnızca
+    // doğrulama için gerekli alanlar bırakılır.
+    { ...(jwk as JsonWebKey), key_ops: ['verify'], ext: true },
+    algorithm,
+    false,
+    ['verify'],
+  );
+
+  return crypto.subtle.verify(verifyParams, key, signature, signed);
 };
 
 /** `Authorization: Bearer <token>` başlığından jetonu çıkarır. */
@@ -79,7 +188,7 @@ export const requireSession = async (ctx: Ctx): Promise<Session> => {
   if (!token) {
     throw HttpError.unauthorized('Bu uç için oturum gerekli');
   }
-  const claims = await verifyToken(token, ctx.env.SUPABASE_JWT_SECRET);
+  const claims = await verifyToken(token, ctx.env);
   return { userId: claims.sub!, email: claims.email, accessToken: token };
 };
 
