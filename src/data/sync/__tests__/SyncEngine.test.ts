@@ -168,6 +168,122 @@ describe('SyncEngine', () => {
       storage,
       silentLogger,
     );
-    await expect(engine.syncAll()).resolves.toBeUndefined();
+    // Hata FIRLATILMAZ: senkron en iyi çabadır, uygulama akışını bozmaz.
+    // Durum "error" olarak raporlanır ki kullanıcıya gösterilebilsin.
+    const status = await engine.syncAll();
+    expect(status.phase).toBe('error');
+    expect(status.error).toContain('offline');
+  });
+
+  it('başarılı senkron sonrası durumu success olarak yayınlar', async () => {
+    const storage = new MemoryStorage();
+    const engine = new SyncEngine(
+      new FakeTransport(),
+      [new ProgressSyncAdapter(storage)],
+      storage,
+      silentLogger,
+    );
+
+    const phases: string[] = [];
+    engine.subscribe(s => phases.push(s.phase));
+
+    const status = await engine.syncAll();
+
+    expect(status.phase).toBe('success');
+    expect(status.lastSyncAt).toBeGreaterThan(0);
+    expect(phases).toContain('syncing');
+  });
+
+  it('ÇAKIŞMALARI sayar — uzak kayıt yereldekinden daha yeniyse', async () => {
+    const storage = new MemoryStorage();
+    const transport = new FakeTransport();
+
+    // Yerelde eski, sunucuda daha yeni bir kayıt (aynı bölüm).
+    storage.set(
+      'playback_progress_v1',
+      JSON.stringify({ 'ep-1': JSON.parse(progressJson('ep-1', '2026-07-01T00:00:00.000Z')) }),
+    );
+    transport.remote.progress = [
+      {
+        key: 'ep-1',
+        value: progressJson('ep-1', '2026-07-20T00:00:00.000Z', 99),
+        updatedAt: Date.parse('2026-07-20T00:00:00.000Z'),
+        deleted: false,
+      },
+    ];
+
+    const engine = new SyncEngine(
+      transport,
+      [new ProgressSyncAdapter(storage)],
+      storage,
+      silentLogger,
+    );
+    const status = await engine.syncAll();
+
+    expect(status.conflictCount).toBe(1);
+  });
+
+  it('bekleyen değişiklikleri ağa çıkmadan sayar', async () => {
+    const storage = new MemoryStorage();
+    const transport = new FakeTransport();
+    storage.set(
+      'playback_progress_v1',
+      JSON.stringify({ 'ep-1': JSON.parse(progressJson('ep-1', '2026-07-01T00:00:00.000Z')) }),
+    );
+
+    const engine = new SyncEngine(
+      transport,
+      [new ProgressSyncAdapter(storage)],
+      storage,
+      silentLogger,
+    );
+
+    expect(await engine.countPending()).toBe(1);
+    expect(transport.pushed.progress).toBeUndefined(); // ağa çıkılmadı
+  });
+
+  it('replaceWithRemote yerel veriyi siler ve sunucuya GÖNDERMEZ', async () => {
+    const storage = new MemoryStorage();
+    const transport = new FakeTransport();
+    storage.set(
+      'playback_progress_v1',
+      JSON.stringify({ 'ep-1': JSON.parse(progressJson('ep-1', '2026-07-01T00:00:00.000Z')) }),
+    );
+
+    const engine = new SyncEngine(
+      transport,
+      [new ProgressSyncAdapter(storage)],
+      storage,
+      silentLogger,
+    );
+    await engine.replaceWithRemote();
+
+    // Önceki kimliğe ait veri yeni hesaba karışmamalı.
+    expect(transport.pushed.progress).toBeUndefined();
+    expect(storage.getString('playback_progress_v1')).toBeNull();
+  });
+
+  it('adoptLocalInto imleci sıfırlar — yerel veri yeni hesaba taşınır', async () => {
+    const storage = new MemoryStorage();
+    const transport = new FakeTransport();
+    storage.set(
+      'playback_progress_v1',
+      JSON.stringify({ 'ep-1': JSON.parse(progressJson('ep-1', '2026-07-01T00:00:00.000Z')) }),
+    );
+
+    const engine = new SyncEngine(
+      transport,
+      [new ProgressSyncAdapter(storage)],
+      storage,
+      silentLogger,
+    );
+
+    await engine.syncAll();
+    expect(transport.pushed.progress).toHaveLength(1);
+
+    // Kimlik değişti: aynı veri yeni hesap adına yeniden gönderilir.
+    await engine.adoptLocalInto();
+    expect(transport.pushed.progress).toHaveLength(2);
+    expect(storage.getString('playback_progress_v1')).not.toBeNull();
   });
 });

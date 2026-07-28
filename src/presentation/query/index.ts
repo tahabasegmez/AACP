@@ -6,5 +6,6 @@ export * from './useHomeData';
 export * from './useLibraryData';
 export * from './usePlaylists';
 export * from './useAccount';
+export * from './useSync';
 export * from './useCoverColor';
 export * from './QueryProvider';

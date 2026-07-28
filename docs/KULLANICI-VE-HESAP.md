@@ -53,14 +53,53 @@ kurulum container'ına) bağlıdır, başka cihazda anlamsızdır.
 ## 4. Senkron
 
 Model: **delta + son-yazan-kazanır**. Koleksiyonlar:
-`progress`, `follows`, `saved`, `playlists`.
+`progress`, `follows`, `playlists`.
+
+> **"Sonra dinle" ayrı bir koleksiyon DEĞİLDİR.** O, playlist sisteminin sistem
+> listesidir (`SAVED_PLAYLIST_ID`) ve `playlists` içinde taşınır. Ayrı bir depo
+> ve adaptör tutmak aynı veriyi iki kez senkronlamak ve kaynakların sessizce
+> sapması demekti. Uygulama tarafında eski `SavedEpisodesRepository` portu
+> korunur ([PlaylistBackedSavedEpisodes](../src/data/repositories/PlaylistBackedSavedEpisodes.ts))
+> ama tek kaynağa yönlenir.
 
 Playlist senkronu ([PlaylistSyncAdapter](../src/data/sync/PlaylistSyncAdapter.ts))
 diğerlerinden farklıdır: her liste zaten kendi `updatedAt` damgasını taşır, bu
 yüzden gölge meta haritası gerekmez. Silinen listeler için tombstone tutulur.
 
-**Sistem listesi ("Sonra dinle") uzaktan silinemez** — bir cihazdaki hata tüm
-kaydedilenleri yok etmesin diye adaptör bunu reddeder.
+**Sistem listesi uzaktan silinemez** — bir cihazdaki hata tüm kaydedilenleri yok
+etmesin diye adaptör bunu reddeder.
+
+### 4.1 Kimlik değişiminde veri ne olur?
+
+Cihazdaki veri bir kimliğe aittir. Kimlik değişince üç akış vardır:
+
+| Durum | Ne olur | Neden |
+|---|---|---|
+| **Kayıt** (anonim → hesap) | `adoptLocalInto()` — veri hesaba taşınır | Sunucu aynı kullanıcıyı yükseltir; veri zaten bu kişiye ait |
+| **Giriş** (başka hesaba) | Kullanıcıya **sorulur** | Cihazdaki veri BAŞKA bir kimliğe ait; sessizce birleştirmek de silmek de sürpriz olur |
+| **Çıkış** | `clearLocalData()` | Hesabın verisi misafir kullanıcıya devredilmemeli |
+
+Girişte iki seçenek sunulur:
+- **Hesabıma aktar** (`adoptLocalInto`) — imleçler sıfırlanır, tüm yerel veri
+  gönderilir, hesabın verisi indirilir. Çakışanlarda en yeni kazanır.
+- **Hesabımdakiyle devam et** (`replaceWithRemote`) — yerel veri silinir,
+  sunucudan temiz kopya iner.
+
+**İndirilen dosyalara hiçbir akışta dokunulmaz** — cihaza özgüdürler ve hiçbir
+hesaba ait değildirler; çevrimdışı dinleme bozulmamalıdır.
+
+### 4.2 Çakışmalar nasıl görünür?
+
+"Son yazan kazanır" politikasında bazı yerel değişiklikler daha yeni bir uzak
+kayıt tarafından geçersiz kılınır. Bu sessizce olursa kullanıcı "değişikliğim
+neden kayboldu?" der. Bu yüzden motor çakışan kayıtları sayar
+([SyncStatus.conflictCount](../src/domain/entities/SyncStatus.ts)) ve Ayarlar'da
+şu satır görünür:
+
+> *"3 kayıt başka bir cihazda daha yeni olduğu için güncellendi."*
+
+Ayarlar → Senkron ayrıca şunu gösterir: son senkron zamanı ("5 dakika önce"),
+bekleyen değişiklik sayısı ve son hata.
 
 ## 5. Sunucusuz çalışma
 

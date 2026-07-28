@@ -5,6 +5,7 @@ import {
   ImagePicker,
   RoutePicker,
 } from '@core/ports';
+import { SyncStatus } from '@domain/entities';
 import { UserRepository } from '@domain/repositories';
 import { AudioPlayerService } from '@domain/services';
 import {
@@ -119,10 +120,27 @@ export interface AppDependencies {
 }
 
 /**
- * SyncService — presentation'ın senkrondan ihtiyaç duyduğu asgari yüzey.
- * (Somut `SyncEngine`'e bağımlılık kurmamak için dar bir arayüz.)
+ * SyncService — presentation'ın senkrondan ihtiyaç duyduğu yüzey.
+ * (Somut `SyncEngine`'e bağımlılık kurmamak için dar tutulur.)
  */
 export interface SyncService {
   readonly enabled: boolean;
-  syncAll(): Promise<void>;
+
+  /** Tüm koleksiyonları senkronlar ve sonuç durumunu döner. */
+  syncAll(): Promise<SyncStatus>;
+
+  /** Anlık durum (son senkron, bekleyen, hata). */
+  getStatus(): SyncStatus;
+  /** Durum değişikliklerine abone olur; iptal fonksiyonu döner. */
+  subscribe(listener: (status: SyncStatus) => void): () => void;
+  /** Gönderilmeyi bekleyen yerel değişiklik sayısı (ağa çıkmaz). */
+  countPending(): Promise<number>;
+
+  // --- kimlik değişimi ---------------------------------------------------
+  /** Cihazdaki veriyi yeni hesaba taşıyarak senkronlar. */
+  adoptLocalInto(): Promise<SyncStatus>;
+  /** Cihazdaki veriyi atıp hesabın verisini indirir. */
+  replaceWithRemote(): Promise<SyncStatus>;
+  /** Yerel senkron verisini siler (çıkış akışı). İndirmelere dokunmaz. */
+  clearLocalData(): Promise<void>;
 }

@@ -28,7 +28,7 @@ export abstract class MembershipSyncAdapter<TItem> implements SyncCollectionAdap
   constructor(
     readonly collection: SyncCollection,
     protected readonly storage: KeyValueStorage,
-    private readonly listKey: string,
+    protected readonly listKey: string,
   ) {}
 
   /** Öğenin kararlı kimliği (senkron anahtarı). */
@@ -36,7 +36,7 @@ export abstract class MembershipSyncAdapter<TItem> implements SyncCollectionAdap
   /** Uzaktan gelen JSON'u öğeye çevirir; geçersizse null. */
   protected abstract parse(json: string): TItem | null;
 
-  private get metaKey(): string {
+  protected get metaKey(): string {
     return `aacp.sync.meta.${this.collection}`;
   }
 
@@ -123,6 +123,13 @@ export abstract class MembershipSyncAdapter<TItem> implements SyncCollectionAdap
       this.writeList([...byId.values()]);
       this.writeMeta(meta);
     }
+  }
+
+  async clearLocal(): Promise<void> {
+    // Hem üye listesi hem gölge meta silinir; aksi halde eski tombstone'lar
+    // yeni kimliğin verisini silmeye kalkardı.
+    this.storage.delete(this.listKey);
+    this.storage.delete(this.metaKey);
   }
 
   protected readList(): TItem[] {

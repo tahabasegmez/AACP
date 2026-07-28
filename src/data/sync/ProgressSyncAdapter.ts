@@ -32,6 +32,10 @@ export class ProgressSyncAdapter implements SyncCollectionAdapter {
       }));
   }
 
+  async clearLocal(): Promise<void> {
+    this.storage.delete(STORAGE_KEY);
+  }
+
   async applyRemote(records: readonly SyncRecord[]): Promise<void> {
     const all = this.read();
     let changed = false;

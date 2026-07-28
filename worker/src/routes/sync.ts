@@ -3,7 +3,13 @@ import { requireSession } from '../auth';
 import { Supabase } from '../supabase';
 import { ok, type Ctx } from '../router';
 
-/** Senkronlanan koleksiyonlar — istemcideki liste ile birebir aynı olmalı. */
+/**
+ * Senkronlanan koleksiyonlar — istemcideki liste ile birebir aynı olmalı.
+ *
+ * `saved` ("Sonra dinle") ayrı bir koleksiyon DEĞİLDİR: playlist sisteminin
+ * sistem listesi olarak `playlists` içinde taşınır. Eski istemcilerin veri
+ * kaybetmemesi için değer kabul edilmeye devam eder ama yeni istemci kullanmaz.
+ */
 export const SYNC_COLLECTIONS = ['progress', 'follows', 'saved', 'playlists'] as const;
 export type SyncCollection = (typeof SYNC_COLLECTIONS)[number];
 

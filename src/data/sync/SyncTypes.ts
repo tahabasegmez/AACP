@@ -32,4 +32,12 @@ export interface SyncCollectionAdapter {
   localChanges(since: number): Promise<readonly SyncRecord[]>;
   /** Sunucudan gelen kayıtları yerele işler (daha yeni olan kazanır). */
   applyRemote(records: readonly SyncRecord[]): Promise<void>;
+  /**
+   * Yerel veriyi tamamen siler.
+   *
+   * KİMLİK DEĞİŞİMİNDE gereklidir: kullanıcı başka bir hesaba giriş yaptığında
+   * ya da çıkış yaptığında cihazdaki veri önceki kimliğe aittir; korunursa
+   * yeni kullanıcının kütüphanesine karışır.
+   */
+  clearLocal(): Promise<void>;
 }

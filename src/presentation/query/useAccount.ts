@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { unwrap } from '@core/error';
 import { CredentialsInput } from '@domain/repositories';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -24,46 +25,100 @@ export const useAccountsAvailable = (): boolean => {
   return userRepository.accountsAvailable;
 };
 
+/** Giriş sırasında cihazdaki verinin ne olacağı. */
+export type MergeChoice = 'adopt' | 'discard';
+
 /**
  * Kimlik değişince TÜM kullanıcı verisi yeniden çekilmelidir: farklı bir hesaba
  * geçildiğinde eski kullanıcının listeleri/ilerlemesi ekranda kalmamalı.
  */
 const useAfterIdentityChange = () => {
   const qc = useQueryClient();
-  const { sync } = useDependencies();
   return async () => {
-    // Önce sunucuyla eşitle (yeni hesabın verisi insin), sonra her şeyi tazele.
-    if (sync?.enabled) {
-      await sync.syncAll().catch(() => undefined);
-    }
     await qc.invalidateQueries();
   };
 };
 
+/**
+ * Cihazda sunucuya gönderilmemiş kaç değişiklik var?
+ *
+ * Giriş ekranı bunu, "bu cihazdaki verilerin ne olsun?" sorusunu SORMAYA GEREK
+ * OLUP OLMADIĞINA karar vermek için kullanır: veri yoksa kullanıcıyı gereksiz
+ * bir soruyla karşılamayız.
+ */
+export const useCountLocalChanges = () => {
+  const { sync } = useDependencies();
+  return useCallback(async (): Promise<number> => {
+    if (!sync?.enabled) {
+      return 0;
+    }
+    return sync.countPending().catch(() => 0);
+  }, [sync]);
+};
+
+/**
+ * Hesap oluşturma.
+ *
+ * Burada birleştirme SORULMAZ: sunucu mevcut anonim kullanıcıyı yükseltir
+ * (aynı kimlik korunur), dolayısıyla cihazdaki veri zaten bu hesaba aittir.
+ */
 export const useRegister = () => {
-  const { userRepository } = useDependencies();
+  const { userRepository, sync } = useDependencies();
   const afterChange = useAfterIdentityChange();
   return useMutation({
-    mutationFn: async (input: CredentialsInput) =>
-      unwrap(await userRepository.register(input)),
+    mutationFn: async (input: CredentialsInput) => {
+      const user = unwrap(await userRepository.register(input));
+      // Kimlik yükseltildi: yerel veri hesaba taşınır.
+      await sync?.adoptLocalInto().catch(() => undefined);
+      return user;
+    },
     onSuccess: afterChange,
   });
 };
 
+/**
+ * Var olan hesaba giriş.
+ *
+ * Cihazdaki veri BAŞKA bir kimliğe (anonim kullanıcıya) aittir; bu yüzden ne
+ * yapılacağı çağıran tarafından belirtilir:
+ *  - `adopt`  → cihazdaki veriler hesaba aktarılır (birleştirilir),
+ *  - `discard`→ cihazdaki veriler silinir, hesabın verisi indirilir.
+ */
 export const useSignIn = () => {
-  const { userRepository } = useDependencies();
+  const { userRepository, sync } = useDependencies();
   const afterChange = useAfterIdentityChange();
   return useMutation({
-    mutationFn: async (input: CredentialsInput) => unwrap(await userRepository.signIn(input)),
+    mutationFn: async (input: CredentialsInput & { merge?: MergeChoice }) => {
+      const user = unwrap(await userRepository.signIn(input));
+      if (input.merge === 'discard') {
+        await sync?.replaceWithRemote().catch(() => undefined);
+      } else {
+        await sync?.adoptLocalInto().catch(() => undefined);
+      }
+      return user;
+    },
     onSuccess: afterChange,
   });
 };
 
+/**
+ * Çıkış.
+ *
+ * Cihazdaki veri hesaba aitti; misafir kullanıcıya devredilmemelidir. Bu yüzden
+ * çıkışta yerel senkron verisi temizlenir. İndirilen dosyalar KORUNUR — onlar
+ * cihaza özgüdür ve çevrimdışı dinlemeyi bozmamak gerekir.
+ */
 export const useSignOut = () => {
-  const { userRepository } = useDependencies();
+  const { userRepository, sync } = useDependencies();
   const afterChange = useAfterIdentityChange();
   return useMutation({
-    mutationFn: async () => unwrap(await userRepository.signOut()),
+    mutationFn: async () => {
+      // Önce bekleyen değişiklikleri göndermeyi dene — kullanıcı verisi kaybolmasın.
+      await sync?.syncAll().catch(() => undefined);
+      const result = unwrap(await userRepository.signOut());
+      await sync?.clearLocalData().catch(() => undefined);
+      return result;
+    },
     onSuccess: afterChange,
   });
 };

@@ -6,8 +6,37 @@ import { isAnonymous, userDisplayName } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { Icon, IconName, Screen, ScreenHeader, Text, scrimScrollHandler } from '../../../ui';
 import { useDependencies } from '../../../di';
-import { useAccountsAvailable, useCurrentUser, useSignOut } from '../../../query';
+import {
+  useAccountsAvailable,
+  useCurrentUser,
+  useRefreshPending,
+  useSignOut,
+  useSyncNow,
+  useSyncStatus,
+} from '../../../query';
 import { AuthSheet } from '../../account/AuthSheet';
+
+/** "3 dakika önce" gibi kısa görece zaman — senkron tazeliğini anlatır. */
+const formatRelative = (epochMs: number): string => {
+  const diffSec = Math.max(0, Math.round((Date.now() - epochMs) / 1000));
+  if (diffSec < 60) {
+    return 'az önce';
+  }
+  const minutes = Math.round(diffSec / 60);
+  if (minutes < 60) {
+    return `${minutes} dakika önce`;
+  }
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours} saat önce`;
+  }
+  return new Date(epochMs).toLocaleDateString('tr-TR', {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 /**
  * SettingsScreen — Ayarlar.
@@ -19,7 +48,7 @@ import { AuthSheet } from '../../account/AuthSheet';
  */
 export const SettingsScreen: React.FC = () => {
   const theme = useTheme();
-  const { sync, analytics, errorReporter } = useDependencies();
+  const { analytics, errorReporter } = useDependencies();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<string>('');
 
@@ -47,18 +76,43 @@ export const SettingsScreen: React.FC = () => {
     );
   };
 
-  const syncNow = async (): Promise<void> => {
-    if (!sync?.enabled) {
+  // Senkron durumu — motordan canlı gelir (son senkron, bekleyen, hata).
+  const syncStatus = useSyncStatus();
+  const { run: runSyncNow, busy: syncBusy, enabled: syncEnabled } = useSyncNow();
+  useRefreshPending();
+
+  /**
+   * Senkron satırının açıklaması — durumu tek cümlede anlatır.
+   * Öncelik: kapalı → hata → bekleyen → son senkron zamanı.
+   */
+  const syncSubtitle = ((): string => {
+    if (!syncEnabled) {
+      return 'Sunucu yapılandırılmadığı için kapalı — veriler yalnızca bu cihazda.';
+    }
+    if (syncStatus.phase === 'error' && syncStatus.error) {
+      return `Son deneme başarısız: ${syncStatus.error}`;
+    }
+    if (syncStatus.pendingCount > 0) {
+      return `${syncStatus.pendingCount} değişiklik gönderilmeyi bekliyor.`;
+    }
+    if (syncStatus.lastSyncAt > 0) {
+      return `Son senkron: ${formatRelative(syncStatus.lastSyncAt)}`;
+    }
+    return 'Kaldığın yer, listeler ve takip ettiklerin cihazlar arasında eşitlenir.';
+  })();
+
+  const runSync = async (): Promise<void> => {
+    const result = await runSyncNow();
+    if (!result) {
       return;
     }
-    setStatus('Senkronlanıyor…');
-    try {
-      await sync.syncAll();
-      await queryClient.invalidateQueries();
-      setStatus('Senkron tamamlandı');
-    } catch (error) {
-      errorReporter.report(error, { scope: 'settings.syncNow' });
+    if (result.phase === 'error') {
+      errorReporter.report(new Error(result.error ?? 'sync failed'), {
+        scope: 'settings.syncNow',
+      });
       setStatus('Senkron başarısız — bağlantıyı kontrol edin');
+    } else {
+      setStatus('Senkron tamamlandı');
     }
   };
 
@@ -109,15 +163,21 @@ export const SettingsScreen: React.FC = () => {
         <Section title="Senkron">
           <Row
             icon="refresh"
-            title="Şimdi senkronla"
-            subtitle={
-              sync?.enabled
-                ? 'Kaldığın yer, takipler ve "sonra dinle" cihazlar arasında eşitlenir.'
-                : 'Sunucu yapılandırılmadığı için kapalı — veriler yalnızca bu cihazda.'
-            }
-            disabled={!sync?.enabled}
-            onPress={syncNow}
+            title={syncBusy ? 'Senkronlanıyor…' : 'Şimdi senkronla'}
+            subtitle={syncSubtitle}
+            disabled={!syncEnabled || syncBusy}
+            onPress={() => void runSync()}
           />
+          {/* Çakışma bilgisi: sessizce kaybolan değişiklikleri açıklar. */}
+          {syncStatus.conflictCount > 0 && (
+            <Text
+              variant="caption"
+              color={theme.colors.warning}
+              style={{ paddingHorizontal: theme.spacing(2), paddingBottom: theme.spacing(1) }}>
+              {syncStatus.conflictCount} kayıt başka bir cihazda daha yeni olduğu için
+              güncellendi.
+            </Text>
+          )}
         </Section>
 
         <Section title="Veri">

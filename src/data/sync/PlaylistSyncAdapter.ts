@@ -94,6 +94,13 @@ export class PlaylistSyncAdapter implements SyncCollectionAdapter {
     }
   }
 
+  async clearLocal(): Promise<void> {
+    // Listeler ve silme kayıtları birlikte temizlenir; sistem listesi
+    // ("Sonra dinle") bir sonraki okumada boş olarak yeniden oluşturulur.
+    this.storage.delete(PLAYLISTS_KEY);
+    this.storage.delete(this.tombstoneKey);
+  }
+
   /** Bir liste silindiğinde çağrılır — senkron için tombstone bırakır. */
   markDeleted(playlistId: string, nowMs: number = Date.now()): void {
     const tombstones = this.readTombstones();

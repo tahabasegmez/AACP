@@ -47,7 +47,6 @@ import {
   FollowsSyncAdapter,
   PlaylistSyncAdapter,
   ProgressSyncAdapter,
-  SavedEpisodesSyncAdapter,
   UserRepositoryImpl,
   SyncEngine,
   HybridShowCatalogRepository,
@@ -57,7 +56,7 @@ import {
   RemoteCatalogDataSource,
   RssFeedDataSource,
   RssFeedSource,
-  SavedEpisodesRepositoryImpl,
+  PlaylistBackedSavedEpisodes,
   PlaylistRepositoryImpl,
   TransistorFeedSource,
   VastAdRepository,
@@ -137,7 +136,8 @@ export const composeDependencies = (): AppDependencies => {
     [
       new ProgressSyncAdapter(storage),
       new FollowsSyncAdapter(storage),
-      new SavedEpisodesSyncAdapter(storage),
+      // "Sonra dinle" ayrı bir koleksiyon DEĞİL: playlist sisteminin sistem
+      // listesi olarak `playlists` içinde senkronlanır.
       playlistSync,
     ],
     storage,
@@ -168,7 +168,13 @@ export const composeDependencies = (): AppDependencies => {
   const progressRepo = new PlaybackProgressRepositoryImpl(storage);
   const followRepo = new FollowRepositoryImpl(storage);
   const downloadRepo = new DownloadRepositoryImpl(new BlobUtilDownloader(), storage);
-  const savedRepo = new SavedEpisodesRepositoryImpl(storage);
+  // Kullanıcı listeleri — "Sonra dinle" burada bir sistem listesi olarak yaşar.
+  const playlistRepo = new PlaylistRepositoryImpl(storage, undefined, (id, nowMs) =>
+    playlistSync.markDeleted(id, nowMs),
+  );
+  // "Sonra dinle" bağımsız bir depo DEĞİL, playlist sisteminin sistem
+  // listesidir. Tek kaynak: aynı veri iki yerde tutulmaz, bir kez senkronlanır.
+  const savedRepo = new PlaylistBackedSavedEpisodes(playlistRepo);
 
   // domain use case'leri — kataloglar
   const getShowCatalog = new GetShowCatalog(catalogRepo);
@@ -190,10 +196,6 @@ export const composeDependencies = (): AppDependencies => {
   const toggleSavedEpisode = new ToggleSavedEpisode(savedRepo);
   const getSavedEpisodes = new GetSavedEpisodes(savedRepo);
 
-  // Kullanıcı listeleri — "Sonra dinle" burada bir sistem listesi olarak yaşar.
-  const playlistRepo = new PlaylistRepositoryImpl(storage, undefined, (id, nowMs) =>
-    playlistSync.markDeleted(id, nowMs),
-  );
   const getPlaylists = new GetPlaylists(playlistRepo);
   const createPlaylist = new CreatePlaylist(playlistRepo);
   const updatePlaylist = new UpdatePlaylist(playlistRepo);
