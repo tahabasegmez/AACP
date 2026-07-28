@@ -141,8 +141,8 @@ node scripts/generate-shows-json.js shows.json
 Yayınla:
 
 ```bash
-curl -X POST https://aacp-api.<hesabın>.workers.dev/v1/catalog \
-     -H "x-admin-token: <ADMIN_TOKEN>" \
+curl -X POST https://aacp-api.tahabasegmez.workers.dev/v1/catalog \
+     -H "x-admin-token: cce92ca569e3a5d382d704053cbfea643b45aff5fdd40ca1" \
      -H "Content-Type: application/json" \
      --data @shows.json
 # {"count":11}
