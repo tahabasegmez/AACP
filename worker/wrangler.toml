@@ -2,7 +2,7 @@
 #
 # Gizli değerler BURAYA YAZILMAZ; `wrangler secret put <AD>` ile eklenir
 # (bkz. docs/CLOUDFLARE-SUPABASE-KURULUM.md).
-
+# ...
 name = "aacp-api"
 main = "src/index.ts"
 compatibility_date = "2026-07-01"
