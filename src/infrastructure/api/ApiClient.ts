@@ -30,6 +30,14 @@ export class ApiClient {
   private refreshToken?: string;
   /** Aynı anda birden çok isteğin kimlik doğrulamaya girmesini önler. */
   private pendingAuth?: Promise<string | undefined>;
+  /**
+   * Sunucuda anonim oturum kapalıysa true olur ve bir daha denenmez.
+   *
+   * Bu bir YAPILANDIRMA durumudur, geçici bir hata değil: her istekte tekrar
+   * denemek boşuna ağ trafiği ve log gürültüsü yaratır. Kullanıcı hesapla
+   * giriş yaptığında normal akış zaten devreye girer.
+   */
+  private anonymousDisabled = false;
 
   constructor(
     private readonly http: HttpClient,
@@ -133,6 +141,10 @@ export class ApiClient {
     if (refreshed) {
       return refreshed;
     }
+    // Sunucu anonim oturuma kapalıysa tekrar denemenin anlamı yok.
+    if (this.anonymousDisabled) {
+      return undefined;
+    }
     try {
       // Anonim oturum — kimlik bilgisi istemez.
       const session = await this.http.postJson<AuthSessionDto>(
@@ -141,6 +153,15 @@ export class ApiClient {
       );
       return this.storeSession(session);
     } catch (error) {
+      // 4xx = sunucu bu isteği kalıcı olarak reddediyor (ör. anonim giriş
+      // kapalı). Ağ hatasından farklı olarak tekrar denenmez.
+      if (error instanceof AppError && error.code === 'BAD_REQUEST') {
+        this.anonymousDisabled = true;
+        this.logger.info(
+          'Anonim oturum sunucuda kapalı — senkron için hesapla giriş gerekiyor',
+        );
+        return undefined;
+      }
       // Oturum açılamazsa uygulama çevrimdışı/yerel çalışmaya devam eder.
       this.logger.warn('Oturum açılamadı', error);
       return undefined;

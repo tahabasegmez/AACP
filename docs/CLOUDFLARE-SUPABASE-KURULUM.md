@@ -61,8 +61,14 @@ Uygulama, hesap açmadan da senkron yapabilsin diye anonim oturum kullanır.
 - Şifre sıfırlama e-postaları Supabase tarafından gönderilir; uygulamadaki
   `/v1/auth/reset-password` ucu bunu tetikler.
 
-> Üretimde kendi SMTP'ni tanımla (**Project Settings → Auth → SMTP**);
-> Supabase'in yerleşik gönderimi saatlik sıkı limitlere tabidir.
+> **Dikkat — yerleşik e-posta gönderimi çok dar:** Supabase'in kendi SMTP'si
+> saatte yalnızca birkaç e-posta gönderir. Limit dolunca kayıt isteği
+> `429 E-posta gönderim sınırına ulaşıldı` ile döner ve **hesap açılamaz.**
+>
+> Bu yüzden:
+> - **Denemeye başlarken** *Confirm email*'i kapatın (kayıt anında oturum açılır),
+> - **Üretimde** kendi SMTP'nizi tanımlayın (**Project Settings → Auth → SMTP**);
+>   Resend, Postmark, SendGrid gibi bir servis yeterlidir.
 
 ### 2.3 Anahtarları topla
 
@@ -141,12 +147,16 @@ node scripts/generate-shows-json.js shows.json
 Yayınla:
 
 ```bash
-curl -X POST https://aacp-api.tahabasegmez.workers.dev/v1/catalog \
-     -H "x-admin-token: cce92ca569e3a5d382d704053cbfea643b45aff5fdd40ca1" \
+curl -X POST https://aacp-api.<hesabın>.workers.dev/v1/catalog \
+     -H "x-admin-token: $ADMIN_TOKEN" \
      -H "Content-Type: application/json" \
      --data @shows.json
 # {"count":11}
 ```
+
+> **Gizli değerleri buraya yazmayın.** Bu dosya depoda tutulur; depo herkese
+> açıksa `ADMIN_TOKEN` de açık olur. Anahtarı kabuk değişkeninde tutun:
+> `export ADMIN_TOKEN=...` (ya da her seferinde elle yapıştırın).
 
 Doğrula:
 
@@ -315,6 +325,8 @@ Worker `http://localhost:8787` adresinde çalışır. Uygulamanın `.env`'inde
 | `Veritabanı hatası (401/403)` | Şema çalıştırılmamış ya da RLS politikaları eksik → §2 |
 | Senkron boş dönüyor | Farklı kullanıcıyla bakıyorsun (RLS doğru çalışıyor) |
 | Katalog boş | Yayınlanmamış → §4 (uygulama yine gömülü listeyle çalışır) |
+| `400 Anonymous sign-ins are disabled` | Supabase'de anonim giriş kapalı → §2.1. Uygulama bu durumda sessizce yerel çalışır, senkron için giriş gerekir |
+| `429 E-posta gönderim sınırına ulaşıldı` | Supabase'in yerleşik SMTP limiti → §2.2 (Confirm email'i kapat ya da kendi SMTP'ni tanımla) |
 | Uygulama sunucuyu görmüyor | `.env` sonrası **yeniden derlemedin** |
 | Cron çalışmıyor | Ücretsiz planda cron destekleniyor; `npm run tail` ile logu izle |
 

@@ -172,6 +172,15 @@ const readAuthResponse = async <T>(response: Response): Promise<T> => {
     if (response.status === 401 || response.status === 403) {
       throw HttpError.unauthorized(message);
     }
+    // Supabase'in e-posta/oturum oran sınırları. Sunucu hatası DEĞİLDİR:
+    // kullanıcıya "biraz sonra tekrar dene" demek doğru davranıştır.
+    if (response.status === 429) {
+      throw HttpError.tooManyRequests(
+        message === 'email rate limit exceeded'
+          ? 'E-posta gönderim sınırına ulaşıldı, birazdan tekrar deneyin'
+          : message,
+      );
+    }
     throw HttpError.internal(message);
   }
   return parsed as T;
