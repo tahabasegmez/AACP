@@ -88,9 +88,12 @@ const ENVIRONMENTS: Record<AppEnv['name'], AppEnv> = {
   development: {
     ...base,
     name: 'development',
-    apiBaseUrl: undefined, // yerel backend için: 'http://10.0.2.2:8080/api'
+    apiBaseUrl: undefined, // .env → APP_API_BASE_URL ile verilir
+    // Telemetri geliştirmede kapalı: test kullanımı raporları kirletmesin.
     analyticsEnabled: false,
-    syncEnabled: false,
+    // Senkron AÇIK: bir sunucu adresi verildiyse kullanıcı onu denemek
+    // istiyordur. Adres yoksa `isSyncEnabled` zaten kapalı döner.
+    syncEnabled: true,
   },
   staging: {
     ...base,
@@ -116,6 +119,8 @@ interface RawOverrides {
   APP_EPISODE_SOURCE?: string;
   APP_TRANSISTOR_API_KEY?: string;
   APP_AD_TAG_URL?: string;
+  /** "false" ile senkronu kapatır (ortam varsayılanını geçersiz kılar). */
+  APP_SYNC_ENABLED?: string;
 }
 
 /**
@@ -162,7 +167,20 @@ const resolveEnv = (): AppEnv => {
       : preset.episodeSource,
     transistorApiKey: trimmed(raw.APP_TRANSISTOR_API_KEY) ?? preset.transistorApiKey,
     adTagUrl: trimmed(raw.APP_AD_TAG_URL) ?? preset.adTagUrl,
+    syncEnabled: flag(raw.APP_SYNC_ENABLED) ?? preset.syncEnabled,
   };
+};
+
+/** "true"/"false" metnini bayrağa çevirir; verilmemişse undefined. */
+const flag = (value?: string): boolean | undefined => {
+  const v = value?.trim().toLowerCase();
+  if (v === 'true' || v === '1') {
+    return true;
+  }
+  if (v === 'false' || v === '0') {
+    return false;
+  }
+  return undefined;
 };
 
 export const env: AppEnv = resolveEnv();
