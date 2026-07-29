@@ -110,17 +110,33 @@ komutlar sessizce yok sayılır (tek bölüm çalarken "sonraki" anlamsızdır).
 
 Kod hazır; kalanlar Xcode adımlarıdır.
 
-1. **Entitlement:** Apple Developer'dan `com.apple.developer.carplay-audio`
-   başvurusu (uygulama bundle ID'si için). Onay Apple'dan gelir.
-2. **Provisioning profile**'ı yenileyip Xcode'a indir.
-3. `ios/AACP/Info.plist` → sahne yapılandırması (react-native-carplay
-   dokümanındaki `CPTemplateApplicationSceneSessionRoleApplication`).
-4. **Test:** Xcode → Window → Devices and Simulators ya da simülatörde
-   *I/O → External Displays → CarPlay*.
+1. **Dosyaları hedefe ekle:** `CarPlaySceneDelegate.h` / `.m` Xcode'da AACP
+   target'ına dahil edilmeli (Build Phases → Compile Sources).
+2. **Entitlement (yalnız gerçek cihaz):** Apple Developer'dan
+   `com.apple.developer.carplay-audio` başvurusu, ardından provisioning
+   profile yenilenir. Simülatörde entitlement GEREKMEZ.
+3. **Test:** simülatörde *I/O → External Displays → CarPlay*.
 
-> Entitlement gelene kadar CarPlay simülatörde de açılmaz; bu normaldir.
-> `index.js` CarPlay kaydını `try/catch` içinde yapar, dolayısıyla entitlement
-> yokken uygulama normal çalışır.
+> `index.js` CarPlay kaydını `try/catch` içinde yapar; CarPlay yokken
+> uygulama normal çalışır.
+
+### Sahne yaşam döngüsü (siyah ekran tuzağı)
+
+`Info.plist`'e sahne manifesti eklendiği an uygulama **tümüyle** sahne tabanlı
+yaşam döngüsüne geçer ve `AppDelegate.didFinishLaunching` içinde oluşturulan
+pencere ekrana bağlanmaz — uygulama siyah ekranda kalır.
+
+Bu yüzden manifest iki rol tanımlar:
+
+| Rol | Delege | Görev |
+| --- | --- | --- |
+| `UIWindowSceneSessionRoleApplication` | `SceneDelegate` (AppDelegate.swift içinde) | Telefon penceresini kurar, React Native'i başlatır |
+| `CPTemplateApplicationSceneSessionRoleApplication` | `CarPlaySceneDelegate` (ObjC) | Arayüz denetleyicisini `RNCarPlay`e devreder |
+
+`SceneDelegate` bilinçli olarak ayrı dosyada değil: Xcode projesine yeni Swift
+dosyası eklemeden çalışması için `AppDelegate.swift` içinde durur. React Native
+fabrikası AppDelegate'te kurulur, ilk sahne bağlandığında başlatılır; başlatma
+seçenekleri (`launchOptions`) o ana kadar AppDelegate'te bekletilir.
 
 ## 8. Kısıtlar ve kararlar
 

@@ -51,16 +51,25 @@
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
-	<!-- CarPlay sahnesi. Bu girdi olmadan uygulama CarPlay menüsünde GÖRÜNMEZ:
-	     iOS, CarPlay için ayrı bir sahne rolü arar. Telefon arayüzü sahne
-	     kullanmadığı için yalnızca CarPlay rolü tanımlanır ve
-	     UIApplicationSupportsMultipleScenes kapalı bırakılır. -->
+	<!-- Sahne yapılandırması. CarPlay rolü olmadan uygulama CarPlay menüsünde
+	     GÖRÜNMEZ. Ancak sahne manifesti eklenince uygulama tümüyle sahne
+	     yaşam döngüsüne geçer; bu yüzden telefon penceresi rolü de (Default)
+	     tanımlanmak ZORUNDA, yoksa uygulama siyah ekranda kalır. -->
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<true/>
 		<key>UISceneConfigurations</key>
 		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+				</dict>
+			</array>
 			<key>CPTemplateApplicationSceneSessionRoleApplication</key>
 			<array>
 				<dict>
