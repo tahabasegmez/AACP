@@ -6,22 +6,31 @@ indirmeler tek yerde yaşar.
 
 ## 1. Ekran yapısı
 
-Kök, sekmeli bir düzendir (`TabBarTemplate`). Sekmeler araçtaki gerçek
-ihtiyaca göre seçilmiştir — sürüş sırasında katalog gezmek değil, **bıraktığın
-yerden devam etmek** esastır.
+Düzen **Spotify'ın CarPlay arayüzünü** izler: üç sekme (`TabBarTemplate`),
+başlıklı raflar ve her satırda kapak görseli. Ana Sayfa tek dokunuşla çalar,
+Kitaplığın alt seviyeye iner.
 
-| Sekme | İçerik | Neden |
+| Sekme | Raflar | Neden |
 |---|---|---|
-| **Devam et** | Yarıda bırakılan bölümler (en son dinlenen üstte) | Araçtaki en sık eylem; tek dokunuşla devam |
-| **İndirilenler** | Çevrimdışı hazır bölümler | Araçta şebeke kopar; bunlar her zaman çalar |
-| **Listelerim** | Kullanıcı listeleri + "Sonra dinle" → bölümler | Kullanıcının kendi seçkisi |
+| **Ana Sayfa** (`house.fill`) | "Dinlemeye devam", "Sonra dinle" | Araçtaki en sık eylem; tek dokunuşla devam |
+| **Kitaplığın** (`books.vertical.fill`) | "Listelerim", "Podcast'ler" | Kullanıcının seçkisi ve katalog; ikisi de alt seviyeye iner |
+| **İndirilenler** (`arrow.down.circle.fill`) | "Çevrimdışı dinle" | Araçta şebeke kopar; bunlar her zaman çalar |
+
+Ana Sayfa rafları **8 satırla** sınırlıdır (Spotify de kısa raflar gösterir);
+sürüş sırasında uzun listede gezinmek dikkat dağıtır. Boş raflar hiç
+gösterilmez, sekme tümüyle boşsa açıklayıcı bir boş görünüm çıkar
+(`emptyViewTitleVariants`).
 
 Bir bölüme dokunmak **kaldığı yerden** çalar ve Now Playing ekranını açar.
 
-> **"Tüm şovlar" sekmesi bilinçli olarak yok.** Sürüş sırasında uzun katalog
-> listelerinde gezinmek dikkat dağıtır. Şov listesi akışı kodda korunmuştur
-> (`openShow`) ve sesli komut/derin bağlantı ile erişilebilir; sekme olarak
-> eklemek istenirse `buildRoot` içine bir satır yeterlidir (Apple sınırı 5 sekme).
+### Satır index'i tuzağı
+
+CarPlay'in seçim olayı **düz bir index** verir: ikinci rafın ilk satırı,
+birinci rafın öğe sayısından devam eder. Bu yüzden bölümler ve satır
+davranışları tek yerden, birlikte üretilir:
+[`buildList`](../src/carplay/templates/sections.ts). Saf bir fonksiyondur ve
+ayrı test edilir; şablonlar ile davranışların ayrı alanlarda tutulması index
+kaymasına açıktı.
 
 ## 2. Now Playing
 
@@ -33,6 +42,7 @@ Sistem oynatma ekranı kullanılır; üzerine şunlar eklenmiştir:
 | **30 sn ileri / 15 sn geri** | `Capability.JumpForward/Backward` |
 | **Sonraki / önceki bölüm** | `Capability.SkipToNext/Previous` → uygulamanın kuyruğu |
 | **Sıradakiler** | `upNextButton` → kuyruk listesi, dokununca o bölüme atlar |
+| **Şov adı** | `albumArtistButton` → o şovun bölümleri (Spotify davranışı) |
 | **Oynatma hızı** | `playback` düğmesi (1 → 1.25 → 1.5 → 2) |
 | **Sonra dinleye ekle** | `add-to-library` düğmesi |
 
@@ -50,8 +60,17 @@ Listelerde kapaklar gösterilir (`ListItem.image`). Görseller uzak adresten
 yüklenir; çevrimdışıyken ya da yüklenemediğinde CarPlay yer tutucu gösterir ve
 liste yine çalışır.
 
-Çalan bölüm `isPlaying` ile işaretlenir ve oynatma değiştikçe listeler
-**ağa çıkmadan** yeniden çizilir (`watchPlayback`).
+Çalan bölüm `isPlaying` ile işaretlenir; oynatma değiştikçe sekmeler tazelenir
+(`watchPlayback`) — böylece hem işaret hem "Dinlemeye devam" rafı güncel kalır.
+Kaynaklar yereldir (katalog hariç), tazeleme ağa çıkmaz.
+
+> **Bilinen tuzak — "object is not a function":** `react-native-carplay` 2.3.0,
+> RN'in `resolveAssetSource` modülünü CommonJS sanıp doğrudan çağırıyor. RN
+> 0.86'da bu modül `export default` kullandığı için `require()` bir nesne
+> döndürür ve **görselli her liste** çöker. `metro.config.js` isteği
+> [shims/resolveAssetSource.js](../shims/resolveAssetSource.js) sarmalayıcısına
+> yönlendirerek düzeltir. Kütüphane sürümü yükseltilirse bu yönlendirmenin hâlâ
+> gerekip gerekmediği kontrol edilmeli.
 
 ## 4. Sesli komut (Siri)
 

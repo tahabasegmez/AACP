@@ -1,5 +1,6 @@
 import { Episode, PlaybackProgress, Playlist, Show } from '@domain/entities';
 import {
+  buildList,
   episodesToItems,
   playlistsToItems,
   resumeToItems,
@@ -123,5 +124,56 @@ describe('playlistsToItems', () => {
   it('boş liste için uygun metin verir', () => {
     const [item] = playlistsToItems([{ ...playlist, episodes: [] }]);
     expect(item.detailText).toBe('Boş liste');
+  });
+});
+
+describe('buildList', () => {
+  const row = (text: string) => ({ text });
+
+  it('davranışları bölümler arasında SÜREKLİ index ile birleştirir', () => {
+    const seen: string[] = [];
+    const list = buildList([
+      {
+        header: 'A',
+        items: [row('a1'), row('a2')],
+        actions: [
+          () => {
+            seen.push('a1');
+          },
+          () => {
+            seen.push('a2');
+          },
+        ],
+      },
+      {
+        header: 'B',
+        items: [row('b1')],
+        actions: [
+          () => {
+            seen.push('b1');
+          },
+        ],
+      },
+    ]);
+
+    // İkinci bölümün ilk satırı, birinci bölümün öğe sayısından devam eder.
+    list.actions[2]();
+    expect(seen).toEqual(['b1']);
+  });
+
+  it('boş grupları atlar (başlık yer kaplamasın)', () => {
+    const list = buildList([
+      { header: 'Boş', items: [], actions: [] },
+      { header: 'Dolu', items: [row('x')], actions: [() => undefined] },
+    ]);
+
+    expect(list.sections).toHaveLength(1);
+    expect(list.sections[0].header).toBe('Dolu');
+    expect(list.actions).toHaveLength(1);
+  });
+
+  it('başlıksız grup başlıksız bölüm üretir', () => {
+    const list = buildList([{ items: [row('x')], actions: [() => undefined] }]);
+    expect(list.sections[0]).toEqual({ items: [row('x')] });
   });
 });

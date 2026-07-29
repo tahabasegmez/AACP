@@ -5,6 +5,7 @@ import {
   Episode,
   PlaybackProgress,
   Playlist,
+  SAVED_PLAYLIST_ID,
   Show,
 } from '@domain/entities';
 import {
@@ -14,7 +15,15 @@ import {
   TabBarTemplate,
 } from 'react-native-carplay';
 import { CarPlayDependencies } from '../CarPlayDependencies';
-import { episodesToItems, playlistsToItems, resumeToItems } from '../templates/sections';
+import {
+  CarPlayList,
+  CarPlayRowAction,
+  buildList,
+  episodesToItems,
+  playlistsToItems,
+  resumeToItems,
+  showsToItems,
+} from '../templates/sections';
 
 /**
  * Sürücü dikkatini dağıtmamak için liste uzunlukları sınırlıdır.
@@ -22,41 +31,73 @@ import { episodesToItems, playlistsToItems, resumeToItems } from '../templates/s
  * listelerin araçta kırpılmasından iyidir.
  */
 const MAX_EPISODES = 50;
-const MAX_RESUME = 12;
+/** Ana sayfadaki her bölümün satır sınırı (Spotify de kısa raflar gösterir). */
+const MAX_SHELF = 8;
 
 /** Now Playing'deki hız düğmesinin dolaştığı değerler. */
 const SPEEDS = [1, 1.25, 1.5, 2];
 
 /**
+ * Sekme listesi — şablonu ve o an gösterdiği satır davranışlarını BİRLİKTE tutar.
+ *
+ * İçerik tazelendiğinde bölümler ve davranışlar aynı anda değişmek zorunda;
+ * ikisini ayrı alanlarda tutmak index kaymasına açıktır.
+ */
+class TabList {
+  readonly template: ListTemplate;
+  private actions: readonly CarPlayRowAction[] = [];
+
+  constructor(config: {
+    title: string;
+    systemImage: string;
+    emptyTitle: string;
+    emptySubtitle: string;
+  }) {
+    this.template = new ListTemplate({
+      title: config.title,
+      tabTitle: config.title,
+      tabSystemImageName: config.systemImage,
+      // Boş sekmede kullanıcıya ne yapacağını söyler (Apple'ın boş görünümü).
+      emptyViewTitleVariants: [config.emptyTitle],
+      emptyViewSubtitleVariants: [config.emptySubtitle],
+      sections: [],
+      onItemSelect: async ({ index }) => {
+        await this.actions[index]?.();
+      },
+    });
+  }
+
+  update(list: CarPlayList): void {
+    this.actions = list.actions;
+    this.template.updateSections(list.sections);
+  }
+}
+
+/**
  * CarPlayController — CarPlay yaşam döngüsünü ve şablon akışını yönetir.
  *
- * KÖK: sekmeli düzen (TabBarTemplate)
- *   1. **Dinlemeye devam** — yarıda bırakılanlar; araçtaki en sık ihtiyaç,
- *      tek dokunuşla kaldığın yerden başlar,
- *   2. **İndirilenler** — çevrimdışı çalışır; araçta şebeke kopabilir,
- *   3. **Listelerim** — kullanıcı listeleri ve "Sonra dinle" → bölümler.
+ * Düzen Spotify'ın CarPlay arayüzünü izler: üç sekme, başlıklı raflar ve her
+ * satırda kapak görseli.
  *
- * Her sekme bir bölüme dokunulduğunda "kaldığın yerden" çalar ve Now Playing
- * şablonunu açar.
+ *   1. **Ana Sayfa** — "Dinlemeye devam" ve "Sonra dinle" rafları; araçta en
+ *      sık ihtiyaç duyulan tek dokunuşluk giriş noktası,
+ *   2. **Kitaplığın** — listeler ve podcast'ler; alt seviyeye iner,
+ *   3. **İndirilenler** — çevrimdışı çalışır; araçta şebeke kopabilir.
  *
  * İş mantığı tamamen domain use case'lerinden gelir ve mobil UI ile PAYLAŞILIR;
  * burada yalnızca CarPlay'e özgü şablon/etkileşim kodu vardır. Şablon
  * dönüşümleri (`sections`) saftır ve ayrı test edilir.
  */
 export class CarPlayController {
-  /** Sekme şablonları — veri değiştikçe yerinde güncellenir. */
-  private resumeTemplate?: ListTemplate;
-  private downloadsTemplate?: ListTemplate;
-  private playlistsTemplate?: ListTemplate;
+  private home?: TabList;
+  private library?: TabList;
+  private downloads?: TabList;
 
-  /** Son bilinen kuyruk/oynatma durumu (şablon güncellemeleri için). */
+  /** Katalog — Kitaplığın sekmesi ve Now Playing'deki şov düğmesi için. */
+  private shows: readonly Show[] = [];
+
   private currentEpisodeId: string | null = null;
   private unsubscribePlayback?: () => void;
-
-  /** Sekmelerin gösterdiği veri — dokunulan öğeyi çözmek için saklanır. */
-  private resumeItems: readonly PlaybackProgress[] = [];
-  private downloadItems: readonly DownloadItem[] = [];
-  private playlists: readonly Playlist[] = [];
 
   constructor(
     private readonly deps: CarPlayDependencies,
@@ -98,136 +139,170 @@ export class CarPlayController {
   /** Sekmeli kök şablonu kurar ve içeriğini doldurur. */
   private async buildRoot(): Promise<void> {
     try {
-      this.resumeTemplate = new ListTemplate({
-        title: 'Devam et',
-        tabTitle: 'Devam et',
-        tabSystemImageName: 'play.circle',
-        sections: [{ items: [] }],
-        onItemSelect: async ({ index }) => this.onResumeSelect(index),
+      this.home = new TabList({
+        title: 'Ana Sayfa',
+        systemImage: 'house.fill',
+        emptyTitle: 'Henüz bir şey dinlemedin',
+        emptySubtitle: 'Telefonda bir bölüm başlat, buradan devam et',
       });
 
-      this.downloadsTemplate = new ListTemplate({
+      this.library = new TabList({
+        title: 'Kitaplığın',
+        systemImage: 'books.vertical.fill',
+        emptyTitle: 'Kitaplığın boş',
+        emptySubtitle: 'Telefonda liste oluştur ya da podcast takip et',
+      });
+
+      this.downloads = new TabList({
         title: 'İndirilenler',
-        tabTitle: 'İndirilenler',
-        tabSystemImageName: 'arrow.down.circle',
-        sections: [{ items: [] }],
-        onItemSelect: async ({ index }) => this.onDownloadSelect(index),
-      });
-
-      this.playlistsTemplate = new ListTemplate({
-        title: 'Listelerim',
-        tabTitle: 'Listelerim',
-        tabSystemImageName: 'music.note.list',
-        sections: [{ items: [] }],
-        onItemSelect: async ({ index }) => this.onPlaylistSelect(index),
+        systemImage: 'arrow.down.circle.fill',
+        emptyTitle: 'İndirilen bölüm yok',
+        emptySubtitle: 'Telefonda indir, şebeke olmadan dinle',
       });
 
       CarPlay.setRootTemplate(
         new TabBarTemplate({
-          title: 'AA Podcast',
-          templates: [this.resumeTemplate, this.downloadsTemplate, this.playlistsTemplate],
+          templates: [this.home.template, this.library.template, this.downloads.template],
           onTemplateSelect: () => {
-            // Sekmeye dönüldüğünde içerik tazelenir: başka bir cihazda ya da
-            // telefonda yapılan değişiklikler araçta da görünsün.
-            void this.refreshTabs();
+            // Sekmeye dönüldüğünde içerik tazelenir: telefonda ya da başka bir
+            // cihazda yapılan değişiklikler araçta da görünsün.
+            void this.refreshAll();
           },
         }),
       );
 
-      await this.refreshTabs();
+      await this.loadCatalog();
+      await this.refreshAll();
     } catch (error) {
       this.logger.error('CarPlay kök şablon hatası', error);
     }
   }
 
-  /** Üç sekmenin içeriğini paralel tazeler. */
-  private async refreshTabs(): Promise<void> {
-    await Promise.all([this.refreshResume(), this.refreshDownloads(), this.refreshPlaylists()]);
+  /** Katalog sürüş boyunca değişmez; bir kez yüklenir. */
+  private async loadCatalog(): Promise<void> {
+    const result = await this.deps.getShowCatalog.execute();
+    if (isOk(result)) {
+      this.shows = result.value;
+    } else {
+      this.logger.warn('CarPlay: katalog alınamadı', result.error);
+    }
   }
 
-  private async refreshResume(): Promise<void> {
-    const result = await this.deps.getResumeList.execute();
-    if (!isOk(result)) {
-      this.logger.warn('CarPlay: devam listesi alınamadı', result.error);
-      return;
-    }
-    // En son dinlenen en üstte; araçta aranan genellikle budur.
-    this.resumeItems = [...result.value]
-      .filter(p => p.audioUrl)
-      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-      .slice(0, MAX_RESUME);
-
-    this.resumeTemplate?.updateSections([
-      { items: resumeToItems(this.resumeItems, this.currentEpisodeId) },
+  /**
+   * Üç sekmeyi tazeler. Kaynaklar tek seferde okunur; listeler hem Ana Sayfa
+   * hem Kitaplığın sekmesinde kullanıldığı için iki kez sorgulanmaz.
+   */
+  private async refreshAll(): Promise<void> {
+    const [resume, playlists, downloads] = await Promise.all([
+      this.deps.getResumeList.execute(),
+      this.deps.getPlaylists.execute(),
+      this.deps.getDownloads.execute(),
     ]);
+
+    const resumeItems = isOk(resume)
+      ? [...resume.value]
+          .filter(progress => progress.audioUrl)
+          // En son dinlenen en üstte; araçta aranan genellikle budur.
+          .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+          .slice(0, MAX_SHELF)
+      : [];
+
+    const allPlaylists = isOk(playlists) ? playlists.value : [];
+    const downloaded = isOk(downloads)
+      ? downloads.value.filter(item => item.status === 'downloaded')
+      : [];
+
+    this.home?.update(this.homeList(resumeItems, allPlaylists));
+    this.library?.update(this.libraryList(allPlaylists));
+    this.downloads?.update(this.downloadsList(downloaded));
   }
 
-  private async refreshDownloads(): Promise<void> {
-    const result = await this.deps.getDownloads.execute();
-    if (!isOk(result)) {
-      this.logger.warn('CarPlay: indirilenler alınamadı', result.error);
-      return;
-    }
-    this.downloadItems = result.value.filter(d => d.status === 'downloaded');
-    this.downloadsTemplate?.updateSections([
+  /** Ana Sayfa: "Dinlemeye devam" ve "Sonra dinle" rafları. */
+  private homeList(
+    resumeItems: readonly PlaybackProgress[],
+    playlists: readonly Playlist[],
+  ): CarPlayList {
+    const saved = playlists.find(playlist => playlist.id === SAVED_PLAYLIST_ID);
+    const savedEpisodes = (saved?.episodes ?? []).slice(0, MAX_SHELF);
+
+    return buildList([
       {
-        items: episodesToItems(
-          this.downloadItems.map(downloadToEpisode),
-          this.currentEpisodeId,
+        header: 'Dinlemeye devam',
+        items: resumeToItems(resumeItems, this.currentEpisodeId),
+        actions: resumeItems.map(
+          progress => () => this.playEpisode(progressToEpisode(progress)),
+        ),
+      },
+      {
+        header: 'Sonra dinle',
+        items: episodesToItems(savedEpisodes, this.currentEpisodeId),
+        actions: savedEpisodes.map(
+          (episode, index) => () => this.playEpisode(episode, savedEpisodes, index),
         ),
       },
     ]);
   }
 
-  private async refreshPlaylists(): Promise<void> {
-    const result = await this.deps.getPlaylists.execute();
-    if (!isOk(result)) {
-      this.logger.warn('CarPlay: listeler alınamadı', result.error);
-      return;
-    }
+  /** Kitaplığın: listeler ve podcast'ler — ikisi de alt seviyeye iner. */
+  private libraryList(playlists: readonly Playlist[]): CarPlayList {
     // Boş listeler araçta yer kaplamasın.
-    this.playlists = result.value.filter(p => p.episodes.length > 0);
-    this.playlistsTemplate?.updateSections([{ items: playlistsToItems(this.playlists) }]);
+    const filled = playlists.filter(playlist => playlist.episodes.length > 0);
+
+    return buildList([
+      {
+        header: 'Listelerim',
+        items: playlistsToItems(filled),
+        actions: filled.map(
+          playlist => () => this.pushEpisodes(playlist.name, playlist.episodes),
+        ),
+      },
+      {
+        header: "Podcast'ler",
+        items: showsToItems(this.shows),
+        actions: this.shows.map(show => () => this.openShow(show)),
+      },
+    ]);
   }
 
-  // --- seçim akışları -----------------------------------------------------
-
-  private async onResumeSelect(index: number): Promise<void> {
-    const progress = this.resumeItems[index];
-    if (progress) {
-      await this.playEpisode(progressToEpisode(progress));
-    }
+  /** İndirilenler: çevrimdışı çalınabilir bölümler. */
+  private downloadsList(items: readonly DownloadItem[]): CarPlayList {
+    const episodes = items.map(downloadToEpisode);
+    return buildList([
+      {
+        header: 'Çevrimdışı dinle',
+        items: episodesToItems(episodes, this.currentEpisodeId),
+        actions: episodes.map(
+          (episode, index) => () => this.playEpisode(episode, episodes, index),
+        ),
+      },
+    ]);
   }
 
-  private async onDownloadSelect(index: number): Promise<void> {
-    const item = this.downloadItems[index];
-    if (item) {
-      await this.playEpisode(downloadToEpisode(item), this.downloadItems.map(downloadToEpisode), index);
-    }
-  }
+  // --- alt seviye listeler -------------------------------------------------
 
-  /** Listeye dokunma → o listenin bölümleri. */
-  private async onPlaylistSelect(index: number): Promise<void> {
-    const playlist = this.playlists[index];
-    if (!playlist) {
-      return;
-    }
-    const episodes = playlist.episodes;
+  /** Bölüm listesi açar (liste, şov ya da kuyruk içeriği). */
+  private pushEpisodes(title: string, episodes: readonly Episode[]): void {
+    const list = buildList([
+      {
+        items: episodesToItems(episodes, this.currentEpisodeId),
+        actions: episodes.map(
+          (episode, index) => () => this.playEpisode(episode, episodes, index),
+        ),
+      },
+    ]);
+
     CarPlay.pushTemplate(
       new ListTemplate({
-        title: playlist.name,
-        sections: [{ items: episodesToItems(episodes, this.currentEpisodeId) }],
-        onItemSelect: async ({ index: i }) => {
-          const episode = episodes[i];
-          if (episode) {
-            await this.playEpisode(episode, episodes, i);
-          }
+        title,
+        sections: list.sections,
+        onItemSelect: async ({ index }) => {
+          await list.actions[index]?.();
         },
       }),
     );
   }
 
-  /** Şov listesi → bölümler (sesli komut ve derin bağlantılar için korunur). */
+  /** Şov listesi → bölümler (Kitaplığın, Now Playing ve sesli komut için). */
   async openShow(show: Show): Promise<void> {
     try {
       const result = await this.deps.getShowEpisodes.execute({
@@ -238,19 +313,7 @@ export class CarPlayController {
         this.logger.error('CarPlay: bölümler alınamadı', result.error);
         return;
       }
-      const episodes = result.value.episodes.items;
-      CarPlay.pushTemplate(
-        new ListTemplate({
-          title: show.title,
-          sections: [{ items: episodesToItems(episodes, this.currentEpisodeId) }],
-          onItemSelect: async ({ index }) => {
-            const episode = episodes[index];
-            if (episode) {
-              await this.playEpisode(episode, episodes, index);
-            }
-          },
-        }),
-      );
+      this.pushEpisodes(show.title, result.value.episodes.items);
     } catch (error) {
       this.logger.error('CarPlay şov şablonu hatası', error);
     }
@@ -260,7 +323,7 @@ export class CarPlayController {
 
   /**
    * Bölümü kaldığı yerden çalar ve Now Playing şablonunu gösterir.
-   * `context` verilirse ileri/geri o kuyruk üzerinde çalışır.
+   * `queue` verilirse "Sıradakiler" o kuyruk üzerinden çalışır.
    */
   private async playEpisode(
     episode: Episode,
@@ -276,7 +339,7 @@ export class CarPlayController {
     this.showNowPlaying(episode, queue, index);
   }
 
-  /** Now Playing şablonu — kuyruk, hız ve kaydetme düğmeleriyle. */
+  /** Now Playing şablonu — kuyruk, şov, hız ve kaydetme düğmeleriyle. */
   private showNowPlaying(
     episode: Episode,
     queue?: readonly Episode[],
@@ -284,14 +347,22 @@ export class CarPlayController {
   ): void {
     CarPlay.enableNowPlaying(true);
 
+    const show = this.shows.find(candidate => candidate.id === episode.showId);
+
     CarPlay.pushTemplate(
       new NowPlayingTemplate({
         // "Sıradakiler" — kuyruğu liste olarak açar.
         upNextButtonEnabled: !!queue && queue.length > 1,
         upNextButtonTitle: 'Sıradakiler',
-        onUpNextButtonPressed: () => this.showQueue(queue ?? [], index ?? 0),
-        // Şov adına dokunmak o şovun bölümlerine götürür.
-        albumArtistButtonEnabled: false,
+        onUpNextButtonPressed: () =>
+          this.pushEpisodes('Sıradakiler', (queue ?? []).slice(index ?? 0)),
+        // Şov adına dokunmak o şovun bölümlerine götürür (Spotify davranışı).
+        albumArtistButtonEnabled: !!show,
+        onAlbumArtistButtonPressed: () => {
+          if (show) {
+            void this.openShow(show);
+          }
+        },
         buttons: [
           // Oynatma hızı — sistem hız düğmesi.
           { id: 'rate', type: 'playback' },
@@ -309,24 +380,6 @@ export class CarPlayController {
     );
   }
 
-  /** Kuyruğu liste olarak gösterir; dokunulan bölüme atlar. */
-  private showQueue(queue: readonly Episode[], currentIndex: number): void {
-    // Çalan bölüm ve sonrası — geçmiş araçta işe yaramaz.
-    const upcoming = queue.slice(currentIndex);
-    CarPlay.pushTemplate(
-      new ListTemplate({
-        title: 'Sıradakiler',
-        sections: [{ items: episodesToItems(upcoming, this.currentEpisodeId) }],
-        onItemSelect: async ({ index }) => {
-          const episode = upcoming[index];
-          if (episode) {
-            await this.playEpisode(episode, queue, currentIndex + index);
-          }
-        },
-      }),
-    );
-  }
-
   /** Hız düğmesi — sabit değerler arasında dolaşır. */
   private async cycleSpeed(): Promise<void> {
     const state = await this.deps.audioPlayer.getState();
@@ -335,8 +388,8 @@ export class CarPlayController {
   }
 
   /**
-   * Oynatma durumunu izler: çalan bölüm değişince listelerdeki "çalıyor"
-   * işareti güncellenir. Böylece araçta hangi bölümde olunduğu görülür.
+   * Oynatma durumunu izler: çalan bölüm değişince sekmeler tazelenir. Böylece
+   * hem "çalıyor" işareti hem de "Dinlemeye devam" rafı güncel kalır.
    */
   private watchPlayback(): void {
     this.unsubscribePlayback = this.deps.audioPlayer.subscribe(state => {
@@ -344,18 +397,7 @@ export class CarPlayController {
         return;
       }
       this.currentEpisodeId = state.currentEpisodeId;
-      // Yalnızca işaretler değişti; ağa çıkmadan mevcut veriyle yeniden çiz.
-      this.resumeTemplate?.updateSections([
-        { items: resumeToItems(this.resumeItems, this.currentEpisodeId) },
-      ]);
-      this.downloadsTemplate?.updateSections([
-        {
-          items: episodesToItems(
-            this.downloadItems.map(downloadToEpisode),
-            this.currentEpisodeId,
-          ),
-        },
-      ]);
+      void this.refreshAll();
     });
   }
 }

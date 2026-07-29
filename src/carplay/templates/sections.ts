@@ -19,6 +19,46 @@ export interface CarPlayListItem {
   showsDisclosureIndicator?: boolean;
 }
 
+/** Başlıklı satır grubu — CarPlay'in `ListSection` karşılığı. */
+export interface CarPlaySection {
+  header?: string;
+  items: CarPlayListItem[];
+}
+
+/** Bir satıra dokunulduğunda çalışacak iş. */
+export type CarPlayRowAction = () => void | Promise<void>;
+
+/** Bölümler ve satır davranışları — `buildList` üretir. */
+export interface CarPlayList {
+  sections: CarPlaySection[];
+  actions: readonly CarPlayRowAction[];
+}
+
+/** Tek bir grup: başlık + satırlar + satır başına davranış (aynı sırada). */
+export interface CarPlayGroup {
+  header?: string;
+  items: CarPlayListItem[];
+  actions: CarPlayRowAction[];
+}
+
+/**
+ * Grupları tek bir listeye derler.
+ *
+ * CarPlay'in seçim olayı DÜZ bir index verir: ikinci bölümün ilk satırı,
+ * birinci bölümün öğe sayısından devam eder. Bu yüzden davranışlar da aynı
+ * düzlükte birleştirilir — bölümler ve davranışlar tek yerden üretilince
+ * index kayması mümkün olmaz.
+ *
+ * Boş gruplar atlanır: araçta boş bir başlık yalnızca yer kaplar.
+ */
+export const buildList = (groups: readonly CarPlayGroup[]): CarPlayList => {
+  const filled = groups.filter(group => group.items.length > 0);
+  return {
+    sections: filled.map(({ header, items }) => (header ? { header, items } : { items })),
+    actions: filled.flatMap(group => group.actions),
+  };
+};
+
 /** Uzak görseli CarPlay'in beklediği kaynağa çevirir; yoksa alan atlanır. */
 const cover = (uri?: string): { uri: string } | undefined =>
   uri && uri.length > 0 ? { uri } : undefined;
@@ -29,13 +69,7 @@ const remainingText = (progress: PlaybackProgress): string => {
   return remaining > 0 ? `${formatDuration(remaining)} kaldı` : 'Neredeyse bitti';
 };
 
-/**
- * Şovları CarPlay liste öğelerine çevirir (saf).
- *
- * Kökte "Tüm şovlar" sekmesi bilinçli olarak yoktur (sürüş sırasında uzun
- * katalog listesi dikkat dağıtır) ama şov listesi akışı `openShow` ile
- * korunur; bu dönüşüm o akış için ve sekme eklenmek istenirse hazırdır.
- */
+/** Şovları CarPlay liste öğelerine çevirir (Kitaplığın sekmesi). */
 export const showsToItems = (shows: readonly Show[]): CarPlayListItem[] =>
   shows.map(show => ({
     text: show.title,
