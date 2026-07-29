@@ -152,7 +152,8 @@ export const PlayerScreen: React.FC = () => {
   const getPosition = () => usePlayerStore.getState().playback.positionSec;
   const getDuration = () => usePlayerStore.getState().playback.durationSec;
   const doSeek = (sec: number) => seekTo.execute({ positionSec: sec });
-  const coverSize = useHeroCoverSize();
+  // Player'da kapak ekranın kahramanıdır — şov detayındakinden büyüktür.
+  const coverSize = useHeroCoverSize('player');
 
   return (
     <Animated.View
@@ -177,11 +178,10 @@ export const PlayerScreen: React.FC = () => {
           </Pressable>
         </View>
 
-        {/* Kapak kendi alanında ORTALANIR; alan ne kadar küçükse kapak o kadar
-            yukarıda durur. Alt kümeye daha büyük pay verilerek (2/3) kapak
-            yaklaşık %25 yukarı taşınır ve etrafındaki boşluk azalır — kazanılan
-            yer aşağıda bölüm notlarına gider. */}
-        <View style={{ flex: 2, alignItems: 'center', justifyContent: 'center' }}>
+        {/* Kapak: üst bar ile oynatma kümesi arasında kalan alanı doldurur ve
+            içinde ortalanır. Alt küme içeriği kadar yer kapladığı için kapak
+            alanı kendiliğinden dengelenir. */}
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Pressable
             onPress={openShow}
             disabled={!show}
@@ -191,9 +191,8 @@ export const PlayerScreen: React.FC = () => {
           </Pressable>
         </View>
 
-        {/* Alt küme — kapaktan daha büyük pay alır (3/2); bu, kapağı yukarı
-            iten ve notlara yer açan asıl mekanizmadır. Araçlar en altta sabit. */}
-        <View style={{ flex: 3 }}>
+        {/* Alt küme — sabit düzen: içeriği kadar yer kaplar, araçlar en altta. */}
+        <View>
           {/* Reklam çalarken bilgilendirme bandı; bölüm bilgisi gizlenmez. */}
           {ad && <AdBanner ad={ad} />}
 
@@ -268,21 +267,17 @@ export const PlayerScreen: React.FC = () => {
             </Text>
           ) : null}
 
-          {/* Bölüm notları — oynatma tuşlarıyla alt araçlar arasındaki boşluğu
-              doldurur. Alan esnek (flex 1) ama içerik kırpılır: boşluğu
-              tamamen kaplamak yerine nefes payı bırakır. */}
-          <View style={{ flex: 1, justifyContent: 'center', minHeight: theme.spacing(4) }}>
-            {!!notes && (
-              <Pressable onPress={() => setNotesOpen(true)}>
-                <Text variant="caption" color={theme.colors.textMuted} numberOfLines={3}>
-                  {stripHtml(notes)}
-                </Text>
-                <Text variant="caption" color={theme.colors.text} style={{ marginTop: 4 }}>
-                  devamını oku…
-                </Text>
-              </Pressable>
-            )}
-          </View>
+          {/* Bölüm notları — oynatma tuşlarıyla alt araçlar arasında, önizlemeli */}
+          {!!notes && (
+            <Pressable onPress={() => setNotesOpen(true)} style={{ marginTop: theme.spacing(1.75) }}>
+              <Text variant="caption" color={theme.colors.textMuted} numberOfLines={2}>
+                {stripHtml(notes)}
+              </Text>
+              <Text variant="caption" color={theme.colors.text} style={{ marginTop: 2 }}>
+                devamını oku…
+              </Text>
+            </Pressable>
+          )}
 
           {/* Araçlar — en altta */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: theme.spacing(2) }}>
