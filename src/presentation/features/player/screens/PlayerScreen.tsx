@@ -177,11 +177,11 @@ export const PlayerScreen: React.FC = () => {
           </Pressable>
         </View>
 
-        {/* Kapak, üst bar ile oynatma kümesi arasındaki alanda ORTALANIR ama
-            alan aşağıdan daha çok pay aldığı için görsel olarak yukarı taşınır
-            (flex 3 / 1 ≈ %25 yukarı). Böylece alt tarafta bölüm notları için
-            nefes alacak bir boşluk kalır. */}
-        <View style={{ flex: 3, alignItems: 'center', justifyContent: 'center' }}>
+        {/* Kapak kendi alanında ORTALANIR; alan ne kadar küçükse kapak o kadar
+            yukarıda durur. Alt kümeye daha büyük pay verilerek (2/3) kapak
+            yaklaşık %25 yukarı taşınır ve etrafındaki boşluk azalır — kazanılan
+            yer aşağıda bölüm notlarına gider. */}
+        <View style={{ flex: 2, alignItems: 'center', justifyContent: 'center' }}>
           <Pressable
             onPress={openShow}
             disabled={!show}
@@ -191,9 +191,9 @@ export const PlayerScreen: React.FC = () => {
           </Pressable>
         </View>
 
-        {/* Alt küme — kapaktan sonraki alanı paylaşır (flex 1 → kapak 3'te
-            kalır, düzen yukarı taşınır). Araçlar en altta sabit durur. */}
-        <View style={{ flex: 1 }}>
+        {/* Alt küme — kapaktan daha büyük pay alır (3/2); bu, kapağı yukarı
+            iten ve notlara yer açan asıl mekanizmadır. Araçlar en altta sabit. */}
+        <View style={{ flex: 3 }}>
           {/* Reklam çalarken bilgilendirme bandı; bölüm bilgisi gizlenmez. */}
           {ad && <AdBanner ad={ad} />}
 
