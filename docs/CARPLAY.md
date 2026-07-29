@@ -110,15 +110,24 @@ komutlar sessizce yok sayılır (tek bölüm çalarken "sonraki" anlamsızdır).
 
 Kod hazır; kalanlar Xcode adımlarıdır.
 
-1. **Dosyaları hedefe ekle:** `CarPlaySceneDelegate.h` / `.m` Xcode'da AACP
-   target'ına dahil edilmeli (Build Phases → Compile Sources).
-2. **Entitlement (yalnız gerçek cihaz):** Apple Developer'dan
-   `com.apple.developer.carplay-audio` başvurusu, ardından provisioning
-   profile yenilenir. Simülatörde entitlement GEREKMEZ.
-3. **Test:** simülatörde *I/O → External Displays → CarPlay*.
+Xcode projesi (`project.pbxproj`) repoda güncel: `CarPlaySceneDelegate.m`
+derleme kaynaklarında, `AACP.entitlements` Debug yapılandırmasına bağlı.
+Elle Xcode adımı kalmadı; `git pull` + temiz build yeterli.
+
+1. **Simülatör testi:** *I/O → External Displays → CarPlay*.
+2. **Gerçek cihaz / Release:** Apple Developer'dan
+   `com.apple.developer.carplay-audio` başvurusu → onay → provisioning profile
+   yenilenir → Release yapılandırmasına da `CODE_SIGN_ENTITLEMENTS` eklenir.
 
 > `index.js` CarPlay kaydını `try/catch` içinde yapar; CarPlay yokken
 > uygulama normal çalışır.
+
+### Neden entitlement simülatörde de gerekiyor
+
+Uygulamanın CarPlay menüsünde **listelenmesi** entitlement'a bağlıdır; simülatör
+bunu provisioning profile ile doğrulamaz, yalnızca varlığına bakar. Bu yüzden
+yetki Debug'a bağlandı: simülatörde CarPlay çalışır, Release imzalaması ise
+Apple izni gelene kadar bozulmaz.
 
 ### Sahne yaşam döngüsü (siyah ekran tuzağı)
 

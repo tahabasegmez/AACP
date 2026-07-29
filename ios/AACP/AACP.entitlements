@@ -5,14 +5,14 @@
 	<!--
 	  CarPlay ses uygulaması yetkisi.
 
-	  ÖNEMLİ: Bu yetki Apple'dan ÖZEL İZİN gerektirir (Apple Developer hesabıyla
-	  "CarPlay audio app" başvurusu). İzin gelmeden bu dosyayı Xcode target'ına
-	  bağlarsan imzalama (code signing) HATA VERİR.
+	  Bu yetki olmadan uygulama CarPlay menüsünde LİSTELENMEZ — simülatörde bile.
+	  Simülatör provisioning profile doğrulaması yapmadığı için dosya yalnızca
+	  DEBUG yapılandırmasına bağlıdır (`CODE_SIGN_ENTITLEMENTS`); geliştirme ve
+	  CarPlay simülatörü böylece çalışır.
 
-	  Bu yüzden dosya repoda hazır bekliyor ama Xcode target'ına BAĞLANMADI.
-	  İzin geldikten sonra: Xcode → Target → Build Settings → "Code Signing
-	  Entitlements" = AACP/AACP.entitlements yap ve CarPlay scene manifest'ini
-	  Info.plist'e ekle (bkz. docs/IOS_SETUP.md).
+	  GERÇEK CİHAZ / RELEASE: Apple'dan "CarPlay audio app" izni gelmeden imzalama
+	  HATA VERİR. Bu yüzden Release yapılandırmasına bilinçli olarak eklenmedi.
+	  İzin geldiğinde Release'e de aynı ayar eklenmeli (bkz. docs/CARPLAY.md).
 	-->
 	<key>com.apple.developer.carplay-audio</key>
 	<true/>

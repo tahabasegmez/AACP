@@ -32,10 +32,9 @@ ile doğrudan APNs; harici kütüphane yok), Cloudflare Cron Trigger.
 native modül ([AirPlayRoutePicker.swift](../ios/AACP/AirPlayRoutePicker.swift) +
 `.m` köprüsü). Player'daki "Cihaz" düğmesi bağlı.
 
-**Eksik (mac):** Swift/ObjC dosyalarının **Xcode projesine eklenmesi** (Xcode'da
-sürükle-bırak ya da hedefe dahil etme). Dosyalar diskte hazır ama `.xcodeproj`
-referansı Windows'tan güvenle eklenemez. Modül bulunamazsa düğme kendiliğinden
-pasifleşir; uygulama çalışmaya devam eder.
+**Durum:** Tamamlandı — `AirPlayRoutePicker.swift` ve `.m` köprüsü
+`project.pbxproj` içinde derleme kaynaklarına eklendi. Modül bulunamazsa düğme
+kendiliğinden pasifleşir; uygulama çalışmaya devam eder.
 
 ### Kurulum sonrası
 
