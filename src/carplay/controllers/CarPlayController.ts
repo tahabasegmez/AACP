@@ -1,4 +1,4 @@
-import { isOk } from '@core/error';
+import { Result, isOk } from '@core/error';
 import { Logger } from '@core/logger';
 import {
   DownloadItem,
@@ -18,11 +18,13 @@ import { CarPlayDependencies } from '../CarPlayDependencies';
 import {
   CarPlayList,
   CarPlayRowAction,
+  CarPlaySection,
   buildList,
   episodesToItems,
   playlistsToItems,
   resumeToItems,
   showsToItems,
+  withoutImages,
 } from '../templates/sections';
 
 /**
@@ -47,29 +49,44 @@ class TabList {
   readonly template: ListTemplate;
   private actions: readonly CarPlayRowAction[] = [];
 
-  constructor(config: {
-    title: string;
-    systemImage: string;
-    emptyTitle: string;
-    emptySubtitle: string;
-  }) {
+  constructor(
+    private readonly title: string,
+    config: {
+      systemImage: string;
+      emptyTitle: string;
+      emptySubtitle: string;
+    },
+    private readonly logger: Logger,
+  ) {
     this.template = new ListTemplate({
-      title: config.title,
-      tabTitle: config.title,
+      title,
+      tabTitle: title,
       tabSystemImageName: config.systemImage,
       // Boş sekmede kullanıcıya ne yapacağını söyler (Apple'ın boş görünümü).
       emptyViewTitleVariants: [config.emptyTitle],
       emptyViewSubtitleVariants: [config.emptySubtitle],
       sections: [],
       onItemSelect: async ({ index }) => {
-        await this.actions[index]?.();
+        try {
+          await this.actions[index]?.();
+        } catch (error) {
+          // CarPlay geri çağrısından fırlayan hata "unhandled rejection" olur.
+          this.logger.error(`CarPlay: "${title}" satırı açılamadı`, error);
+        }
       },
     });
   }
 
   update(list: CarPlayList): void {
     this.actions = list.actions;
-    this.template.updateSections(list.sections);
+    try {
+      this.template.updateSections(list.sections);
+    } catch (error) {
+      // Kapak çözümlemesi patlarsa sekmeyi boş bırakma: kapaksız da olsa
+      // içerik göster (bkz. docs/CARPLAY.md — "object is not a function").
+      this.logger.error(`CarPlay: "${this.title}" kapakları çizilemedi`, error);
+      this.template.updateSections(withoutImages(list.sections));
+    }
   }
 }
 
@@ -139,26 +156,35 @@ export class CarPlayController {
   /** Sekmeli kök şablonu kurar ve içeriğini doldurur. */
   private async buildRoot(): Promise<void> {
     try {
-      this.home = new TabList({
-        title: 'Ana Sayfa',
-        systemImage: 'house.fill',
-        emptyTitle: 'Henüz bir şey dinlemedin',
-        emptySubtitle: 'Telefonda bir bölüm başlat, buradan devam et',
-      });
+      this.home = new TabList(
+        'Ana Sayfa',
+        {
+          systemImage: 'house.fill',
+          emptyTitle: 'Henüz bir şey dinlemedin',
+          emptySubtitle: 'Telefonda bir bölüm başlat, buradan devam et',
+        },
+        this.logger,
+      );
 
-      this.library = new TabList({
-        title: 'Kitaplığın',
-        systemImage: 'books.vertical.fill',
-        emptyTitle: 'Kitaplığın boş',
-        emptySubtitle: 'Telefonda liste oluştur ya da podcast takip et',
-      });
+      this.library = new TabList(
+        'Kitaplığın',
+        {
+          systemImage: 'books.vertical.fill',
+          emptyTitle: 'Kitaplığın boş',
+          emptySubtitle: 'Telefonda liste oluştur ya da podcast takip et',
+        },
+        this.logger,
+      );
 
-      this.downloads = new TabList({
-        title: 'İndirilenler',
-        systemImage: 'arrow.down.circle.fill',
-        emptyTitle: 'İndirilen bölüm yok',
-        emptySubtitle: 'Telefonda indir, şebeke olmadan dinle',
-      });
+      this.downloads = new TabList(
+        'İndirilenler',
+        {
+          systemImage: 'arrow.down.circle.fill',
+          emptyTitle: 'İndirilen bölüm yok',
+          emptySubtitle: 'Telefonda indir, şebeke olmadan dinle',
+        },
+        this.logger,
+      );
 
       CarPlay.setRootTemplate(
         new TabBarTemplate({
@@ -166,7 +192,7 @@ export class CarPlayController {
           onTemplateSelect: () => {
             // Sekmeye dönüldüğünde içerik tazelenir: telefonda ya da başka bir
             // cihazda yapılan değişiklikler araçta da görünsün.
-            void this.refreshAll();
+            this.refresh();
           },
         }),
       );
@@ -180,41 +206,66 @@ export class CarPlayController {
 
   /** Katalog sürüş boyunca değişmez; bir kez yüklenir. */
   private async loadCatalog(): Promise<void> {
-    const result = await this.deps.getShowCatalog.execute();
-    if (isOk(result)) {
-      this.shows = result.value;
-    } else {
-      this.logger.warn('CarPlay: katalog alınamadı', result.error);
-    }
+    this.shows = (await this.read('katalog', () => this.deps.getShowCatalog.execute())) ?? [];
+  }
+
+  /**
+   * Tazelemeyi ateşle-unut olarak başlatır.
+   *
+   * CarPlay geri çağrıları senkrondur; `void` ile bırakılan bir promise hata
+   * verirse "unhandled rejection" olarak düşer ve sebebi kaybolur. Tek giriş
+   * noktasından geçirip her zaman logluyoruz.
+   */
+  private refresh(): void {
+    this.refreshAll().catch(error => {
+      this.logger.error('CarPlay: içerik tazelenemedi', error);
+    });
   }
 
   /**
    * Üç sekmeyi tazeler. Kaynaklar tek seferde okunur; listeler hem Ana Sayfa
    * hem Kitaplığın sekmesinde kullanıldığı için iki kez sorgulanmaz.
+   *
+   * Kaynaklar birbirinden BAĞIMSIZ ele alınır: biri hata verirse (ör. bozuk
+   * kayıt, kapalı depolama) diğer sekmeler yine dolar.
    */
   private async refreshAll(): Promise<void> {
     const [resume, playlists, downloads] = await Promise.all([
-      this.deps.getResumeList.execute(),
-      this.deps.getPlaylists.execute(),
-      this.deps.getDownloads.execute(),
+      this.read('devam listesi', () => this.deps.getResumeList.execute()),
+      this.read('listeler', () => this.deps.getPlaylists.execute()),
+      this.read('indirilenler', () => this.deps.getDownloads.execute()),
     ]);
 
-    const resumeItems = isOk(resume)
-      ? [...resume.value]
-          .filter(progress => progress.audioUrl)
-          // En son dinlenen en üstte; araçta aranan genellikle budur.
-          .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-          .slice(0, MAX_SHELF)
-      : [];
+    const resumeItems = [...(resume ?? [])]
+      .filter(progress => progress.audioUrl)
+      // En son dinlenen en üstte; araçta aranan genellikle budur.
+      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+      .slice(0, MAX_SHELF);
 
-    const allPlaylists = isOk(playlists) ? playlists.value : [];
-    const downloaded = isOk(downloads)
-      ? downloads.value.filter(item => item.status === 'downloaded')
-      : [];
+    const allPlaylists = playlists ?? [];
+    const downloaded = (downloads ?? []).filter(item => item.status === 'downloaded');
 
     this.home?.update(this.homeList(resumeItems, allPlaylists));
     this.library?.update(this.libraryList(allPlaylists));
     this.downloads?.update(this.downloadsList(downloaded));
+  }
+
+  /**
+   * Bir kaynağı okur; hata Result'ı ya da fırlatılan hatayı loglayıp `null`
+   * döner. Böylece tek bir kaynağın çökmesi tüm arayüzü boşaltmaz ve sebep
+   * konsolda görünür.
+   */
+  private async read<T>(label: string, load: () => Promise<Result<T>>): Promise<T | null> {
+    try {
+      const result = await load();
+      if (isOk(result)) {
+        return result.value;
+      }
+      this.logger.warn(`CarPlay: ${label} alınamadı`, result.error);
+    } catch (error) {
+      this.logger.error(`CarPlay: ${label} okunurken hata`, error);
+    }
+    return null;
   }
 
   /** Ana Sayfa: "Dinlemeye devam" ve "Sonra dinle" rafları. */
@@ -291,15 +342,29 @@ export class CarPlayController {
       },
     ]);
 
-    CarPlay.pushTemplate(
-      new ListTemplate({
-        title,
-        sections: list.sections,
-        onItemSelect: async ({ index }) => {
-          await list.actions[index]?.();
-        },
-      }),
-    );
+    const open = (sections: CarPlaySection[]): void => {
+      CarPlay.pushTemplate(
+        new ListTemplate({
+          title,
+          sections,
+          onItemSelect: async ({ index }) => {
+            try {
+              await list.actions[index]?.();
+            } catch (error) {
+              this.logger.error(`CarPlay: "${title}" satırı açılamadı`, error);
+            }
+          },
+        }),
+      );
+    };
+
+    try {
+      open(list.sections);
+    } catch (error) {
+      // Sekmelerdeki ile aynı yedek: kapaksız da olsa listeyi göster.
+      this.logger.error(`CarPlay: "${title}" kapakları çizilemedi`, error);
+      open(withoutImages(list.sections));
+    }
   }
 
   /** Şov listesi → bölümler (Kitaplığın, Now Playing ve sesli komut için). */
@@ -397,7 +462,7 @@ export class CarPlayController {
         return;
       }
       this.currentEpisodeId = state.currentEpisodeId;
-      void this.refreshAll();
+      this.refresh();
     });
   }
 }

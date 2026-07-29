@@ -71,6 +71,23 @@ Kaynaklar yereldir (katalog hariç), tazeleme ağa çıkmaz.
 > [shims/resolveAssetSource.js](../shims/resolveAssetSource.js) sarmalayıcısına
 > yönlendirerek düzeltir. Kütüphane sürümü yükseltilirse bu yönlendirmenin hâlâ
 > gerekip gerekmediği kontrol edilmeli.
+>
+> Metro yapılandırması **önbelleğe alınır**: değişiklikten sonra paketleyici
+> `npx react-native start --reset-cache` ile başlatılmalı, yoksa eski çözümleme
+> kullanılmaya devam eder.
+
+Yine de kapak çizimi patlarsa liste BOŞ kalmaz: `TabList.update` hatayı loglar
+ve aynı içeriği kapaksız gösterir (`withoutImages`). Araçta boş ekran
+göstermektense kapaksız liste göstermek yeğdir.
+
+## 3.1 Hata dayanıklılığı
+
+CarPlay geri çağrıları senkrondur; içeriden fırlayan bir hata "unhandled
+rejection" olarak düşer ve sebebi kaybolur. Bu yüzden:
+
+- Tüm ateşle-unut tazelemeler tek kapıdan geçer (`refresh()`) ve her zaman loglanır.
+- Her kaynak ayrı okunur (`read()`): biri hata verse bile diğer sekmeler dolar.
+- Satır davranışları `try/catch` içinde çalışır; hangi listede patladığı loglanır.
 
 ## 4. Sesli komut (Siri)
 

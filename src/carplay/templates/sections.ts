@@ -59,6 +59,24 @@ export const buildList = (groups: readonly CarPlayGroup[]): CarPlayList => {
   };
 };
 
+/**
+ * Bölümleri kapaksız kopyalar.
+ *
+ * CarPlay şablon köprüsü, görsel alanlarını RN'in asset çözümleyicisinden
+ * geçirir; kütüphane/RN sürüm uyumsuzluğunda bu adım patlayabilir
+ * (bkz. docs/CARPLAY.md). Araçta BOŞ liste göstermektense kapaksız göstermek
+ * yeğdir — bu yüzden yedek düzen olarak kullanılır.
+ */
+export const withoutImages = (sections: readonly CarPlaySection[]): CarPlaySection[] =>
+  sections.map(section => ({
+    ...section,
+    items: section.items.map(item => {
+      const copy = { ...item };
+      delete copy.image;
+      return copy;
+    }),
+  }));
+
 /** Uzak görseli CarPlay'in beklediği kaynağa çevirir; yoksa alan atlanır. */
 const cover = (uri?: string): { uri: string } | undefined =>
   uri && uri.length > 0 ? { uri } : undefined;

@@ -283,6 +283,36 @@ describe('CarPlayController', () => {
     expect(saved?.id).toBe('e-resume');
   });
 
+  it('bir kaynak çökerse diğer sekmeler yine dolar', async () => {
+    const deps = makeDeps({
+      getPlaylists: {
+        execute: async () => {
+          throw new Error('depolama bozuk');
+        },
+      },
+    } as unknown as Partial<CarPlayDependencies>);
+
+    await new CarPlayController(deps, noopLogger).onConnect();
+
+    // Listeler alınamadı ama devam rafı ve indirilenler yerinde.
+    expect(tabs()[0].config.sections[0].items.map(i => i.text)).toEqual(['Yarım kalan']);
+    expect(tabs()[2].config.sections[0].items.map(i => i.text)).toEqual(['İndirilmiş bölüm']);
+  });
+
+  it('kaynak hatası yakalanmayan promise bırakmaz', async () => {
+    const deps = makeDeps({
+      getResumeList: {
+        execute: async () => {
+          throw new Error('okunamadı');
+        },
+      },
+    } as unknown as Partial<CarPlayDependencies>);
+
+    await expect(
+      new CarPlayController(deps, noopLogger).onConnect(),
+    ).resolves.toBeUndefined();
+  });
+
   it('boş veri uygulamayı düşürmez', async () => {
     const deps = makeDeps({
       getResumeList: { execute: async () => ok([]) },

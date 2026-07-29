@@ -5,6 +5,7 @@ import {
   playlistsToItems,
   resumeToItems,
   showsToItems,
+  withoutImages,
 } from '../sections';
 
 const show: Show = {
@@ -170,6 +171,21 @@ describe('buildList', () => {
     expect(list.sections).toHaveLength(1);
     expect(list.sections[0].header).toBe('Dolu');
     expect(list.actions).toHaveLength(1);
+  });
+
+  it('withoutImages kapakları düşürür, geri kalanı korur', () => {
+    const sections = [
+      {
+        header: 'A',
+        items: [{ text: 'x', detailText: 'd', image: { uri: 'https://a.jpg' }, isPlaying: true }],
+      },
+    ];
+
+    expect(withoutImages(sections)).toEqual([
+      { header: 'A', items: [{ text: 'x', detailText: 'd', isPlaying: true }] },
+    ]);
+    // Girdi değişmez (saf fonksiyon).
+    expect(sections[0].items[0].image).toEqual({ uri: 'https://a.jpg' });
   });
 
   it('başlıksız grup başlıksız bölüm üretir', () => {
