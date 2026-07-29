@@ -10,6 +10,7 @@ export * from './stores';
 export * from './navigation';
 export * from './shared/components';
 export * from './features/player/usePlayEpisode';
+export * from './features/player/LastPlayedRestorer';
 export * from './features/player/usePlaybackController';
 export * from './features/player/components/GlobalDock';
 export * from './features/player/components/PodcastOverlays';

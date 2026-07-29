@@ -34,7 +34,7 @@ export const SwipeableEpisodeRow: React.FC<EpisodeRowProps> = props => {
           onTrigger: () => enqueue(props.episode),
         }}
         left={{
-          icon: 'list',
+          icon: 'playlist',
           label: 'Listeye ekle',
           color: theme.colors.elevated,
           onTrigger: () => setPlaylistOpen(true),

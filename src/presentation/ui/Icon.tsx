@@ -40,8 +40,10 @@ export type IconName =
   | 'info'
   | 'ellipsis'
   | 'add'
-  /** Oynatma kuyruğu (sıraya ekle). */
-  | 'queue';
+  /** Oynatma kuyruğu (sıraya ekle / sıradakiler). */
+  | 'queue'
+  /** Kullanıcı listesi (playlist'e ekle). */
+  | 'playlist';
 
 const GLYPHS: Record<IconName, string> = {
   play: 'play',
@@ -74,7 +76,11 @@ const GLYPHS: Record<IconName, string> = {
   info: 'information-circle-outline',
   ellipsis: 'ellipsis-horizontal',
   add: 'add',
-  queue: 'albums-outline',
+  // Kuyruk ve liste GÖRSEL OLARAK ayrışmalı: kuyruk sıraya alınmış öğeleri
+  // (yığın), liste ise adlandırılmış bir koleksiyonu (madde işaretli liste)
+  // çağrıştırır.
+  queue: 'layers-outline',
+  playlist: 'list',
 };
 
 interface Props {

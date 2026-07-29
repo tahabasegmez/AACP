@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import {
   DependencyProvider,
   EpisodeSheet,
+  LastPlayedRestorer,
   QueryProvider,
   SyncRunner,
   ThemeProvider,
@@ -37,6 +38,8 @@ export const PodcastProviders: React.FC<{ children: React.ReactNode }> = ({ chil
           <SleepTimerRunner />
           <DownloadsHydrator />
           <SyncRunner />
+          {/* Hesabın en son dinlediği bölümü mini player'a geri yükler. */}
+          <LastPlayedRestorer />
           {children}
           {/* Bölüm ayrıntı paneli — navigasyondan bağımsız, kökte tek örnek. */}
           <EpisodeSheet />

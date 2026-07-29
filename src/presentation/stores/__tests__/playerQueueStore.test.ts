@@ -66,4 +66,59 @@ describe('playerQueueStore', () => {
 
     expect(state().episodes).toHaveLength(1);
   });
+
+  describe('moveItem (sürükle-bırak sıralama)', () => {
+    it('öğeyi aşağı taşır', () => {
+      state().setQueue([episode('a'), episode('b'), episode('c')], 0);
+      state().moveItem(1, 2);
+
+      expect(state().episodes.map(e => e.id)).toEqual(['a', 'c', 'b']);
+    });
+
+    it('öğeyi yukarı taşır', () => {
+      state().setQueue([episode('a'), episode('b'), episode('c')], 0);
+      state().moveItem(2, 1);
+
+      expect(state().episodes.map(e => e.id)).toEqual(['a', 'c', 'b']);
+    });
+
+    it('ÇALAN bölüm taşınırsa indeks onu takip eder', () => {
+      state().setQueue([episode('a'), episode('b'), episode('c')], 0);
+      state().moveItem(0, 2);
+
+      expect(state().episodes.map(e => e.id)).toEqual(['b', 'c', 'a']);
+      expect(state().index).toBe(2); // hâlâ 'a' çalıyor
+    });
+
+    it('çalanın ÜSTÜNDEN altına taşımada indeks bir azalır', () => {
+      state().setQueue([episode('a'), episode('b'), episode('c')], 1);
+      state().moveItem(0, 2); // 'a' aşağı indi, 'b' bir üste kaydı
+
+      expect(state().episodes.map(e => e.id)).toEqual(['b', 'c', 'a']);
+      expect(state().index).toBe(0); // hâlâ 'b' çalıyor
+    });
+
+    it('çalanın ALTINDAN üstüne taşımada indeks bir artar', () => {
+      state().setQueue([episode('a'), episode('b'), episode('c')], 1);
+      state().moveItem(2, 0); // 'c' başa geldi, 'b' bir alta kaydı
+
+      expect(state().episodes.map(e => e.id)).toEqual(['c', 'a', 'b']);
+      expect(state().index).toBe(2); // hâlâ 'b' çalıyor
+    });
+
+    it('aynı konuma taşıma kuyruğu değiştirmez', () => {
+      state().setQueue([episode('a'), episode('b')], 0);
+      state().moveItem(1, 1);
+
+      expect(state().episodes.map(e => e.id)).toEqual(['a', 'b']);
+    });
+
+    it('sınır dışı konumlar yok sayılır', () => {
+      state().setQueue([episode('a'), episode('b')], 0);
+      state().moveItem(0, 9);
+      state().moveItem(-1, 1);
+
+      expect(state().episodes.map(e => e.id)).toEqual(['a', 'b']);
+    });
+  });
 });

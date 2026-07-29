@@ -1,42 +1,43 @@
 import React from 'react';
 import { Image, View } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../../theme';
 import { AA_LOGO, headerMetrics } from '../../../ui';
 
 /** Logonun gerçek en/boy oranı (kaynak görsel 342×288). */
 const LOGO_ASPECT = 342 / 288;
-/** Başlık satırına sığacak logo yüksekliği (minHeight'i taşırmaz). */
-const LOGO_HEIGHT = 34;
+/** Başlık satırına sığacak logo yüksekliği. */
+const LOGO_HEIGHT = 30;
 
 /**
  * HomeHeader — ana sayfanın SABİT başlığı (kaydırılınca kaybolmaz).
  *
- * Dikey ölçüler `headerMetrics`ten gelir — Ara/Kütüphane'deki ScreenHeader ile
- * AYNI kaynak. Bu sayede sekmeler arasında geçerken başlığın ALT HİZASI birebir
- * aynı yerde kalır ve içerik zıplamaz. Fark yalnızca içerikte: başlık metni
- * yerine ORTALANMIŞ "AA PODCAST" logosu ve marka mavisi zemin.
+ * Zemin, marka mavisinden koyu laciverte YUMUŞAK bir degradeyle iner ve alt
+ * kenarda tema zeminine kavuşur; tek renk kullanıldığında oluşan sert kesim
+ * böylece kaybolur. Degrade dikey yönde açıkça tanımlanır ve kenardan kenara
+ * dolar (üst güvenli alan içeri alındığı için Dynamic Island arkasına uzanır).
  *
- * Üst güvenli alan header'ın içine alınır; böylece mavi, Dynamic Island /
- * status bar arkasına kadar kenardan kenara dolar.
+ * Dikey ölçüler `headerMetrics`ten türetilir — Ara/Kütüphane başlıklarıyla aynı
+ * ritim korunur, yalnızca biraz daha derli toplu durur.
  */
 export const HomeHeader: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+
   return (
-    <View
+    <LinearGradient
+      colors={[theme.colors.brand, theme.colors.brandDeep, theme.colors.bg]}
+      // Marka mavisi üstte kalır, ortada koyulaşır, son çeyrekte zemine erir.
+      locations={[0, 0.62, 1]}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
       style={{
-        backgroundColor: theme.colors.brand,
-        paddingTop: insets.top + headerMetrics.paddingTop,
-        paddingBottom: headerMetrics.paddingBottom,
+        paddingTop: insets.top + theme.spacing(0.5),
+        paddingBottom: theme.spacing(1.5),
         paddingHorizontal: headerMetrics.paddingHorizontal,
       }}>
-      <View
-        style={{
-          minHeight: headerMetrics.minHeight,
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}>
+      <View style={{ minHeight: 36, justifyContent: 'center', alignItems: 'flex-start' }}>
         <Image
           source={AA_LOGO}
           resizeMode="contain"
@@ -45,6 +46,6 @@ export const HomeHeader: React.FC = () => {
           style={{ height: LOGO_HEIGHT, width: LOGO_HEIGHT * LOGO_ASPECT }}
         />
       </View>
-    </View>
+    </LinearGradient>
   );
 };

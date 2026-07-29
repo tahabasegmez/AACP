@@ -131,7 +131,7 @@ export const EpisodeSheet: React.FC = () => {
                 busy={download.busy}
               />
               <SheetAction
-                icon="list"
+                icon="playlist"
                 badge="add"
                 label="Listeye ekle"
                 onPress={() => setPlaylistOpen(true)}

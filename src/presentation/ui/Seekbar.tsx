@@ -133,7 +133,7 @@ export const Seekbar: React.FC<{
               top: 0,
               bottom: 0,
               width: bufferedWidth,
-              backgroundColor: theme.colors.accentSoft,
+              backgroundColor: theme.colors.accentTrack,
             }}
           />
         )}

@@ -20,8 +20,16 @@ export interface ColorTokens {
   surface: string;
   elevated: string;
   brand: string;
+  /**
+   * Marka mavisinin koyu tonu — degradelerde ara durak.
+   * Canlı maviden zemine doğrudan geçmek sert bir kesim yaratır; bu ton
+   * geçişi yumuşatır.
+   */
+  brandDeep: string;
   accent: string;
   accentSoft: string;
+  /** Seekbar'da önden yüklenmiş (buffer) kısmın rengi. */
+  accentTrack: string;
   onAccent: string;
   text: string;
   textMuted: string;
@@ -41,8 +49,12 @@ export const darkColors: ColorTokens = {
   surface: '#141726',
   elevated: '#232741',
   brand: '#0032A1',
+  brandDeep: '#001B57',
   accent: '#3374FF',
   accentSoft: 'rgba(51,116,255,0.14)',
+  // Seekbar'daki "önden yüklenmiş" kısım — çalınan kısımdan ayırt edilecek
+  // kadar açık, zeminden ayrılacak kadar belirgin.
+  accentTrack: 'rgba(51,116,255,0.45)',
   onAccent: '#FFFFFF',
   text: '#FFFFFF',
   textMuted: '#A7ADC0',
@@ -62,8 +74,10 @@ export const lightColors: ColorTokens = {
   surface: '#F4F6FA',
   elevated: '#EAEEF6',
   brand: '#0032A1',
+  brandDeep: '#001B57',
   accent: '#0A44C9',
   accentSoft: 'rgba(10,68,201,0.10)',
+  accentTrack: 'rgba(10,68,201,0.38)',
   onAccent: '#FFFFFF',
   text: '#14171F',
   textMuted: '#5B6172',

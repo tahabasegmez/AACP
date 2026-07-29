@@ -177,9 +177,11 @@ export const PlayerScreen: React.FC = () => {
           </Pressable>
         </View>
 
-        {/* Kapak: AA PODCAST ile başlık arasında ortalanır (kalan alanı doldurur).
-            Dokununca bölümün ait olduğu şovun listesini açar. */}
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        {/* Kapak, üst bar ile oynatma kümesi arasındaki alanda ORTALANIR ama
+            alan aşağıdan daha çok pay aldığı için görsel olarak yukarı taşınır
+            (flex 3 / 1 ≈ %25 yukarı). Böylece alt tarafta bölüm notları için
+            nefes alacak bir boşluk kalır. */}
+        <View style={{ flex: 3, alignItems: 'center', justifyContent: 'center' }}>
           <Pressable
             onPress={openShow}
             disabled={!show}
@@ -189,8 +191,9 @@ export const PlayerScreen: React.FC = () => {
           </Pressable>
         </View>
 
-        {/* Alt küme — sabit düzen (her bölümde aynı) */}
-        <View>
+        {/* Alt küme — kapaktan sonraki alanı paylaşır (flex 1 → kapak 3'te
+            kalır, düzen yukarı taşınır). Araçlar en altta sabit durur. */}
+        <View style={{ flex: 1 }}>
           {/* Reklam çalarken bilgilendirme bandı; bölüm bilgisi gizlenmez. */}
           {ad && <AdBanner ad={ad} />}
 
@@ -265,17 +268,21 @@ export const PlayerScreen: React.FC = () => {
             </Text>
           ) : null}
 
-          {/* Bölüm notları — başlat/butonlar ile alt araçlar arasında, önizlemeli */}
-          {!!notes && (
-            <Pressable onPress={() => setNotesOpen(true)} style={{ marginTop: theme.spacing(1.75) }}>
-              <Text variant="caption" color={theme.colors.textMuted} numberOfLines={2}>
-                {stripHtml(notes)}
-              </Text>
-              <Text variant="caption" color={theme.colors.text} style={{ marginTop: 2 }}>
-                devamını oku…
-              </Text>
-            </Pressable>
-          )}
+          {/* Bölüm notları — oynatma tuşlarıyla alt araçlar arasındaki boşluğu
+              doldurur. Alan esnek (flex 1) ama içerik kırpılır: boşluğu
+              tamamen kaplamak yerine nefes payı bırakır. */}
+          <View style={{ flex: 1, justifyContent: 'center', minHeight: theme.spacing(4) }}>
+            {!!notes && (
+              <Pressable onPress={() => setNotesOpen(true)}>
+                <Text variant="caption" color={theme.colors.textMuted} numberOfLines={3}>
+                  {stripHtml(notes)}
+                </Text>
+                <Text variant="caption" color={theme.colors.text} style={{ marginTop: 4 }}>
+                  devamını oku…
+                </Text>
+              </Pressable>
+            )}
+          </View>
 
           {/* Araçlar — en altta */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: theme.spacing(2) }}>
@@ -304,7 +311,7 @@ export const PlayerScreen: React.FC = () => {
               ) : (
                 <Tool icon="timer" label="Uyku" onPress={() => setSleepOpen(true)} />
               )}
-              <Tool icon="list" label="Sıradakiler" onPress={() => setQueueOpen(true)} />
+              <Tool icon="queue" label="Sıradakiler" onPress={() => setQueueOpen(true)} />
               <Tool
                 icon={dlStatus === 'downloaded' ? 'downloaded' : 'download'}
                 label="İndir"

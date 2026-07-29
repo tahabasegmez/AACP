@@ -4,6 +4,14 @@ import { SyncCollectionAdapter, SyncRecord } from './SyncTypes';
 
 /** PlaylistRepositoryImpl ile AYNI depo anahtarı olmalı. */
 const PLAYLISTS_KEY = 'playlists_v1';
+/**
+ * "Sonra dinle"nin liste sistemi öncesi deposu.
+ *
+ * `PlaylistRepositoryImpl` bu anahtarı bir kereliğine göç için okur. Yerel veri
+ * temizlenirken BU DA silinmelidir; aksi halde çıkış sonrası ilk okumada göç
+ * tekrar çalışır ve önceki kullanıcının "Sonra dinle" listesi geri gelir.
+ */
+const LEGACY_SAVED_KEY = 'saved_episodes_v1';
 
 /**
  * PlaylistSyncAdapter — kullanıcı listelerinin senkronu.
@@ -96,9 +104,12 @@ export class PlaylistSyncAdapter implements SyncCollectionAdapter {
 
   async clearLocal(): Promise<void> {
     // Listeler ve silme kayıtları birlikte temizlenir; sistem listesi
-    // ("Sonra dinle") bir sonraki okumada boş olarak yeniden oluşturulur.
+    // ("Sonra dinle") bir sonraki okumada BOŞ olarak yeniden oluşturulur.
     this.storage.delete(PLAYLISTS_KEY);
     this.storage.delete(this.tombstoneKey);
+    // Göç kaynağı da silinir — yoksa önceki kullanıcının "Sonra dinle"si
+    // bir sonraki okumada göç yoluyla geri gelirdi.
+    this.storage.delete(LEGACY_SAVED_KEY);
   }
 
   /** Bir liste silindiğinde çağrılır — senkron için tombstone bırakır. */

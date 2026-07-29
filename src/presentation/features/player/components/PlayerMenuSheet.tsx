@@ -32,7 +32,7 @@ export const PlayerMenuSheet: React.FC<{
     <BottomSheet visible={visible} onClose={onClose}>
       <View style={{ paddingBottom: theme.spacing(1) }}>
         <MenuItem
-          icon="list"
+          icon="queue"
           label="Sıraya ekle"
           description="Bölüm kuyruğun sonuna eklenir"
           disabled={!episode}

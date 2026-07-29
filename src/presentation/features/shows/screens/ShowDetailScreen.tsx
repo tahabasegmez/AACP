@@ -5,7 +5,17 @@ import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Episode } from '@domain/entities';
 import { useTheme } from '../../../theme';
-import { CoverGradient, CoverImage, Icon, Text, TextSheet, scrimScrollHandler, useHeroCoverSize } from '../../../ui';
+import {
+  CoverGradient,
+  CoverImage,
+  Icon,
+  SearchField,
+  Text,
+  TextSheet,
+  scrimScrollHandler,
+  useDebounced,
+  useHeroCoverSize,
+} from '../../../ui';
 import { useResumeList, useShowEpisodes } from '../../../query';
 import { useIsFollowed, useToggleFollow } from '../../../query';
 import { EmptyState, ErrorView, LoadingView } from '../../../shared/components';
@@ -30,6 +40,10 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
   const openSheet = useEpisodeSheetStore(s => s.open);
   const coverSize = useHeroCoverSize();
   const [descOpen, setDescOpen] = useState(false);
+  // Şov içi bölüm araması — sorgu sunucu/feed katmanında uygulanır, tüm
+  // sayfalar arasında çalışır (yalnızca yüklenmiş sayfalarda değil).
+  const [query, setQuery] = useState('');
+  const search = useDebounced(query, 300);
 
   const {
     data,
@@ -40,7 +54,7 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useShowEpisodes(feedUrl);
+  } = useShowEpisodes(feedUrl, { search });
   const resume = useResumeList();
   const followed = useIsFollowed(showId);
   const toggleFollow = useToggleFollow();
@@ -163,6 +177,11 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
           </Pressable>
         </View>
       </View>
+
+      {/* Bölüm listesinin hemen üstünde arama — uzun şovlarda gezinmeyi
+          kolaylaştırır. Sorgu tüm bölümlerde çalışır, yalnızca yüklenmiş
+          sayfalarda değil. */}
+      <SearchField value={query} onChangeText={setQuery} placeholder="Bu şovda ara" />
     </View>
   );
 
@@ -170,7 +189,14 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
     return wrap(
       <>
         {Header}
-        <EmptyState title="Bölüm yok" description="Bu şovda henüz yayınlanmış bölüm bulunmuyor." />
+        <EmptyState
+          title={search ? 'Sonuç yok' : 'Bölüm yok'}
+          description={
+            search
+              ? `"${search}" için bu şovda bölüm bulunamadı.`
+              : 'Bu şovda henüz yayınlanmış bölüm bulunmuyor.'
+          }
+        />
       </>,
     );
   }

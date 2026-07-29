@@ -5,7 +5,7 @@ import { Alert, Pressable, View } from 'react-native';
 import { Episode, playlistDurationSec } from '@domain/entities';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
-import { Icon, ImmersiveHeader, Text, scrimScrollHandler } from '../../../ui';
+import { Icon, ImmersiveHeader, SearchField, Text, scrimScrollHandler } from '../../../ui';
 import { PlaylistCover } from '../components/PlaylistCover';
 import { EmptyState } from '../../../shared/components';
 import {
@@ -42,6 +42,7 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
   const removeEpisode = useRemoveEpisodeFromPlaylist();
   const deletePlaylist = useDeletePlaylist();
   const [editorOpen, setEditorOpen] = useState(false);
+  const [query, setQuery] = useState('');
 
   const showTitleOf = (showId: string): string =>
     (shows.data ?? []).find(s => s.id === showId)?.title ?? '';
@@ -55,8 +56,16 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
     );
   }
 
-  const episodes = playlist.episodes;
   const totalSec = playlistDurationSec(playlist);
+  // Liste içi arama — kayıtlar zaten bellekte olduğu için yerelde süzülür.
+  const needle = query.trim().toLocaleLowerCase('tr-TR');
+  const episodes = needle
+    ? playlist.episodes.filter(
+        e =>
+          e.title.toLocaleLowerCase('tr-TR').includes(needle) ||
+          showTitleOf(e.showId).toLocaleLowerCase('tr-TR').includes(needle),
+      )
+    : playlist.episodes;
 
   const confirmDelete = (): void => {
     Alert.alert(
@@ -143,6 +152,12 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
           </>
         )}
       </View>
+
+      {/* Liste içi arama — yalnızca birkaç bölümlük listelerde gereksiz yer
+          kaplamasın diye eşik uygulanır. */}
+      {playlist.episodes.length > 5 && (
+        <SearchField value={query} onChangeText={setQuery} placeholder="Bu listede ara" />
+      )}
     </View>
   );
 
@@ -154,8 +169,12 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
         <>
           {Header}
           <EmptyState
-            title="Liste boş"
-            description="Bir bölümün ayrıntı panelinden bu listeye ekleyebilirsin."
+            title={query ? 'Sonuç yok' : 'Liste boş'}
+            description={
+              query
+                ? `"${query}" için bu listede bölüm bulunamadı.`
+                : 'Bir bölümün ayrıntı panelinden bu listeye ekleyebilirsin.'
+            }
           />
         </>
       ) : (

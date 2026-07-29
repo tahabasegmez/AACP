@@ -16,6 +16,7 @@ export * from './TextSheet';
 export * from './CoverGradient';
 export * from './useReducedMotion';
 export * from './useOnlineStatus';
+export * from './useDebounced';
 export * from './scrimValue';
 export * from './TopScrim';
 export * from './useHeroCoverSize';

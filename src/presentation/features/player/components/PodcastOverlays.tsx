@@ -1,6 +1,5 @@
 import React from 'react';
 import { TopScrim } from '../../../ui';
-import { OfflineBar } from '../../../shared/components';
 import { GlobalDock } from './GlobalDock';
 
 /**
@@ -16,9 +15,9 @@ import { GlobalDock } from './GlobalDock';
  */
 export const PodcastOverlays: React.FC = () => (
   <>
+    {/* Çevrimdışı şeridi GlobalDock'un içindedir: tab çubuğunun hemen üstünde
+        durur, onu kapatmaz. */}
     <GlobalDock />
     <TopScrim />
-    {/* Çevrimdışı şeridi — ekranın en altında, layout'u etkilemeyen overlay. */}
-    <OfflineBar />
   </>
 );

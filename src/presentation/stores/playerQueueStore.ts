@@ -22,6 +22,11 @@ interface QueueState {
   enqueueNext: (episode: Episode) => void;
   /** Kuyruktaki bir öğeyi KONUMUNA göre çıkarır (kopyalar olabileceği için). */
   removeAt: (position: number) => void;
+  /**
+   * Bir öğeyi kuyrukta başka bir konuma taşır (sürükle-bırak).
+   * Çalan bölümün indeksi, taşıma onu kaydırdıysa güncellenir.
+   */
+  moveItem: (from: number, to: number) => void;
 }
 
 export const usePlayerQueueStore = create<QueueState>((set, get) => ({
@@ -39,6 +44,37 @@ export const usePlayerQueueStore = create<QueueState>((set, get) => ({
     // Çalanın hemen ardına yerleştir; kuyruk boşsa sona ekle.
     const at = index >= 0 ? Math.min(index + 1, episodes.length) : episodes.length;
     set({ episodes: [...episodes.slice(0, at), episode, ...episodes.slice(at)] });
+  },
+
+  moveItem: (from, to) => {
+    const { episodes, index } = get();
+    if (
+      from === to ||
+      from < 0 ||
+      to < 0 ||
+      from >= episodes.length ||
+      to >= episodes.length
+    ) {
+      return;
+    }
+
+    const next = [...episodes];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+
+    // Çalan bölümün yeni konumu: taşınan öğe oysa hedefe gider, değilse
+    // kaydırmadan etkilenip etkilenmediğine bakılır. Aksi halde kuyruk
+    // yeniden sıralandığında yanlış bölüm "çalıyor" görünürdü.
+    let nextIndex = index;
+    if (index === from) {
+      nextIndex = to;
+    } else if (from < index && to >= index) {
+      nextIndex = index - 1;
+    } else if (from > index && to <= index) {
+      nextIndex = index + 1;
+    }
+
+    set({ episodes: next, index: nextIndex });
   },
 
   removeAt: position => {
