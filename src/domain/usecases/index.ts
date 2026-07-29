@@ -21,6 +21,9 @@ export * from './saved/GetSavedEpisodes';
 // Kullanıcı listeleri (playlist) — "Sonra dinle" de bir sistem listesidir
 export * from './playlists/playlistUseCases';
 
+// Sesli komut (Siri / sesli arama) — platformdan bağımsız çözümleme
+export * from './voice/ResolveVoiceQuery';
+
 // Player — transport kontrolleri
 export * from './player/PlayEpisode';
 export * from './player/PausePlayback';

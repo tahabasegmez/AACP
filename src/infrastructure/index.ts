@@ -9,6 +9,7 @@ export * from './audio/TrackPlayerAudioService';
 export * from './audio/AdAwareAudioPlayer';
 export * from './image/LibraryImagePicker';
 export * from './audio/NativeRoutePicker';
+export * from './audio/remoteQueueCommands';
 export * from './storage/KeyValueStorage';
 export * from './storage/MmkvKeyValueStorage';
 export * from './storage/createPersistentStorage';

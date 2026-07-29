@@ -29,6 +29,7 @@ import {
   PlayEpisode,
   RemoveDownload,
   RemoveEpisodeFromPlaylist,
+  ResolveVoiceQuery,
   ResumePlayback,
   SavePlaybackProgress,
   SeekTo,
@@ -70,6 +71,13 @@ export interface AppDependencies {
   // Sonra dinle
   readonly toggleSavedEpisode: ToggleSavedEpisode;
   readonly getSavedEpisodes: GetSavedEpisodes;
+
+  /**
+   * Sesli sorguyu çalınabilir bir bölüme çevirir (Siri / CarPlay sesli komut).
+   * UI'da doğrudan kullanılmaz ama bağımlılık grafiği CarPlay ile paylaşıldığı
+   * için burada da yer alır.
+   */
+  readonly resolveVoiceQuery: ResolveVoiceQuery;
 
   // Kullanıcı listeleri (playlist) — "Sonra dinle" de bir sistem listesidir
   readonly getPlaylists: GetPlaylists;

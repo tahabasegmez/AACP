@@ -15,6 +15,7 @@ import {
   DeletePlaylist,
   GetPlaylists,
   RemoveEpisodeFromPlaylist,
+  ResolveVoiceQuery,
   UpdatePlaylist,
   DownloadEpisode,
   GetDownloads,
@@ -219,7 +220,11 @@ export const composeDependencies = (): AppDependencies => {
   const continueEpisode = new ContinueEpisode(progressRepo, playEpisode);
   const getResumeList = new GetResumeList(progressRepo);
 
+  // Sesli komut çözümleyicisi — CarPlay/Siri ve ileride sesli arama kullanır.
+  const resolveVoiceQuery = new ResolveVoiceQuery(catalogRepo, feedRepo);
+
   return {
+    resolveVoiceQuery,
     getShowCatalog,
     getPodcastFeed,
     getShowEpisodes,

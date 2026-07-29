@@ -1,4 +1,5 @@
 import TrackPlayer, { Event } from 'react-native-track-player';
+import { remoteQueueHandlers } from './remoteQueueCommands';
 
 const FORWARD_SEC = 30;
 const BACKWARD_SEC = 15;
@@ -30,4 +31,11 @@ export default async function playbackService(): Promise<void> {
     const { position } = await TrackPlayer.getProgress();
     await TrackPlayer.seekTo(Math.max(0, position - (interval ?? BACKWARD_SEC)));
   });
+
+  // Sonraki/önceki BÖLÜM (track-player'ın kendi kuyruğu değil, uygulamanınki).
+  // Hangi bölümün sıradaki olduğunu kuyruk bilir; köprü üzerinden sorulur.
+  TrackPlayer.addEventListener(Event.RemoteNext, () => remoteQueueHandlers().next());
+  TrackPlayer.addEventListener(Event.RemotePrevious, () =>
+    remoteQueueHandlers().previous(),
+  );
 }

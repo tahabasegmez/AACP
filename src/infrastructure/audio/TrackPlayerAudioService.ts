@@ -40,6 +40,8 @@ export class TrackPlayerAudioService implements AudioPlayerService {
     });
     await TrackPlayer.updateOptions({
       progressUpdateEventInterval: 1,
+      // SkipToNext/Previous, CarPlay ve direksiyon tuşlarının "sonraki/önceki
+      // bölüm" komutlarını açar; kuyruk yönetimi playbackService'te yapılır.
       capabilities: [
         Capability.Play,
         Capability.Pause,
@@ -47,6 +49,8 @@ export class TrackPlayerAudioService implements AudioPlayerService {
         Capability.SeekTo,
         Capability.JumpForward,
         Capability.JumpBackward,
+        Capability.SkipToNext,
+        Capability.SkipToPrevious,
       ],
       compactCapabilities: [Capability.Play, Capability.Pause, Capability.SeekTo],
       forwardJumpInterval: 30,
