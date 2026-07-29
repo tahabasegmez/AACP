@@ -5,13 +5,15 @@
 
 /** Araç bağlandı: arayüz denetleyicisini react-native-carplay'e devret. */
 - (void)templateApplicationScene:(CPTemplateApplicationScene *)templateApplicationScene
-    didConnectInterfaceController:(CPInterfaceController *)interfaceController {
-  [RNCarPlay connectWithInterfaceController:interfaceController window:templateApplicationScene.carWindow];
+    didConnectInterfaceController:(CPInterfaceController *)interfaceController
+                          toWindow:(CPWindow *)window {
+  [RNCarPlay connectWithInterfaceController:interfaceController window:window];
 }
 
 /** Bağlantı koptu: JS tarafı da haberdar edilir ki şablonlar temizlensin. */
 - (void)templateApplicationScene:(CPTemplateApplicationScene *)templateApplicationScene
-    didDisconnectInterfaceController:(CPInterfaceController *)interfaceController {
+    didDisconnectInterfaceController:(CPInterfaceController *)interfaceController
+                            fromWindow:(CPWindow *)window {
   [RNCarPlay disconnect];
 }
 
