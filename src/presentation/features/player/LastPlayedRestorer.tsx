@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Episode, PlaybackProgress } from '@domain/entities';
 import { useDependencies } from '../../di';
-import { usePlayerStore } from '../../stores';
+import { setPlaybackSession, usePlayerStore } from '../../stores';
 import { useCurrentUser } from '../../query';
 
 /** Kaldığın-yer kaydından çalınabilir bir bölüm kurar. */
@@ -20,9 +20,10 @@ const toEpisode = (p: PlaybackProgress): Episode => ({
  * LastPlayedRestorer — "en son dinlenen bölüm"ü mini player'a geri yükler.
  *
  * Kullanıcı uygulamayı kapatıp açtığında ya da HESABINA GİRİŞ YAPTIĞINDA, o
- * hesabın en son dinlediği bölüm mini player'da hazır bekler (çalmaya
- * başlamaz — yalnızca yüklenir). Böylece "kaldığım yerden devam" tek dokunuş
- * uzakta olur ve cihaz değiştirince oturum kaldığı yerden sürer.
+ * hesabın en son dinlediği bölüm mini player'da **kaldığı yerde** hazır bekler.
+ * Ses YÜKLENMEZ: açılışta ağa çıkmak ya da dosya açmak gereksiz; kayıttaki
+ * konum/süre yalnızca göstergeye yazılır. Dokunulduğunda `togglePlay` bölümün
+ * oynatıcıda olmadığını görüp kaldığı yerden başlatır.
  *
  * Kimlik değiştiğinde yeniden çalışır: senkron sonrası inen kayıtlar arasından
  * EN SON güncellenen seçilir, dolayısıyla mini player yeni hesabın son
@@ -33,7 +34,7 @@ const toEpisode = (p: PlaybackProgress): Episode => ({
  */
 export const LastPlayedRestorer: React.FC = () => {
   const { getResumeList } = useDependencies();
-  const setCurrentEpisode = usePlayerStore(s => s.setCurrentEpisode);
+  const setPlayback = usePlayerStore(s => s.setPlayback);
   const { data: user } = useCurrentUser();
 
   // Aynı kimlik için tekrar tekrar geri yükleme yapılmaz.
@@ -63,9 +64,20 @@ export const LastPlayedRestorer: React.FC = () => {
           .filter(p => p.audioUrl)
           .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
 
-        if (latest) {
-          setCurrentEpisode(toEpisode(latest));
+        if (!latest) {
+          return;
         }
+        // Oturum tek yerden kurulur (kuyruk + çalan bölüm); doğrudan
+        // `setCurrentEpisode` çağırmak ikisinin ayrışmasına kapı açardı.
+        setPlaybackSession([toEpisode(latest)], 0);
+        // Kaldığı yer göstergeye de yazılır; aksi halde ilerleme çubuğu
+        // sıfırdan başlıyor gibi görünürdü. Durum 'idle' kalır: ses henüz
+        // oynatıcıya yüklenmedi ve bunu `togglePlay` bu bilgiden anlar.
+        setPlayback({
+          ...usePlayerStore.getState().playback,
+          positionSec: latest.positionSec,
+          durationSec: latest.durationSec,
+        });
       })
       .catch(() => {
         /* geri yükleme başarısızsa uygulama normal çalışır */
@@ -74,7 +86,7 @@ export const LastPlayedRestorer: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, getResumeList, setCurrentEpisode]);
+  }, [user?.id, getResumeList, setPlayback]);
 
   return null;
 };

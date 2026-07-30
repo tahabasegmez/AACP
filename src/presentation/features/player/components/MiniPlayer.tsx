@@ -3,20 +3,24 @@ import { Pressable, View } from 'react-native';
 import { Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { CoverImage, Icon, Text } from '../../../ui';
-import { useDependencies } from '../../../di';
 import { usePlayerStore } from '../../../stores';
 import { useShowsQuery } from '../../../query';
+import { usePlaybackController } from '../usePlaybackController';
 
 const HEIGHT = 58;
 
 /**
- * MiniPlayer — o an çalan bölümü gösteren küçük oynatıcı. Dokununca `onOpen`
+ * MiniPlayer — açık olan bölümü gösteren küçük oynatıcı. Dokununca `onOpen`
  * (tam ekran Player) çağrılır. Bölüm yoksa görünmez. NavigationContainer'ın
  * DIŞINDA (global dock) da render edilebildiği için navigasyonu prop ile alır.
+ *
+ * Oynatma durumuna BAKMAZ, yalnızca bir bölüm açık mı diye bakar: uygulama
+ * yeniden açıldığında en son dinlenen bölüm burada kaldığı yerde bekler
+ * (bkz. LastPlayedRestorer) ve tek dokunuşla devam eder.
  */
 export const MiniPlayer: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const theme = useTheme();
-  const { pausePlayback, resumePlayback } = useDependencies();
+  const { togglePlay } = usePlaybackController();
   const playback = usePlayerStore(s => s.playback);
   const currentEpisode = usePlayerStore(s => s.currentEpisode);
   const shows = useShowsQuery();
@@ -30,7 +34,7 @@ export const MiniPlayer: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
     return map.get(currentEpisode.showId)?.title ?? '';
   }, [currentEpisode, shows.data]);
 
-  if (!currentEpisode || playback.status === 'idle') {
+  if (!currentEpisode) {
     return null;
   }
 
@@ -73,7 +77,7 @@ export const MiniPlayer: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
       </View>
 
       <Pressable
-        onPress={() => (isPlaying ? pausePlayback.execute() : resumePlayback.execute())}
+        onPress={() => void togglePlay()}
         hitSlop={12}
         accessibilityRole="button"
         accessibilityLabel={isPlaying ? 'Duraklat' : 'Devam et'}>

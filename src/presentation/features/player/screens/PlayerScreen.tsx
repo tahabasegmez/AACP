@@ -51,9 +51,8 @@ export const PlayerScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useAppNavigation();
-  const { pausePlayback, resumePlayback, seekTo, setPlaybackRate, routePicker } =
-    useDependencies();
-  const { next, previous } = usePlaybackController();
+  const { seekTo, setPlaybackRate, routePicker } = useDependencies();
+  const { togglePlay, next, previous } = usePlaybackController();
   const { start: startDownload } = useDownloads();
 
   const playback = usePlayerStore(s => s.playback);
@@ -241,7 +240,7 @@ export const PlayerScreen: React.FC = () => {
               <SkipButton direction="back" onTap={() => previous(playback.positionSec)} onSeekTo={doSeek} getPosition={getPosition} getDuration={getDuration} />
             )}
             <Pressable
-              onPress={() => (isPlaying ? pausePlayback.execute() : resumePlayback.execute())}
+              onPress={() => void togglePlay()}
               accessibilityRole="button"
               accessibilityLabel={isPlaying ? 'Duraklat' : 'Oynat'}
               style={{ width: 68, height: 68, borderRadius: 34, backgroundColor: theme.colors.text, alignItems: 'center', justifyContent: 'center' }}>

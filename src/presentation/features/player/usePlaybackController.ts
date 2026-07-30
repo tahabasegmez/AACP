@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { Episode } from '@domain/entities';
 import { useDependencies } from '../../di';
-import { setPlaybackSession, usePlayerQueueStore } from '../../stores';
+import { setPlaybackSession, usePlayerQueueStore, usePlayerStore } from '../../stores';
 
 export interface PlayContext {
   readonly episodes: Episode[];
@@ -19,7 +19,8 @@ const BACK_TO_PREVIOUS_THRESHOLD_SEC = 10;
  * usePlayEpisode bunu sarıp Player'ı açar; Player içi ileri/geri navigasyonsuz kullanır.
  */
 export const usePlaybackController = () => {
-  const { continueEpisode, seekTo, analytics } = useDependencies();
+  const { continueEpisode, seekTo, analytics, pausePlayback, resumePlayback } =
+    useDependencies();
 
   const play = useCallback(
     async (episode: Episode, context?: PlayContext) => {
@@ -48,6 +49,30 @@ export const usePlaybackController = () => {
     [play],
   );
 
+  /**
+   * Oynat/duraklat — açık olan bölüm için doğru eylemi seçer.
+   *
+   * Uygulama yeni açıldığında mini player'da bir bölüm durur ama o bölüm henüz
+   * oynatıcıya YÜKLENMEMİŞTİR; orada "devam et" demek hiçbir şey yapmaz. Bu
+   * durumda kaldığı yerden baştan yüklenir. Ayrım `currentEpisodeId`
+   * karşılaştırmasıyla yapılır: oynatıcının gerçekten neyi tuttuğunu o söyler.
+   */
+  const togglePlay = useCallback(async () => {
+    const { currentEpisode, playback } = usePlayerStore.getState();
+    if (!currentEpisode) {
+      return;
+    }
+    if (playback.status === 'playing') {
+      await pausePlayback.execute();
+      return;
+    }
+    if (playback.currentEpisodeId !== currentEpisode.id) {
+      await play(currentEpisode);
+      return;
+    }
+    await resumePlayback.execute();
+  }, [pausePlayback, play, resumePlayback]);
+
   const next = useCallback(() => {
     const { episodes, index } = usePlayerQueueStore.getState();
     if (index >= 0 && index < episodes.length - 1) {
@@ -67,5 +92,5 @@ export const usePlaybackController = () => {
     [playIndex, seekTo],
   );
 
-  return { play, next, previous };
+  return { play, togglePlay, next, previous };
 };
