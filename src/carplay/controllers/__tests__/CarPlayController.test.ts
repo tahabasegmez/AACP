@@ -6,7 +6,6 @@ import {
   INITIAL_PLAYBACK_STATE,
   PlaybackProgress,
   Playlist,
-  SAVED_PLAYLIST_ID,
   Show,
 } from '@domain/entities';
 import { CarPlay } from 'react-native-carplay';
@@ -155,7 +154,7 @@ beforeEach(() => {
 });
 
 describe('CarPlayController', () => {
-  it('onConnect: üç sekmeli kök şablon kurar', async () => {
+  it('onConnect: dört sekmeli kök şablon kurar', async () => {
     await new CarPlayController(makeDeps(), noopLogger).onConnect();
 
     expect(callsOf('setRootTemplate')).toHaveLength(1);
@@ -163,56 +162,56 @@ describe('CarPlayController', () => {
       'Ana Sayfa',
       'Kitaplığın',
       'İndirilenler',
+      'Şimdi çalan',
     ]);
   });
 
-  it('Ana Sayfa başlıklı raflar gösterir', async () => {
-    const withSaved = { ...playlist, id: SAVED_PLAYLIST_ID, name: 'Sonra dinle' };
-    const deps = makeDeps({
-      getPlaylists: { execute: async () => ok([withSaved]) },
-    } as unknown as Partial<CarPlayDependencies>);
+  it("Ana Sayfa: devam girişi ve podcast'ler", async () => {
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
 
-    await new CarPlayController(deps, noopLogger).onConnect();
-
-    expect(headersOf(tabs()[0])).toEqual(['Dinlemeye devam', 'Sonra dinle']);
+    const home = tabs()[0];
+    expect(headersOf(home)).toEqual([undefined, "Podcast'ler"]);
+    // "Dinlemeye devam" bir liste gibi davranır: tek satır, alt seviyeye iner.
+    expect(home.config.sections[0].items[0].text).toBe('Dinlemeye devam');
+    expect(home.config.sections[1].items.map(i => i.text)).toEqual(['Şov 1']);
   });
 
-  it("Kitaplığın sekmesi listeleri ve podcast'leri ayrı raflarda toplar", async () => {
+  it('Kitaplığın yalnızca kullanıcı listelerini gösterir', async () => {
     await new CarPlayController(makeDeps(), noopLogger).onConnect();
 
     const library = tabs()[1];
-    expect(headersOf(library)).toEqual(['Listelerim', "Podcast'ler"]);
+    expect(headersOf(library)).toEqual(['Listelerim']);
     expect(library.config.sections[0].items.map(i => i.text)).toEqual(['Sabah']);
-    expect(library.config.sections[1].items.map(i => i.text)).toEqual(['Şov 1']);
   });
 
-  it('Ana Sayfa: devam rafından seçim kaldığı yerden çalar', async () => {
+  it('"Dinlemeye devam" önce bölümleri açar, sonra çalar', async () => {
     await new CarPlayController(makeDeps(), noopLogger).onConnect();
 
     await tabs()[0].config.onItemSelect?.({ index: 0 });
+
+    // Doğrudan çalmaz: önce bölüm listesi açılır.
+    expect(continued).toBeNull();
+    const pushed = callsOf('pushTemplate').at(-1)?.[1] as MockList;
+    expect(pushed.config.title).toBe('Dinlemeye devam');
+    // Kalan süre gösterilir, toplam süre değil.
+    expect(pushed.config.sections[0].items[0].text).toBe('Yarım kalan');
+
+    await pushed.config.onItemSelect?.({ index: 0 });
 
     expect(continued?.id).toBe('e-resume');
     expect(continued?.audioUrl).toBe('https://resume.mp3');
   });
 
-  it('raf sınırları aşılsa da index doğru satıra denk gelir', async () => {
-    // İki raf üst üste: CarPlay index'i bölümler arasında SÜREKLİDİR.
-    const withSaved = {
-      ...playlist,
-      id: SAVED_PLAYLIST_ID,
-      name: 'Sonra dinle',
-      episodes: [episode('e-saved')],
-    };
-    const deps = makeDeps({
-      getPlaylists: { execute: async () => ok([withSaved]) },
-    } as unknown as Partial<CarPlayDependencies>);
+  it('Şimdi çalan sekmesi çalan bölümü ve kuyruğu gösterir', async () => {
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
 
-    await new CarPlayController(deps, noopLogger).onConnect();
+    // İndirilenlerden çal: kuyruk kurulur ve sekme tazelenir.
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+    await flush();
 
-    // 0 → devam rafı, 1 → "Sonra dinle" rafının ilk satırı.
-    await tabs()[0].config.onItemSelect?.({ index: 1 });
-
-    expect(continued?.id).toBe('e-saved');
+    const playing = tabs()[3];
+    expect(headersOf(playing)).toEqual(['Çalıyor']);
+    expect(playing.config.sections[0].items.map(i => i.text)).toEqual(['İndirilmiş bölüm']);
   });
 
   it('indirilenlerden seçim çalar (çevrimdışı akış)', async () => {
@@ -286,34 +285,35 @@ describe('CarPlayController', () => {
 
   it('kaydet düğmesi bölümü "Sonra dinle"ye ekler', async () => {
     await new CarPlayController(makeDeps(), noopLogger).onConnect();
-    await tabs()[0].config.onItemSelect?.({ index: 0 });
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
 
     // Now Playing yapılandırmasındaki kaydet düğmesini tetikle.
     const nowPlaying = callsOf('pushTemplate').at(-1)?.[1] as {
       config?: { onButtonPressed?: (e: { id: string }) => void };
     };
     nowPlaying?.config?.onButtonPressed?.({ id: 'save' });
+    await flush();
 
-    expect(saved?.id).toBe('e-resume');
+    expect(saved?.id).toBe('e-dl');
   });
 
   it('çalarken uygulamanın kuyruğunu dokunulan listeyle kurar', async () => {
     await new CarPlayController(makeDeps(), noopLogger).onConnect();
 
-    await tabs()[0].config.onItemSelect?.({ index: 0 });
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
 
-    // Devam rafından çalmak bile bir bağlam kuyruğu bırakır: direksiyon
-    // tuşları ve "Sıradakiler" boş kalmamalı.
-    expect(queue.episodes.map(e => e.id)).toEqual(['e-resume']);
+    // Her oynatma bir bağlam kuyruğu bırakır: direksiyon tuşları ve
+    // "Sıradakiler" boş kalmamalı.
+    expect(queue.episodes.map(e => e.id)).toEqual(['e-dl']);
     expect(queue.index).toBe(0);
   });
 
   it('Now Playing tek örnektir ve köke dönülerek açılır', async () => {
     await new CarPlayController(makeDeps(), noopLogger).onConnect();
 
-    await tabs()[0].config.onItemSelect?.({ index: 0 });
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
     const first = callsOf('pushTemplate').at(-1)?.[1];
-    await tabs()[0].config.onItemSelect?.({ index: 0 });
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
     const second = callsOf('pushTemplate').at(-1)?.[1];
 
     // Paylaşılan şablon (CPNowPlayingTemplate) yeniden yaratılmaz; aynı örneği
@@ -337,25 +337,6 @@ describe('CarPlayController', () => {
     const pushed = callsOf('pushTemplate').at(-1)?.[1] as MockList;
     expect(pushed.config.title).toBe('Sıradakiler');
     expect(pushed.config.sections[0].items.map(i => i.text)).toEqual(['İndirilmiş bölüm']);
-  });
-
-  it('aynı bölüm iki rafta birden görünmez', async () => {
-    // "Sonra dinle" listesinde devam rafındaki bölüm de var.
-    const withSaved = {
-      ...playlist,
-      id: SAVED_PLAYLIST_ID,
-      name: 'Sonra dinle',
-      episodes: [{ ...episode('e-resume'), title: 'Yarım kalan' }, episode('e-baska')],
-    };
-    const deps = makeDeps({
-      getPlaylists: { execute: async () => ok([withSaved]) },
-    } as unknown as Partial<CarPlayDependencies>);
-
-    await new CarPlayController(deps, noopLogger).onConnect();
-
-    const sections = tabs()[0].config.sections;
-    expect(sections[0].items.map(i => i.text)).toEqual(['Yarım kalan']);
-    expect(sections[1].items.map(i => i.text)).toEqual(['Bölüm e-baska']);
   });
 
   it('kapakları yerel dosya adresine çevirir', async () => {
@@ -382,7 +363,7 @@ describe('CarPlayController', () => {
 
     await new CarPlayController(deps, noopLogger).onConnect();
 
-    const items = tabs()[1].config.sections[1].items;
+    const items = tabs()[0].config.sections[1].items;
     expect(items.map(i => i.text)).toEqual(['Şov 1']);
     expect(items[0].imgUrl).toBeUndefined();
   });
@@ -398,8 +379,8 @@ describe('CarPlayController', () => {
 
     await new CarPlayController(deps, noopLogger).onConnect();
 
-    // Listeler alınamadı ama devam rafı ve indirilenler yerinde.
-    expect(tabs()[0].config.sections[0].items.map(i => i.text)).toEqual(['Yarım kalan']);
+    // Listeler alınamadı ama ana sayfa ve indirilenler yerinde.
+    expect(tabs()[0].config.sections[0].items.map(i => i.text)).toEqual(['Dinlemeye devam']);
     expect(tabs()[2].config.sections[0].items.map(i => i.text)).toEqual(['İndirilmiş bölüm']);
   });
 

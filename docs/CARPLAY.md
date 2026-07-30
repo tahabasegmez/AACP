@@ -6,22 +6,31 @@ indirmeler tek yerde yaşar.
 
 ## 1. Ekran yapısı
 
-Düzen **Spotify'ın CarPlay arayüzünü** izler: üç sekme (`TabBarTemplate`),
-başlıklı raflar ve her satırda kapak görseli. Ana Sayfa tek dokunuşla çalar,
-Kitaplığın alt seviyeye iner.
+Kök dört sekmedir (`TabBarTemplate`). Her sekme başlıklı gruplar ve kapaklı
+satırlardan oluşur.
 
-| Sekme | Raflar | Neden |
+| Sekme | İçerik | Neden |
 |---|---|---|
-| **Ana Sayfa** (`house.fill`) | "Dinlemeye devam", "Sonra dinle" | Araçtaki en sık eylem; tek dokunuşla devam |
-| **Kitaplığın** (`books.vertical.fill`) | "Listelerim", "Podcast'ler" | Kullanıcının seçkisi ve katalog; ikisi de alt seviyeye iner |
+| **Ana Sayfa** (`house.fill`) | "Dinlemeye devam" girişi + "Podcast'ler" | Araçtaki iki temel ihtiyaç: kaldığın yer ve katalog |
+| **Kitaplığın** (`books.vertical.fill`) | "Listelerim" ("Sonra dinle" dahil) | Kullanıcının kendi seçkisi |
 | **İndirilenler** (`arrow.down.circle.fill`) | "Çevrimdışı dinle" | Araçta şebeke kopar; bunlar her zaman çalar |
+| **Şimdi çalan** (`play.circle.fill`) | "Çalıyor" + "Sıradakiler" | Ne çalıyor, sırada ne var |
 
-Ana Sayfa rafları **8 satırla** sınırlıdır (Spotify de kısa raflar gösterir);
-sürüş sırasında uzun listede gezinmek dikkat dağıtır. Boş raflar hiç
-gösterilmez, sekme tümüyle boşsa açıklayıcı bir boş görünüm çıkar
-(`emptyViewTitleVariants`).
+**"Dinlemeye devam" bir liste gibi davranır:** kökte tek satırdır, dokununca
+bölümleri açılır. Kök ekranın kısa kalması, sürüş sırasında uzun bir rafta
+gezinmekten güvenlidir. Açılan listede toplam süre değil **kalan süre** yazar.
+
+Boş gruplar hiç gösterilmez; sekme tümüyle boşsa açıklayıcı bir boş görünüm
+çıkar (`emptyViewTitleVariants`).
 
 Bir bölüme dokunmak **kaldığı yerden** çalar ve Now Playing ekranını açar.
+
+> **Sekme çubuğunun görünümü uygulamanın kontrolünde DEĞİLDİR.** Konum, hizalama
+> ve stil CarPlay tarafından çizilir; uygulama yalnızca sekmelerin **başlığını
+> ve SF Symbol simgesini** verir. Aynı sebeple Liquid Glass gibi sistem
+> tasarımlarına geçiş de kendiliğinden olur: şablonları iOS çizdiği için
+> uygulamada yapılacak bir "tasarım göçü" yoktur. Bize düşen sistem şablonları
+> ve sistem simgeleri kullanmaktır — arayüzde özel çizim yoktur.
 
 ### Satır index'i tuzağı
 
@@ -34,7 +43,17 @@ kaymasına açıktı.
 
 ## 2. Now Playing
 
-Sistem oynatma ekranı kullanılır; üzerine şunlar eklenmiştir:
+İki parça vardır ve ayrımı bilinçlidir:
+
+1. **"Şimdi çalan" sekmesi (bizim)** — çalan bölüm ve kuyruğun devamı. İçeriği
+   uygulamanın kendi durumundan (`PlaybackQueueService` + çalan bölüm kimliği)
+   gelir, dolayısıyla her zaman günceldir ve biz biçimlendiririz.
+2. **Sistem Now Playing ekranı (iOS'un)** — taşıma kontrolleri. İçeriğini
+   (başlık, sanatçı, kapak, süre) iOS `MPNowPlayingInfoCenter`'dan kendisi
+   doldurur; uygulama oraya yalnızca track meta verisini yazar
+   (`episodeToTrack`). Kilit ekranındaki kartla aynı kaynaktır.
+
+"Çalıyor" satırına dokunmak sistem ekranını açar. Sistem ekranına eklenenler:
 
 | Öğe | Nereden gelir |
 |---|---|
