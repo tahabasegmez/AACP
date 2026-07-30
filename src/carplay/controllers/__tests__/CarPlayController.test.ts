@@ -69,7 +69,7 @@ const playlist: Playlist = {
 /** Testlerin şablonlara baktığı yüzey (mock'un sakladığı config). */
 interface MockSection {
   header?: string;
-  items: { text: string }[];
+  items: { text: string; image?: { uri: string } }[];
 }
 interface MockList {
   config: {
@@ -78,6 +78,9 @@ interface MockList {
     onItemSelect?: (e: { index: number }) => Promise<void>;
   };
 }
+
+/** Bekleyen ateşle-unut işleri (kapak indirme, şablon açma) tamamlar. */
+const flush = (): Promise<void> => new Promise(resolve => setImmediate(resolve));
 
 /** Kaydedilen çağrıları ada göre bulur. */
 const callsOf = (name: string) => tp.__getCalls().filter(([n]) => n === name);
@@ -132,6 +135,8 @@ const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies
       getState: async () => ({ ...INITIAL_PLAYBACK_STATE, rate: 1 }),
       subscribe: () => () => undefined,
     },
+    // CarPlay uzak kapak kabul etmez; port yereli döner.
+    artwork: { localUri: async (url: string) => `file:///cache/${url.split('/').pop()}` },
     playbackQueue: {
       setQueue: (episodes: readonly Episode[], index: number) => {
         queue = { episodes, index };
@@ -327,6 +332,7 @@ describe('CarPlayController', () => {
       config?: { onUpNextButtonPressed?: () => void };
     };
     nowPlaying?.config?.onUpNextButtonPressed?.();
+    await flush();
 
     const pushed = callsOf('pushTemplate').at(-1)?.[1] as MockList;
     expect(pushed.config.title).toBe('Sıradakiler');
@@ -350,6 +356,37 @@ describe('CarPlayController', () => {
     const sections = tabs()[0].config.sections;
     expect(sections[0].items.map(i => i.text)).toEqual(['Yarım kalan']);
     expect(sections[1].items.map(i => i.text)).toEqual(['Bölüm e-baska']);
+  });
+
+  it('kapakları yerel dosya adresine çevirir', async () => {
+    const withArt = {
+      ...playlist,
+      episodes: [{ ...episode('e-pl'), imageUrl: 'https://cdn/kapak.jpg' }],
+    };
+    const deps = makeDeps({
+      getPlaylists: { execute: async () => ok([withArt]) },
+    } as unknown as Partial<CarPlayDependencies>);
+
+    await new CarPlayController(deps, noopLogger).onConnect();
+    await tabs()[1].config.onItemSelect?.({ index: 0 });
+
+    // Uzak adres verilirse CarPlay satırı kapaksız çizer ve native hata üretir.
+    const pushed = callsOf('pushTemplate').at(-1)?.[1] as MockList;
+    expect(pushed.config.sections[0].items[0].image).toEqual({
+      uri: 'file:///cache/kapak.jpg',
+    });
+  });
+
+  it('indirilemeyen kapak satırı düşürmez', async () => {
+    const deps = makeDeps({
+      artwork: { localUri: async () => undefined },
+    } as unknown as Partial<CarPlayDependencies>);
+
+    await new CarPlayController(deps, noopLogger).onConnect();
+
+    const items = tabs()[1].config.sections[1].items;
+    expect(items.map(i => i.text)).toEqual(['Şov 1']);
+    expect(items[0].image).toBeUndefined();
   });
 
   it('bir kaynak çökerse diğer sekmeler yine dolar', async () => {

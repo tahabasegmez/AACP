@@ -21,9 +21,11 @@ import {
   CarPlaySection,
   buildList,
   episodesToItems,
+  imageUrls,
   playlistsToItems,
   resumeToItems,
   showsToItems,
+  withLocalImages,
   withoutImages,
 } from '../templates/sections';
 
@@ -57,6 +59,7 @@ class TabList {
       emptySubtitle: string;
     },
     private readonly logger: Logger,
+    private readonly render: (sections: readonly CarPlaySection[]) => Promise<CarPlaySection[]>,
   ) {
     this.template = new ListTemplate({
       title,
@@ -77,15 +80,16 @@ class TabList {
     });
   }
 
-  update(list: CarPlayList): void {
+  async update(list: CarPlayList): Promise<void> {
     this.actions = list.actions;
+    const sections = await this.render(list.sections);
     try {
-      this.template.updateSections(list.sections);
+      this.template.updateSections(sections);
     } catch (error) {
-      // Kapak çözümlemesi patlarsa sekmeyi boş bırakma: kapaksız da olsa
-      // içerik göster (bkz. docs/CARPLAY.md — "object is not a function").
+      // Kapaklar çizilemezse sekmeyi boş bırakma: kapaksız da olsa içerik
+      // göster (bkz. docs/CARPLAY.md).
       this.logger.error(`CarPlay: "${this.title}" kapakları çizilemedi`, error);
-      this.template.updateSections(withoutImages(list.sections));
+      this.template.updateSections(withoutImages(sections));
     }
   }
 }
@@ -181,6 +185,7 @@ export class CarPlayController {
           emptySubtitle: 'Telefonda bir bölüm başlat, buradan devam et',
         },
         this.logger,
+        sections => this.localize(sections),
       );
 
       this.library = new TabList(
@@ -191,6 +196,7 @@ export class CarPlayController {
           emptySubtitle: 'Telefonda liste oluştur ya da podcast takip et',
         },
         this.logger,
+        sections => this.localize(sections),
       );
 
       this.downloads = new TabList(
@@ -201,6 +207,7 @@ export class CarPlayController {
           emptySubtitle: 'Telefonda indir, şebeke olmadan dinle',
         },
         this.logger,
+        sections => this.localize(sections),
       );
 
       CarPlay.setRootTemplate(
@@ -291,9 +298,42 @@ export class CarPlayController {
     const allPlaylists = playlists ?? [];
     const downloaded = (downloads ?? []).filter(item => item.status === 'downloaded');
 
-    this.home?.update(this.homeList(resumeItems, allPlaylists));
-    this.library?.update(this.libraryList(allPlaylists));
-    this.downloads?.update(this.downloadsList(downloaded));
+    await Promise.all([
+      this.home?.update(this.homeList(resumeItems, allPlaylists)),
+      this.library?.update(this.libraryList(allPlaylists)),
+      this.downloads?.update(this.downloadsList(downloaded)),
+    ]);
+  }
+
+  /**
+   * Kapakları yerel dosyalara çevirir.
+   *
+   * CarPlay şablonları uzak görsel KABUL ETMEZ: `https://` adresi verilen satır
+   * kapaksız çizilir ve native taraf ana iş parçacığında hata üretir. Bu yüzden
+   * görseller önceden indirilip `file://` adresiyle verilir. İndirilemeyen
+   * kapaklar sessizce düşer, satır yine görünür.
+   */
+  private async localize(sections: readonly CarPlaySection[]): Promise<CarPlaySection[]> {
+    const urls = imageUrls(sections);
+    if (urls.length === 0) {
+      return [...sections];
+    }
+
+    const resolved = new Map<string, string>();
+    await Promise.all(
+      urls.map(async url => {
+        try {
+          const local = await this.deps.artwork.localUri(url);
+          if (local) {
+            resolved.set(url, local);
+          }
+        } catch (error) {
+          this.logger.warn('CarPlay: kapak indirilemedi', error);
+        }
+      }),
+    );
+
+    return withLocalImages(sections, resolved);
   }
 
   /**
@@ -387,7 +427,7 @@ export class CarPlayController {
   // --- alt seviye listeler -------------------------------------------------
 
   /** Bölüm listesi açar (liste, şov ya da kuyruk içeriği). */
-  private pushEpisodes(title: string, episodes: readonly Episode[]): void {
+  private async pushEpisodes(title: string, episodes: readonly Episode[]): Promise<void> {
     const list = buildList([
       {
         items: episodesToItems(episodes, this.currentEpisodeId),
@@ -413,12 +453,13 @@ export class CarPlayController {
       );
     };
 
+    const sections = await this.localize(list.sections);
     try {
-      open(list.sections);
+      open(sections);
     } catch (error) {
       // Sekmelerdeki ile aynı yedek: kapaksız da olsa listeyi göster.
       this.logger.error(`CarPlay: "${title}" kapakları çizilemedi`, error);
-      open(withoutImages(list.sections));
+      open(withoutImages(sections));
     }
   }
 
@@ -523,7 +564,7 @@ export class CarPlayController {
       this.logger.info('CarPlay: kuyruk boş, "Sıradakiler" açılmadı');
       return;
     }
-    this.pushEpisodes('Sıradakiler', upcoming);
+    this.run('sıradakiler açılamadı', () => this.pushEpisodes('Sıradakiler', upcoming));
   }
 
   /** Çalan bölümün şovunu açar (Now Playing'deki şov düğmesi). */

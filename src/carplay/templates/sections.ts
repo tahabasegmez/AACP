@@ -59,6 +59,39 @@ export const buildList = (groups: readonly CarPlayGroup[]): CarPlayList => {
   };
 };
 
+/** Bölümlerdeki benzersiz kapak adresleri — önceden indirmek için. */
+export const imageUrls = (sections: readonly CarPlaySection[]): string[] => [
+  ...new Set(
+    sections.flatMap(section =>
+      section.items.map(item => item.image?.uri).filter((uri): uri is string => !!uri),
+    ),
+  ),
+];
+
+/**
+ * Kapak adreslerini yerel karşılıklarıyla değiştirir.
+ *
+ * CarPlay şablonları YALNIZCA yerel görsel kabul eder; uzak adres verilen satır
+ * kapaksız çizilir ve ana iş parçacığında hata üretir. Haritada karşılığı
+ * olmayan (indirilemeyen) kapaklar tümüyle düşürülür.
+ */
+export const withLocalImages = (
+  sections: readonly CarPlaySection[],
+  local: ReadonlyMap<string, string>,
+): CarPlaySection[] =>
+  sections.map(section => ({
+    ...section,
+    items: section.items.map(item => {
+      const resolved = item.image ? local.get(item.image.uri) : undefined;
+      if (resolved) {
+        return { ...item, image: { uri: resolved } };
+      }
+      const copy = { ...item };
+      delete copy.image;
+      return copy;
+    }),
+  }));
+
 /**
  * Bölümleri kapaksız kopyalar.
  *

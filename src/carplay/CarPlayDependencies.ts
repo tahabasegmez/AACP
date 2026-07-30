@@ -1,3 +1,4 @@
+import { ArtworkCache } from '@core/ports';
 import { AudioPlayerService, PlaybackQueueService } from '@domain/services';
 import {
   ContinueEpisode,
@@ -50,6 +51,13 @@ export interface CarPlayDependencies {
    * kopyasını tutmaz.
    */
   readonly playbackQueue: PlaybackQueueService;
+
+  // --- görseller ----------------------------------------------------------
+  /**
+   * Kapakları yerelleştirir. CarPlay uzak görsel kabul etmediği için ŞART:
+   * satırlara `file://` adresi verilir.
+   */
+  readonly artwork: ArtworkCache;
 
   // --- sesli komut --------------------------------------------------------
   /** Sesli sorguyu çalınabilir bir bölüme çevirir (Siri / sesli arama). */

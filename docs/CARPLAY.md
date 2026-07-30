@@ -89,9 +89,31 @@ boş görünürdü.
 
 ## 3. Kapak görselleri
 
-Listelerde kapaklar gösterilir (`ListItem.image`). Görseller uzak adresten
-yüklenir; çevrimdışıyken ya da yüklenemediğinde CarPlay yer tutucu gösterir ve
-liste yine çalışır.
+Listelerde kapaklar gösterilir (`ListItem.image`) ama **yalnızca yerel dosya
+adresiyle**. Bu bir tercih değil, kısıt:
+
+`https://` adresi verilen satırda native taraf `RCTConvert`'e düşer ve
+*"Only local files or data URIs are supported"* hatası verir. Üstelik bu
+dönüşüm **ana iş parçacığında** çalışır — liste her tazelendiğinde satır başına
+bir hata, sonuçta donma ve çökme (Thread 1).
+
+Bu yüzden kapaklar önce indirilir:
+
+```
+Episode.imageUrl (https://…)
+   └─ ArtworkCache portu            ← core/ports
+        └─ BlobUtilArtworkCache     ← infrastructure (önbellek dizini)
+             └─ file:///…/aacp_artwork/<hash>.jpg
+                  └─ CarPlay satırı
+```
+
+- Görseller **önbellek dizinine** yazılır: kullanıcı verisi değildir, iOS yer
+  sıkıştığında temizleyebilir, kaybolursa yeniden inilir.
+- Aynı adres için eşzamanlı istekler tek indirmede birleşir.
+- İndirilemeyen kapak sessizce **düşer**; satır kapaksız görünür, liste çalışır
+  (`withLocalImages`).
+- Adres → dosya eşlemesi saf fonksiyonlardadır (`imageUrls`, `withLocalImages`)
+  ve ayrı test edilir.
 
 Çalan bölüm `isPlaying` ile işaretlenir; oynatma değiştikçe sekmeler tazelenir
 (`watchPlayback`) — böylece hem işaret hem "Dinlemeye devam" rafı güncel kalır.

@@ -2,9 +2,11 @@ import { Episode, PlaybackProgress, Playlist, Show } from '@domain/entities';
 import {
   buildList,
   episodesToItems,
+  imageUrls,
   playlistsToItems,
   resumeToItems,
   showsToItems,
+  withLocalImages,
   withoutImages,
 } from '../sections';
 
@@ -171,6 +173,36 @@ describe('buildList', () => {
     expect(list.sections).toHaveLength(1);
     expect(list.sections[0].header).toBe('Dolu');
     expect(list.actions).toHaveLength(1);
+  });
+
+  it('imageUrls benzersiz kapak adreslerini toplar', () => {
+    const sections = [
+      { items: [{ text: 'a', image: { uri: 'u1' } }, { text: 'b' }] },
+      { items: [{ text: 'c', image: { uri: 'u1' } }, { text: 'd', image: { uri: 'u2' } }] },
+    ];
+
+    expect(imageUrls(sections)).toEqual(['u1', 'u2']);
+  });
+
+  it('withLocalImages kapakları yerel adresle değiştirir', () => {
+    const sections = [
+      {
+        items: [
+          { text: 'a', image: { uri: 'https://uzak/1.jpg' } },
+          { text: 'b', image: { uri: 'https://uzak/2.jpg' } },
+        ],
+      },
+    ];
+
+    const result = withLocalImages(
+      sections,
+      new Map([['https://uzak/1.jpg', 'file:///c/1.jpg']]),
+    );
+
+    expect(result[0].items[0].image).toEqual({ uri: 'file:///c/1.jpg' });
+    // Karşılığı olmayan kapak DÜŞER: uzak adres CarPlay'de hata üretir.
+    expect(result[0].items[1].image).toBeUndefined();
+    expect(result[0].items[1].text).toBe('b');
   });
 
   it('withoutImages kapakları düşürür, geri kalanı korur', () => {
