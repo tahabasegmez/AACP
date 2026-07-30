@@ -309,18 +309,43 @@ describe('CarPlayController', () => {
     expect(queue.index).toBe(0);
   });
 
-  it('Now Playing tek örnektir ve köke dönülerek açılır', async () => {
+  it('Now Playing aynı örneği ikinci kez yığına EKLEMEZ', async () => {
     await new CarPlayController(makeDeps(), noopLogger).onConnect();
 
     await tabs()[2].config.onItemSelect?.({ index: 0 });
-    const first = callsOf('pushTemplate').at(-1)?.[1];
-    await tabs()[2].config.onItemSelect?.({ index: 0 });
-    const second = callsOf('pushTemplate').at(-1)?.[1];
+    const pushes = callsOf('pushTemplate').length;
+    const template = callsOf('pushTemplate').at(-1)?.[1];
 
-    // Paylaşılan şablon (CPNowPlayingTemplate) yeniden yaratılmaz; aynı örneği
-    // iki kez yığına eklemek iOS'ta çökmeye yol açar, bu yüzden önce köke dönülür.
-    expect(second).toBe(first);
-    expect(callsOf('popToRootTemplate')).toHaveLength(2);
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+
+    // Paylaşılan şablonu (CPNowPlayingTemplate) iki kez eklemek iOS'ta çökertir;
+    // yığında olduğu için üstündekiler kaldırılıp ona dönülür.
+    expect(callsOf('pushTemplate')).toHaveLength(pushes);
+    expect(callsOf('popToTemplate').at(-1)?.[1]).toBe(template);
+  });
+
+  it('Now Playing ekrandayken tekrar açılmaya çalışılmaz', async () => {
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+
+    const template = callsOf('pushTemplate').at(-1)?.[1] as {
+      config: { onDidAppear: () => void };
+    };
+    template.config.onDidAppear();
+
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+
+    // Zaten ekranda: ne itilir ne de yığın oynatılır.
+    expect(callsOf('popToTemplate')).toHaveLength(0);
+  });
+
+  it('kökteyken yığından şablon çıkarmaya çalışmaz', async () => {
+    // CarPlay kökte pop çağrısını "No templates were available to be popped"
+    // hatasıyla bildirir; hiç çağrılmamalı.
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+
+    expect(callsOf('popToRootTemplate')).toHaveLength(0);
   });
 
   it('"Sıradakiler" kuyruğu çalan bölümden itibaren gösterir', async () => {
@@ -343,7 +368,12 @@ describe('CarPlayController', () => {
   it('"Şimdi çalan" sekmesine dokununca oynatıcıyı açar', async () => {
     await new CarPlayController(makeDeps(), noopLogger).onConnect();
     await tabs()[2].config.onItemSelect?.({ index: 0 });
-    const nowPlaying = callsOf('pushTemplate').at(-1)?.[1];
+    const nowPlaying = callsOf('pushTemplate').at(-1)?.[1] as {
+      config: { onDidAppear: () => void; onDidDisappear: () => void };
+    };
+    // Kullanıcı oynatıcıdan geri döndü: şablon yığından çıktı.
+    nowPlaying.config.onDidAppear();
+    nowPlaying.config.onDidDisappear();
 
     const root = callsOf('setRootTemplate').at(-1)?.[1] as {
       config: {

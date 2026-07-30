@@ -133,6 +133,12 @@ export class CarPlayController {
    * tek örnek tutarız (bkz. `showNowPlaying`).
    */
   private nowPlayingTemplate?: NowPlayingTemplate;
+  /** Now Playing şu an EKRANDA mı? (şablonun kendi olaylarından) */
+  private nowPlayingVisible = false;
+  /** Now Playing YIĞINDA mı? (ekranda olmayabilir: üstüne bir şey itilmiştir) */
+  private nowPlayingInStack = false;
+  /** Now Playing'in üstüne biz mi ittik? Yığında kalıp kalmadığını bu ayırır. */
+  private pushedOverNowPlaying = false;
 
   /** Katalog — Kitaplığın sekmesi ve Now Playing'deki şov düğmesi için. */
   private shows: readonly Show[] = [];
@@ -168,6 +174,9 @@ export class CarPlayController {
     CarPlay.enableNowPlaying(false);
     // Şablonlar araçla birlikte gider; yeniden bağlanınca kök baştan kurulur.
     this.nowPlayingTemplate = undefined;
+    this.nowPlayingVisible = false;
+    this.nowPlayingInStack = false;
+    this.pushedOverNowPlaying = false;
   }
 
   /**
@@ -521,6 +530,9 @@ export class CarPlayController {
     ]);
 
     const open = (sections: CarPlaySection[]): void => {
+      // Now Playing'in üstüne itiyorsak şablon yığında kalacak; bunu
+      // `showNowPlaying` bilmek zorunda.
+      this.pushedOverNowPlaying = this.nowPlayingVisible;
       CarPlay.pushTemplate(
         new ListTemplate({
           title,
@@ -598,17 +610,28 @@ export class CarPlayController {
    * Now Playing ekranını gösterir.
    *
    * CarPlay'in Now Playing şablonu bir SİNGLETON'dır (`CPNowPlayingTemplate`
-   * paylaşılan örnek). Bu yüzden:
+   * paylaşılan örnek) ve aynı örneği yığına İKİ KEZ eklemek iOS'ta istisna
+   * fırlatıp uygulamayı çökertir. Bu yüzden üç durum ayrılır:
    *
-   *  - şablon bir kez kurulur (`nowPlaying`), her çalışta yeniden yaratılmaz —
-   *    aksi halde her oynatmada bir olay dinleyicisi daha eklenirdi,
-   *  - yığına aynı örneği İKİ KEZ eklemek iOS'ta istisna fırlatır ve uygulamayı
-   *    ÇÖKERTİR; bu yüzden önce köke dönülür, sonra eklenir. Böylece Now Playing
-   *    her zaman kökün bir üstündedir ve durum takibi gerekmez.
+   *  - **ekranda** → yapacak bir şey yok,
+   *  - **yığında ama ekranda değil** (üstüne bir liste itilmiş) → o listeler
+   *    kaldırılıp şablona dönülür,
+   *  - **yığında değil** → eklenir.
+   *
+   * Körlemesine `popToRootTemplate` çağrılmaz: kökteyken CarPlay bunu
+   * *"No templates were available to be popped"* hatasıyla bildirir.
    */
   private showNowPlaying(): void {
-    CarPlay.popToRootTemplate();
-    CarPlay.pushTemplate(this.nowPlaying());
+    const template = this.nowPlaying();
+    if (this.nowPlayingVisible) {
+      return;
+    }
+    if (this.nowPlayingInStack) {
+      CarPlay.popToTemplate(template);
+      return;
+    }
+    CarPlay.pushTemplate(template);
+    this.nowPlayingInStack = true;
   }
 
   /** Paylaşılan Now Playing şablonunu kurar (bir kez). */
@@ -618,6 +641,17 @@ export class CarPlayController {
     }
 
     this.nowPlayingTemplate = new NowPlayingTemplate({
+      onDidAppear: () => {
+        this.nowPlayingVisible = true;
+        this.nowPlayingInStack = true;
+      },
+      onDidDisappear: () => {
+        this.nowPlayingVisible = false;
+        // Üstüne biz bir liste ittiysek şablon yığında KALIR; kullanıcı geri
+        // döndüyse yığından çıkmıştır. Ayrımı yapan tek bilgi budur.
+        this.nowPlayingInStack = this.pushedOverNowPlaying;
+        this.pushedOverNowPlaying = false;
+      },
       // Düğmeler sabit kalır; ne yapacaklarına dokunulduğu anda güncel duruma
       // bakarak karar verilir (şablon yeniden yaratılamadığı için).
       upNextButtonEnabled: true,

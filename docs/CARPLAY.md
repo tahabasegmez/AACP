@@ -82,9 +82,21 @@ Bundan iki kural doğar:
    olay dinleyicisi daha bağlamak olurdu. Bu yüzden düğme davranışları
    dokunulduğu anda güncel duruma bakar, şablona gömülmez.
 2. **Aynı örnek yığına iki kez eklenemez** — iOS istisna fırlatır ve uygulama
-   ÇÖKER. Bu yüzden Now Playing açılırken önce köke dönülür
-   (`popToRootTemplate`), sonra eklenir. Böylece Now Playing daima kökün bir
-   üstündedir ve ayrıca durum takibi gerekmez.
+   ÇÖKER. Bu yüzden açılmadan önce şablonun nerede olduğuna bakılır:
+
+   | Durum | Yapılan |
+   |---|---|
+   | Ekranda | Hiçbir şey |
+   | Yığında ama ekranda değil (üstüne liste itilmiş) | `popToTemplate` ile ona dönülür |
+   | Yığında değil | `pushTemplate` |
+
+   Durum şablonun kendi `didAppear`/`didDisappear` olaylarından izlenir. Tek
+   belirsizlik "ekrandan kayboldu" anıdır: üstüne biz bir liste ittiysek şablon
+   yığında kalır, kullanıcı geri döndüyse kalmaz — ayrımı `pushedOverNowPlaying`
+   yapar.
+
+   > Körlemesine `popToRootTemplate` çağrılmaz: kökteyken CarPlay bunu
+   > *"No templates were available to be popped"* hatasıyla bildirir.
 
 `enableNowPlaying(true)` de bağlantı başında bir kez çağrılır (her oynatmada
 değil), bağlantı koptuğunda kapatılır.

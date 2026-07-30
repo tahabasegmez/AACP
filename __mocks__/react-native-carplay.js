@@ -13,6 +13,7 @@ const CarPlay = {
   pushTemplate: t => calls.push(['pushTemplate', t]),
   popTemplate: () => calls.push(['popTemplate', undefined]),
   popToRootTemplate: () => calls.push(['popToRootTemplate', undefined]),
+  popToTemplate: t => calls.push(['popToTemplate', t]),
   enableNowPlaying: b => calls.push(['enableNowPlaying', b]),
   registerOnConnect: cb => {
     CarPlay.__onConnect = cb;
