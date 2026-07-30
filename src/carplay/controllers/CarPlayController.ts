@@ -144,6 +144,8 @@ export class CarPlayController {
   private shows: readonly Show[] = [];
 
   private currentEpisodeId: string | null = null;
+  /** Son bilinen oynatma hızı — "Şimdi çalan" sekmesinde gösterilir. */
+  private rate = 1;
   private unsubscribePlayback?: () => void;
 
   /** Süren tazeleme; aynı anda ikinci bir tur başlatılmaz. */
@@ -479,7 +481,7 @@ export class CarPlayController {
 
     return buildList([
       {
-        header: 'Çalıyor',
+        header: this.rate === 1 ? 'Çalıyor' : `Çalıyor · ${this.rate}×`,
         items: current ? episodesToItems([current], this.currentEpisodeId) : [],
         actions: current ? [() => this.showNowPlaying()] : [],
       },
@@ -529,32 +531,32 @@ export class CarPlayController {
       },
     ]);
 
-    const open = (sections: CarPlaySection[]): void => {
-      // Now Playing'in üstüne itiyorsak şablon yığında kalacak; bunu
-      // `showNowPlaying` bilmek zorunda.
-      this.pushedOverNowPlaying = this.nowPlayingVisible;
-      CarPlay.pushTemplate(
-        new ListTemplate({
-          title,
-          sections: asListSections(sections),
-          onItemSelect: async ({ index }) => {
-            try {
-              await list.actions[index]?.();
-            } catch (error) {
-              this.logger.error(`CarPlay: "${title}" satırı açılamadı`, error);
-            }
-          },
-        }),
-      );
-    };
+    // Now Playing'in üstüne itiyorsak şablon yığında kalacak; bunu
+    // `showNowPlaying` bilmek zorunda.
+    this.pushedOverNowPlaying = this.nowPlayingVisible;
 
-    const sections = await this.localize(list.sections);
+    // Liste ÖNCE kapaksız açılır: kapak indirmesini beklemek, dokunuşla ekranın
+    // gelmesi arasında sessiz bir gecikme yaratıyordu. Kapaklar hazır olunca
+    // aynı şablon yerinde güncellenir.
+    const template = new ListTemplate({
+      title,
+      sections: asListSections(withoutImages(list.sections)),
+      onItemSelect: async ({ index }) => {
+        try {
+          await list.actions[index]?.();
+        } catch (error) {
+          this.logger.error(`CarPlay: "${title}" satırı açılamadı`, error);
+        }
+      },
+    });
+    CarPlay.pushTemplate(template);
+
     try {
-      open(sections);
+      const sections = await this.localize(list.sections);
+      template.updateSections(asListSections(sections));
     } catch (error) {
-      // Sekmelerdeki ile aynı yedek: kapaksız da olsa listeyi göster.
+      // Kapaklar gelmedi: liste kapaksız haliyle çalışmaya devam eder.
       this.logger.error(`CarPlay: "${title}" kapakları çizilemedi`, error);
-      open(withoutImages(sections));
     }
   }
 
@@ -588,6 +590,13 @@ export class CarPlayController {
     queue: readonly Episode[] = [episode],
     index = 0,
   ): Promise<void> {
+    // Zaten çalan bölüme dokunmak onu BAŞTAN başlatmamalı: yalnızca oynatıcıyı
+    // aç. Aksi halde kullanıcı dinlediği yeri kaybederdi.
+    if (episode.id === this.currentEpisodeId) {
+      this.showNowPlaying();
+      return;
+    }
+
     // Kuyruk oynatmadan ÖNCE kurulur: oynatma başlar başlamaz gelen
     // "sonraki bölüm" komutu doğru sırayı bulsun.
     this.deps.playbackSession.setContext(queue.map(item => this.withShow(item)), index);
@@ -660,17 +669,12 @@ export class CarPlayController {
       // Şov adına dokunmak o şovun bölümlerine götürür (Spotify davranışı).
       albumArtistButtonEnabled: true,
       onAlbumArtistButtonPressed: () => this.openCurrentShow(),
-      buttons: [
-        // Oynatma hızı — sistem hız düğmesi.
-        { id: 'rate', type: 'playback' },
-        // Çalan bölümü "Sonra dinle" listesine ekler.
-        { id: 'save', type: 'add-to-library' },
-      ],
+      // Yalnızca hız düğmesi. "Sonra dinle'ye ekle" (+) araçta anlamlı bir
+      // eylem değil; sürüş sırasında listeleme değil dinleme yapılır.
+      buttons: [{ id: 'rate', type: 'playback' }],
       onButtonPressed: ({ id }) => {
         if (id === 'rate') {
           this.run('hız değiştirilemedi', () => this.cycleSpeed());
-        } else if (id === 'save') {
-          this.run('kaydedilemedi', () => this.toggleSaved());
         }
       },
     });
@@ -723,21 +727,19 @@ export class CarPlayController {
     return episodes[index] ?? episodes.find(e => e.id === this.currentEpisodeId);
   }
 
-  /** Çalan bölümü "Sonra dinle" listesine ekler/çıkarır. */
-  private async toggleSaved(): Promise<void> {
-    const episode = this.currentEpisode();
-    if (!episode) {
-      return;
-    }
-    await this.deps.toggleSavedEpisode.execute({ episode });
-    this.refresh();
-  }
-
-  /** Hız düğmesi — sabit değerler arasında dolaşır. */
+  /**
+   * Hız düğmesi — sabit değerler arasında dolaşır.
+   *
+   * Seçilen hız "Şimdi çalan" sekmesinde de yazılır: sistem düğmesinin üstündeki
+   * etiketi iOS `MPNowPlayingInfoCenter`'dan okur ve oraya JS'ten yazılamaz,
+   * dolayısıyla geri bildirimi kendi yüzeyimizde veririz.
+   */
   private async cycleSpeed(): Promise<void> {
     const state = await this.deps.audioPlayer.getState();
     const next = SPEEDS[(SPEEDS.indexOf(state.rate) + 1) % SPEEDS.length];
     await this.deps.setPlaybackRate.execute({ rate: next });
+    this.rate = next;
+    this.refresh();
   }
 
   /**

@@ -95,7 +95,6 @@ const headersOf = (tab: MockList): (string | undefined)[] =>
 
 let continued: Episode | null = null;
 let rate: number | null = null;
-let saved: Episode | null = null;
 /** Oynatma oturumunun testteki karşılığı (tek gerçek kaynak). */
 let queue: { episodes: readonly Episode[]; index: number } = { episodes: [], index: -1 };
 
@@ -124,12 +123,6 @@ const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies
         return ok(undefined);
       },
     },
-    toggleSavedEpisode: {
-      execute: async ({ episode: e }: { episode: Episode }) => {
-        saved = e;
-        return ok(true);
-      },
-    },
     resolveVoiceQuery: { execute: async () => ok(null) },
     audioPlayer: {
       getState: async () => ({ ...INITIAL_PLAYBACK_STATE, rate: 1 }),
@@ -150,7 +143,6 @@ beforeEach(() => {
   tp.__reset();
   continued = null;
   rate = null;
-  saved = null;
   queue = { episodes: [], index: -1 };
 });
 
@@ -284,18 +276,26 @@ describe('CarPlayController', () => {
     expect(rate).toBe(1.25);
   });
 
-  it('kaydet düğmesi bölümü "Sonra dinle"ye ekler', async () => {
+  it('oynatıcıda yalnızca hız düğmesi bulunur', async () => {
     await new CarPlayController(makeDeps(), noopLogger).onConnect();
     await tabs()[2].config.onItemSelect?.({ index: 0 });
 
-    // Now Playing yapılandırmasındaki kaydet düğmesini tetikle.
     const nowPlaying = callsOf('pushTemplate').at(-1)?.[1] as {
-      config?: { onButtonPressed?: (e: { id: string }) => void };
+      config: { buttons: { id: string }[] };
     };
-    nowPlaying?.config?.onButtonPressed?.({ id: 'save' });
-    await flush();
+    // "Sonra dinle'ye ekle" (+) araçta anlamlı bir eylem değil.
+    expect(nowPlaying.config.buttons.map(b => b.id)).toEqual(['rate']);
+  });
 
-    expect(saved?.id).toBe('e-dl');
+  it('zaten çalan bölüme dokunmak onu baştan başlatmaz', async () => {
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+    continued = null;
+
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+
+    // Dinlenen yer kaybolmamalı: yalnızca oynatıcı açılır.
+    expect(continued).toBeNull();
   });
 
   it('çalarken uygulamanın kuyruğunu dokunulan listeyle kurar', async () => {

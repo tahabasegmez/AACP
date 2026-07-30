@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, View } from 'react-native';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
-import { CoverImage, Icon, IconName, Text } from '../../../ui';
+import { CoverImage, Icon, IconName, NowPlayingBars, Text } from '../../../ui';
+import { useNowPlaying } from '../../player/useNowPlaying';
 
 const DEFAULT_W = 236;
 
@@ -43,6 +44,11 @@ export const EpisodeMiniCard: React.FC<{
   durationSec?: number;
   /** Küçük durum rozeti (ör. indirilmiş bölüm). */
   badge?: { icon: IconName; label: string };
+  /**
+   * Verilirse kart "çalıyor" durumunu KENDİSİ sorar (bkz. useNowPlaying).
+   * Her çağıran yerde hesaplatmak, yeni liste eklendiğinde unutulmaya açıktı.
+   */
+  episodeId?: string;
   onPress: () => void;
   width?: number;
 }> = ({
@@ -53,10 +59,12 @@ export const EpisodeMiniCard: React.FC<{
   publishedAt,
   durationSec,
   badge,
+  episodeId,
   onPress,
   width = DEFAULT_W,
 }) => {
   const theme = useTheme();
+  const { isCurrent, isPlaying } = useNowPlaying(episodeId ?? '');
   const dateText = formatDate(publishedAt);
   const durationText = durationSec != null && durationSec > 0 ? formatDuration(durationSec) : '';
   const meta = [dateText, durationText].filter(Boolean).join(' · ');
@@ -78,7 +86,10 @@ export const EpisodeMiniCard: React.FC<{
       <CoverImage uri={artworkUrl} size={54} radius={theme.radius.md} />
 
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text variant="subtitle" numberOfLines={1}>
+        <Text
+          variant="subtitle"
+          numberOfLines={1}
+          color={isCurrent ? theme.colors.accent : undefined}>
           {title}
         </Text>
         <Text variant="caption" color={theme.colors.textMuted} numberOfLines={1}>
@@ -125,11 +136,16 @@ export const EpisodeMiniCard: React.FC<{
           width: 32,
           height: 32,
           borderRadius: 16,
-          backgroundColor: theme.colors.text,
+          // Çalan kartta yuvarlak dolgu kalkar: gösterge zaten dikkat çeker.
+          backgroundColor: isCurrent ? 'transparent' : theme.colors.text,
           alignItems: 'center',
           justifyContent: 'center',
         }}>
-        <Icon name="play" size={16} color={theme.colors.bg} />
+        {isCurrent ? (
+          <NowPlayingBars playing={isPlaying} />
+        ) : (
+          <Icon name="play" size={16} color={theme.colors.bg} />
+        )}
       </View>
     </Pressable>
   );

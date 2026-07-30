@@ -138,6 +138,7 @@ export const LibraryScreen: React.FC = () => {
                 {savedList.map(ep => (
                   <EpisodeMiniCard
                     key={ep.id}
+                    episodeId={ep.id}
                     artworkUrl={ep.imageUrl}
                     title={ep.title}
                     subtitle={showTitleOf(ep.showId)}
@@ -161,6 +162,7 @@ export const LibraryScreen: React.FC = () => {
                 {downloadsList.map(ep => (
                   <EpisodeMiniCard
                     key={ep.id}
+                    episodeId={ep.id}
                     artworkUrl={ep.imageUrl}
                     title={ep.title}
                     subtitle={showTitleOf(ep.showId)}

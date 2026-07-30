@@ -39,15 +39,17 @@ const PUBLISHER = 'Anadolu Ajansı';
  *
  * Buradaki alanlar aynı zamanda **oynatma kartını** besler (kilit ekranı,
  * Dynamic Island, CarPlay Now Playing): iOS içeriği `MPNowPlayingInfoCenter`'dan
- * okur. Bu yüzden şov adı `artist`/`album` olarak da verilir — kartta yalnızca
- * bölüm başlığı görünmesi bilgiyi eksik bırakır.
+ * okur. Bu yüzden şov adı `artist` olarak da verilir — kartta yalnızca bölüm
+ * başlığının görünmesi bilgiyi eksik bırakır.
+ *
+ * `album` bilinçli olarak DOLDURULMAZ: CarPlay hem sanatçıyı hem albümü ayrı
+ * satırlarda gösterdiği için şov adı ekranda iki kez çıkıyordu.
  */
 export const episodeToTrack = (episode: Episode): AddTrack => ({
   id: episode.id,
   url: episode.audioUrl,
   title: episode.title,
   artist: episode.showTitle ?? PUBLISHER,
-  album: episode.showTitle,
   artwork: episode.imageUrl,
   duration: episode.durationSec > 0 ? episode.durationSec : undefined,
 });

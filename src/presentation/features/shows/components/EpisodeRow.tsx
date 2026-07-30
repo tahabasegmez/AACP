@@ -3,7 +3,8 @@ import { Pressable, View } from 'react-native';
 import { Episode } from '@domain/entities';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
-import { Icon, Text } from '../../../ui';
+import { Icon, NowPlayingBars, Text } from '../../../ui';
+import { useNowPlaying } from '../../player/useNowPlaying';
 
 const formatDate = (iso: string): string => {
   if (!iso) {
@@ -37,7 +38,9 @@ export const EpisodeRow: React.FC<{
   onLongPress?: () => void;
 }> = ({ episode, progress, completed, subtitle, onPress, onPlay, onLongPress }) => {
   const theme = useTheme();
-  const dim = completed ? 0.5 : 1;
+  const { isCurrent, isPlaying } = useNowPlaying(episode.id);
+  // Çalan bölüm tamamlanmış olsa da soluklaştırılmaz: dikkat çekmeli.
+  const dim = completed && !isCurrent ? 0.5 : 1;
 
   return (
     <Pressable
@@ -56,7 +59,10 @@ export const EpisodeRow: React.FC<{
         opacity: dim,
       }}>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text variant="bodyStrong" numberOfLines={2}>
+        <Text
+          variant="bodyStrong"
+          numberOfLines={2}
+          color={isCurrent ? theme.colors.accent : undefined}>
           {episode.title}
         </Text>
         <View
@@ -112,12 +118,19 @@ export const EpisodeRow: React.FC<{
           )}
         </View>
       </View>
+      {/* Çalan bölümde çal ikonu yerine "çalıyor" göstergesi durur; dokunmak
+          yine oynatıcıyı açar (baştan başlatmaz). */}
       <Pressable
         onPress={onPlay}
         hitSlop={12}
         accessibilityRole="button"
-        accessibilityLabel="Çal">
-        <Icon name="play" size={24} color={theme.colors.text} />
+        accessibilityLabel={isCurrent ? 'Oynatıcıyı aç' : 'Çal'}
+        style={{ justifyContent: 'center' }}>
+        {isCurrent ? (
+          <NowPlayingBars playing={isPlaying} />
+        ) : (
+          <Icon name="play" size={24} color={theme.colors.text} />
+        )}
       </Pressable>
     </Pressable>
   );

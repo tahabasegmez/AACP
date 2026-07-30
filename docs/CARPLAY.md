@@ -23,7 +23,15 @@ gezinmekten güvenlidir. Açılan listede toplam süre değil **kalan süre** ya
 Boş gruplar hiç gösterilmez; sekme tümüyle boşsa açıklayıcı bir boş görünüm
 çıkar (`emptyViewTitleVariants`).
 
-Bir bölüme dokunmak **kaldığı yerden** çalar ve Now Playing ekranını açar.
+Bir bölüme dokunmak **kaldığı yerden** çalar ve Now Playing ekranını açar. Zaten
+çalan bölüme dokunmak onu BAŞTAN başlatmaz, yalnızca oynatıcıyı açar — aynı
+bölüm birçok listede görünür ve hangisinden dokunulursa dokunulsun dinlenen yer
+kaybolmamalı. Aynı kural telefonda da geçerlidir (`usePlayEpisode`).
+
+Alt seviye listeler **önce kapaksız açılır**, kapaklar hazır olunca yerinde
+güncellenir: dokunuşla ekranın gelmesi arasındaki sessiz bekleme böyle kalkar.
+Ağ gerektiren adımlarda (şov bölümleri) CarPlay satırda kendi yükleniyor
+göstergesini çizer — seçim geri çağrısı beklediğimiz promise'i döndürdüğü sürece.
 
 > **Sekme çubuğunun görünümü uygulamanın kontrolünde DEĞİLDİR.** Konum, hizalama
 > ve stil CarPlay tarafından çizilir; uygulama yalnızca sekmelerin **başlığını
@@ -62,15 +70,25 @@ Sistem ekranına eklenenler:
 | Öğe | Nereden gelir |
 |---|---|
 | Oynat/duraklat, **seek çubuğu** | Sistem (track-player `MPNowPlayingInfoCenter`'ı besler) |
-| **30 sn ileri / 15 sn geri** | `Capability.JumpForward/Backward` |
 | **Sonraki / önceki bölüm** | `Capability.SkipToNext/Previous` → uygulamanın kuyruğu |
 | **Sıradakiler** | `upNextButton` → kuyruk listesi, dokununca o bölüme atlar |
 | **Şov adı** | `albumArtistButton` → o şovun bölümleri (Spotify davranışı) |
 | **Oynatma hızı** | `playback` düğmesi (1 → 1.25 → 1.5 → 2) |
-| **Sonra dinleye ekle** | `add-to-library` düğmesi |
 
-Apple, Now Playing'e en fazla **5 özel düğme** koymaya izin verir; ikisi
-kullanılmıştır, yer vardır.
+Apple, Now Playing'e en fazla **5 özel düğme** koymaya izin verir; yalnızca hız
+düğmesi kullanılır. "Sonra dinle'ye ekle" (+) bilinçli olarak yoktur: sürüş
+sırasında listeleme değil dinleme yapılır.
+
+**Sarma tuşları (15/30 sn) kapalıdır.** iOS kartta hem sarma hem bölüm değiştirme
+tuşlarını birden göstermez; araçta bölüm değiştirmek daha sık gerekir, sarma
+zaten sürgüyle yapılabilir. Bu bir uygulama geneli ayardır
+(`TrackPlayerAudioService`), dolayısıyla **kilit ekranını da** aynı şekilde
+etkiler.
+
+> **Hız etiketi (`0×`) sistemindir.** CarPlay'in hız düğmesinin üstünde yazan
+> değeri iOS `MPNowPlayingInfoPropertyPlaybackRate`'ten okur; oraya JS'ten
+> yazılamaz. Bu yüzden seçilen hız "Şimdi çalan" sekmesinin başlığında
+> gösterilir (`Çalıyor · 1.5×`) — geri bildirim kendi yüzeyimizde verilir.
 
 ### Paylaşılan şablon (çökme tuzağı)
 

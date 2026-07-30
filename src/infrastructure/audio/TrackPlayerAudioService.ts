@@ -40,21 +40,23 @@ export class TrackPlayerAudioService implements AudioPlayerService {
     });
     await TrackPlayer.updateOptions({
       progressUpdateEventInterval: 1,
-      // SkipToNext/Previous, CarPlay ve direksiyon tuşlarının "sonraki/önceki
-      // bölüm" komutlarını açar; kuyruk yönetimi playbackService'te yapılır.
+      /**
+       * Oynatma kartındaki (kilit ekranı / CarPlay) yan tuşlar.
+       *
+       * İleri/geri SARMA (`JumpForward/Backward`) bilinçli olarak YOK: iOS her
+       * iki tuş çiftini birden göstermez, sarma açıkken "sonraki/önceki bölüm"
+       * gizlenir. Araçta bölüm değiştirmek 15 sn sarmaktan daha sık gerekir;
+       * sarma zaten sürgüyle (`SeekTo`) yapılabiliyor.
+       */
       capabilities: [
         Capability.Play,
         Capability.Pause,
         Capability.Stop,
         Capability.SeekTo,
-        Capability.JumpForward,
-        Capability.JumpBackward,
         Capability.SkipToNext,
         Capability.SkipToPrevious,
       ],
       compactCapabilities: [Capability.Play, Capability.Pause, Capability.SeekTo],
-      forwardJumpInterval: 30,
-      backwardJumpInterval: 15,
       android: {
         appKilledPlaybackBehavior:
           AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,

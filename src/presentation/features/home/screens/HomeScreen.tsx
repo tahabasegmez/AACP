@@ -103,6 +103,7 @@ export const HomeScreen: React.FC = () => {
                   {resumeItems.map(p => (
                     <EpisodeMiniCard
                       key={p.episodeId}
+                      episodeId={p.episodeId}
                       artworkUrl={p.artworkUrl}
                       title={p.episodeTitle ?? 'Bölüm'}
                       subtitle={showById.get(p.showId ?? '')?.title ?? ''}
@@ -126,6 +127,7 @@ export const HomeScreen: React.FC = () => {
                   {latestItems.map(ep => (
                     <EpisodeMiniCard
                       key={ep.id}
+                      episodeId={ep.id}
                       artworkUrl={ep.imageUrl}
                       title={ep.title}
                       subtitle={showById.get(ep.showId)?.title ?? ''}
