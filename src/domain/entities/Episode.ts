@@ -6,6 +6,14 @@ export interface Episode {
   readonly id: string;
   /** Ait olduğu şovun id'si. */
   readonly showId: string;
+  /**
+   * Ait olduğu şovun adı.
+   *
+   * Bölümle birlikte taşınır çünkü kilit ekranı / CarPlay oynatma kartı bölümü
+   * TEK BAŞINA alır: orada "hangi podcast" bilgisini gösterebilmek için katalog
+   * araması yapmak gerekmemeli.
+   */
+  readonly showTitle?: string;
   readonly title: string;
   readonly description: string;
   /** Çalınabilir ses dosyası URL'i (enclosure). */

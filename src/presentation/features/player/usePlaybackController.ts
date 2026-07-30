@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { Episode } from '@domain/entities';
 import { useDependencies } from '../../di';
-import { usePlayerQueueStore, usePlayerStore } from '../../stores';
+import { setPlaybackSession, usePlayerQueueStore } from '../../stores';
 
 export interface PlayContext {
   readonly episodes: Episode[];
@@ -20,17 +20,12 @@ const BACK_TO_PREVIOUS_THRESHOLD_SEC = 10;
  */
 export const usePlaybackController = () => {
   const { continueEpisode, seekTo, analytics } = useDependencies();
-  const setCurrentEpisode = usePlayerStore(s => s.setCurrentEpisode);
-  const setQueue = usePlayerQueueStore(s => s.setQueue);
 
   const play = useCallback(
     async (episode: Episode, context?: PlayContext) => {
-      if (context) {
-        setQueue(context.episodes, context.index);
-      } else {
-        setQueue([episode], 0);
-      }
-      setCurrentEpisode(episode);
+      // Kuyruk ve çalan bölüm tek yerden kurulur (bkz. setPlaybackSession);
+      // CarPlay de aynı noktadan geçer, iki yüzey ayrışamaz.
+      setPlaybackSession(context?.episodes ?? [episode], context?.index ?? 0);
       // Telemetri: hangi bölüm/şov çalındı (kişisel veri içermez).
       analytics.track('episode_play', {
         episodeId: episode.id,
@@ -39,7 +34,7 @@ export const usePlaybackController = () => {
       });
       await continueEpisode.execute({ episode });
     },
-    [analytics, continueEpisode, setCurrentEpisode, setQueue],
+    [analytics, continueEpisode],
   );
 
   const playIndex = useCallback(

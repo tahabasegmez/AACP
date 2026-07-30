@@ -53,7 +53,11 @@ kaymasına açıktı.
    doldurur; uygulama oraya yalnızca track meta verisini yazar
    (`episodeToTrack`). Kilit ekranındaki kartla aynı kaynaktır.
 
-"Çalıyor" satırına dokunmak sistem ekranını açar. Sistem ekranına eklenenler:
+**Şimdi çalan sekmesine dokunmak doğrudan sistem ekranını açar** (bir şey
+çalıyorsa) — sürücü ikinci kez dokunmak zorunda kalmasın. Geri dönüldüğünde
+sekmenin listesi görünür; "Çalıyor" satırı da ekranı yeniden açar.
+
+Sistem ekranına eklenenler:
 
 | Öğe | Nereden gelir |
 |---|---|
@@ -85,21 +89,43 @@ Bundan iki kural doğar:
 `enableNowPlaying(true)` de bağlantı başında bir kez çağrılır (her oynatmada
 değil), bağlantı koptuğunda kapatılır.
 
-### Kuyruk tek yerde yaşar
+### Oynatma oturumu tek yerde yaşar
 
-CarPlay kuyruğun kopyasını TUTMAZ. Bir listeden çalmaya başlayınca
-[`PlaybackQueueService`](../src/domain/services/PlaybackQueueService.ts) portu
-üzerinden uygulamanın kuyruğunu **kurar**; "Sıradakiler" listesi de aynı porttan
-okur. Böylece direksiyon tuşları, kilit ekranı, telefondaki "Sıra" ekranı ve
-CarPlay hep aynı sırayı görür.
+"Ne çalıyor ve sırada ne var" TEK yerde tutulur:
+[`PlaybackSessionService`](../src/domain/services/PlaybackSessionService.ts).
+CarPlay kendi kopyasını tutmaz; bir listeden çalmaya başlayınca bu port
+üzerinden bağlamı kurar, "Sıradakiler" de aynı porttan okur.
+
+`setContext` kuyruğu ve çalan bölümü **birlikte** alır. Bu bilinçlidir: ikisi
+ayrı ayrı ayarlanabildiği sürece biri unutulabiliyor — nitekim CarPlay yalnızca
+kuyruğu kurmuş, telefondaki kapak ve başlık eski bölümde kalmıştı.
+
+```
+Telefon (usePlaybackController)  ─┐
+                                  ├─→ setPlaybackSession()  ← tek nokta
+CarPlay (PlaybackSessionAdapter) ─┘        ├─ kuyruk
+                                           └─ çalan bölüm
+```
 
 Port domain'de durur, somut uygulama
-[PlayerQueueAdapter](../src/app/carplay/PlayerQueueAdapter.ts) ile composition
-root'ta bağlanır — `@carplay` presentation'ı tanımaz.
+[PlaybackSessionAdapter](../src/app/carplay/PlaybackSessionAdapter.ts) ile
+composition root'ta bağlanır — `@carplay` presentation'ı tanımaz.
 
-Kuyruk **her** oynatmada verilir: "Dinlemeye devam" rafından çalmak bile bağlam
-olarak o rafı bırakır. Aksi halde tek bölümlük kuyruk kalır ve "Sıradakiler"
-boş görünürdü.
+Bağlam **her** oynatmada verilir: "Dinlemeye devam"dan çalmak bile bağlam olarak
+o listeyi bırakır. Aksi halde tek bölümlük kuyruk kalır ve "Sıradakiler" boş
+görünürdü.
+
+### Oynatma kartının içeriği
+
+Sistem Now Playing ekranını iOS `MPNowPlayingInfoCenter`'dan doldurur; oraya
+yazan tek yer [`episodeToTrack`](../src/infrastructure/audio/playbackMapping.ts).
+Kartta yalnızca bölüm başlığının görünmemesi için şov adı `artist` ve `album`
+alanlarına da yazılır.
+
+Şov adı bölümle birlikte taşınır (`Episode.showTitle`): kart bölümü tek başına
+alır, orada katalog araması yapmak gerekmemeli. İndirme ve "kaldığın yer"
+kayıtları yalnızca şov kimliği tuttuğu için CarPlay adı katalogdan tamamlar
+(`withShow`).
 
 > **Arka plan rengi:** CarPlay'de template arka planı uygulamanın kontrolünde
 > DEĞİLDİR. Now Playing ekranının rengini iOS, albüm kapağından kendisi türetir

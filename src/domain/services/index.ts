@@ -1,2 +1,2 @@
 export * from './AudioPlayerService';
-export * from './PlaybackQueueService';
+export * from './PlaybackSessionService';

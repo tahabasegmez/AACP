@@ -50,6 +50,7 @@ const progress: PlaybackProgress = {
 
 const download: DownloadItem = {
   episodeId: 'e-dl',
+  showId: 's1',
   status: 'downloaded',
   fileName: 'e-dl.mp3',
   audioUrl: 'https://dl.mp3',
@@ -95,7 +96,7 @@ const headersOf = (tab: MockList): (string | undefined)[] =>
 let continued: Episode | null = null;
 let rate: number | null = null;
 let saved: Episode | null = null;
-/** Uygulamanın kuyruğunun testteki karşılığı (tek gerçek kaynak). */
+/** Oynatma oturumunun testteki karşılığı (tek gerçek kaynak). */
 let queue: { episodes: readonly Episode[]; index: number } = { episodes: [], index: -1 };
 
 const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies =>
@@ -136,8 +137,8 @@ const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies
     },
     // CarPlay uzak kapak kabul etmez; port yereli döner.
     artwork: { localUri: async (url: string) => `file:///cache/${url.split('/').pop()}` },
-    playbackQueue: {
-      setQueue: (episodes: readonly Episode[], index: number) => {
+    playbackSession: {
+      setContext: (episodes: readonly Episode[], index: number) => {
         queue = { episodes, index };
       },
       getQueue: () => queue,
@@ -337,6 +338,50 @@ describe('CarPlayController', () => {
     const pushed = callsOf('pushTemplate').at(-1)?.[1] as MockList;
     expect(pushed.config.title).toBe('Sıradakiler');
     expect(pushed.config.sections[0].items.map(i => i.text)).toEqual(['İndirilmiş bölüm']);
+  });
+
+  it('"Şimdi çalan" sekmesine dokununca oynatıcıyı açar', async () => {
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+    const nowPlaying = callsOf('pushTemplate').at(-1)?.[1];
+
+    const root = callsOf('setRootTemplate').at(-1)?.[1] as {
+      config: {
+        templates: { id: string }[];
+        onTemplateSelect: (t: unknown, e: { selectedTemplateId: string }) => void;
+      };
+    };
+    root.config.onTemplateSelect(undefined, {
+      selectedTemplateId: root.config.templates[3].id,
+    });
+
+    // Sürücü ikinci kez dokunmak zorunda kalmasın.
+    expect(callsOf('pushTemplate').at(-1)?.[1]).toBe(nowPlaying);
+  });
+
+  it('hiçbir şey çalmıyorken sekme oynatıcıyı açmaz', async () => {
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
+
+    const root = callsOf('setRootTemplate').at(-1)?.[1] as {
+      config: {
+        templates: { id: string }[];
+        onTemplateSelect: (t: unknown, e: { selectedTemplateId: string }) => void;
+      };
+    };
+    root.config.onTemplateSelect(undefined, {
+      selectedTemplateId: root.config.templates[3].id,
+    });
+
+    expect(callsOf('pushTemplate')).toHaveLength(0);
+  });
+
+  it('çalan bölüme şov adını ekler (oynatma kartı için)', async () => {
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
+
+    // İndirme kaydı yalnızca şov kimliğini taşır; ad katalogdan tamamlanır.
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+
+    expect(continued?.showTitle).toBe('Şov 1');
   });
 
   it('kapakları yerel dosya adresine çevirir', async () => {

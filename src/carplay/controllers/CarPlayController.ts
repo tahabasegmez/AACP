@@ -111,13 +111,12 @@ class TabList {
 /**
  * CarPlayController — CarPlay yaşam döngüsünü ve şablon akışını yönetir.
  *
- * Düzen Spotify'ın CarPlay arayüzünü izler: üç sekme, başlıklı raflar ve her
- * satırda kapak görseli.
+ * Kök dört sekmedir; her sekme başlıklı gruplar ve kapaklı satırlardan oluşur.
  *
- *   1. **Ana Sayfa** — "Dinlemeye devam" ve "Sonra dinle" rafları; araçta en
- *      sık ihtiyaç duyulan tek dokunuşluk giriş noktası,
- *   2. **Kitaplığın** — listeler ve podcast'ler; alt seviyeye iner,
- *   3. **İndirilenler** — çevrimdışı çalışır; araçta şebeke kopabilir.
+ *   1. **Ana Sayfa** — "Dinlemeye devam" girişi ve tüm podcast'ler,
+ *   2. **Kitaplığın** — kullanıcı listeleri ("Sonra dinle" dahil),
+ *   3. **İndirilenler** — çevrimdışı çalışır; araçta şebeke kopabilir,
+ *   4. **Şimdi çalan** — çalan bölüm ve kuyruk; sekmeye dokunmak oynatıcıyı açar.
  *
  * İş mantığı tamamen domain use case'lerinden gelir ve mobil UI ile PAYLAŞILIR;
  * burada yalnızca CarPlay'e özgü şablon/etkileşim kodu vardır. Şablon
@@ -244,10 +243,17 @@ export class CarPlayController {
             this.downloads.template,
             this.playing.template,
           ],
-          onTemplateSelect: () => {
+          onTemplateSelect: (_template, { selectedTemplateId }) => {
             // Sekmeye dönüldüğünde içerik tazelenir: telefonda ya da başka bir
             // cihazda yapılan değişiklikler araçta da görünsün.
             this.refresh();
+
+            // "Şimdi çalan" sekmesi doğrudan oynatıcıyı açar — sürücü ikinci
+            // kez dokunmak zorunda kalmasın. Bir şey çalmıyorsa sekmenin boş
+            // görünümü kalır.
+            if (selectedTemplateId === this.playing?.template.id && this.currentEpisodeId) {
+              this.showNowPlaying();
+            }
           },
         }),
       );
@@ -457,7 +463,7 @@ export class CarPlayController {
    * gelir, dolayısıyla her zaman günceldir. Üstteki satır sistem ekranını açar.
    */
   private nowPlayingList(): CarPlayList {
-    const { episodes, index } = this.deps.playbackQueue.getQueue();
+    const { episodes, index } = this.deps.playbackSession.getQueue();
     const current =
       episodes[index] ?? episodes.find(episode => episode.id === this.currentEpisodeId);
     const upcoming = index >= 0 ? episodes.slice(index + 1) : [];
@@ -572,9 +578,11 @@ export class CarPlayController {
   ): Promise<void> {
     // Kuyruk oynatmadan ÖNCE kurulur: oynatma başlar başlamaz gelen
     // "sonraki bölüm" komutu doğru sırayı bulsun.
-    this.deps.playbackQueue.setQueue(queue, index);
+    this.deps.playbackSession.setContext(queue.map(item => this.withShow(item)), index);
 
-    const result = await this.deps.continueEpisode.execute({ episode });
+    const result = await this.deps.continueEpisode.execute({
+      episode: this.withShow(episode),
+    });
     if (!isOk(result)) {
       this.logger.error('CarPlay: oynatma başlatılamadı', result.error);
       return;
@@ -638,7 +646,7 @@ export class CarPlayController {
 
   /** "Sıradakiler" — uygulamanın kuyruğundan, çalan bölümden itibaren. */
   private showUpNext(): void {
-    const { episodes, index } = this.deps.playbackQueue.getQueue();
+    const { episodes, index } = this.deps.playbackSession.getQueue();
     const upcoming = episodes.slice(Math.max(0, index));
     if (upcoming.length === 0) {
       this.logger.info('CarPlay: kuyruk boş, "Sıradakiler" açılmadı');
@@ -660,9 +668,24 @@ export class CarPlayController {
     this.run('şov açılamadı', () => this.openShow(show));
   }
 
+  /**
+   * Bölüme şov adını ekler.
+   *
+   * İndirme ve "kaldığın yer" kayıtları yalnızca şov kimliğini taşır; oynatma
+   * kartında (kilit ekranı / CarPlay) şov adının görünmesi için katalogdan
+   * tamamlanır. Ad zaten varsa dokunulmaz.
+   */
+  private withShow(episode: Episode): Episode {
+    if (episode.showTitle) {
+      return episode;
+    }
+    const show = this.shows.find(candidate => candidate.id === episode.showId);
+    return show ? { ...episode, showTitle: show.title } : episode;
+  }
+
   /** Kuyruktaki çalan bölüm — düğmeler bunun üzerinden çalışır. */
   private currentEpisode(): Episode | undefined {
-    const { episodes, index } = this.deps.playbackQueue.getQueue();
+    const { episodes, index } = this.deps.playbackSession.getQueue();
     return episodes[index] ?? episodes.find(e => e.id === this.currentEpisodeId);
   }
 

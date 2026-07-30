@@ -31,12 +31,23 @@ export const mapTrackPlayerState = (state: State): PlaybackStatus => {
   }
 };
 
-/** Domain Episode'unu track-player'ın çalabileceği bir track nesnesine çevirir. */
+/** Şov adı bilinmediğinde oynatma kartında görünecek ad. */
+const PUBLISHER = 'Anadolu Ajansı';
+
+/**
+ * Domain Episode'unu track-player'ın çalabileceği bir track nesnesine çevirir.
+ *
+ * Buradaki alanlar aynı zamanda **oynatma kartını** besler (kilit ekranı,
+ * Dynamic Island, CarPlay Now Playing): iOS içeriği `MPNowPlayingInfoCenter`'dan
+ * okur. Bu yüzden şov adı `artist`/`album` olarak da verilir — kartta yalnızca
+ * bölüm başlığı görünmesi bilgiyi eksik bırakır.
+ */
 export const episodeToTrack = (episode: Episode): AddTrack => ({
   id: episode.id,
   url: episode.audioUrl,
   title: episode.title,
-  artist: 'Anadolu Ajansı',
+  artist: episode.showTitle ?? PUBLISHER,
+  album: episode.showTitle,
   artwork: episode.imageUrl,
   duration: episode.durationSec > 0 ? episode.durationSec : undefined,
 });

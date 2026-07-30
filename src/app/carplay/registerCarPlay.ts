@@ -3,7 +3,7 @@ import { CarPlayController } from '@carplay';
 import { BlobUtilArtworkCache } from '@infrastructure';
 import { CarPlay } from 'react-native-carplay';
 import { getDependencies } from '../di';
-import { PlayerQueueAdapter } from './PlayerQueueAdapter';
+import { PlaybackSessionAdapter } from './PlaybackSessionAdapter';
 
 /**
  * registerCarPlay — CarPlay sahnesini paylaşılan bağımlılık grafiğine bağlar.
@@ -16,7 +16,7 @@ export const registerCarPlay = (): void => {
   const controller = new CarPlayController(
     {
       ...getDependencies(),
-      playbackQueue: new PlayerQueueAdapter(),
+      playbackSession: new PlaybackSessionAdapter(),
       // Kapaklar CarPlay'e yerel dosya olarak verilmeli (uzak adres kabul
       // edilmez); önbellek yalnızca araç yüzeyinde kullanılır.
       artwork: new BlobUtilArtworkCache(),
