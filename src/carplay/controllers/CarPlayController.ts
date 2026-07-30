@@ -110,11 +110,22 @@ export class CarPlayController {
   private library?: TabList;
   private downloads?: TabList;
 
+  /**
+   * Paylaşılan Now Playing şablonu — CarPlay'de tek bir örnek vardır, biz de
+   * tek örnek tutarız (bkz. `showNowPlaying`).
+   */
+  private nowPlayingTemplate?: NowPlayingTemplate;
+
   /** Katalog — Kitaplığın sekmesi ve Now Playing'deki şov düğmesi için. */
   private shows: readonly Show[] = [];
 
   private currentEpisodeId: string | null = null;
   private unsubscribePlayback?: () => void;
+
+  /** Süren tazeleme; aynı anda ikinci bir tur başlatılmaz. */
+  private refreshing?: Promise<void>;
+  /** Tazeleme sürerken yeni istek geldi mi? (tur sonunda bir kez tekrarlanır) */
+  private refreshQueued = false;
 
   constructor(
     private readonly deps: CarPlayDependencies,
@@ -124,6 +135,9 @@ export class CarPlayController {
   /** CarPlay bağlandığında çağrılır. */
   async onConnect(): Promise<void> {
     this.logger.info('CarPlay bağlandı');
+    // Sistem oynatma ekranını bir kez etkinleştir: her çalışta çağırmak
+    // gözlemciyi tekrar tekrar bağlamaya çalışmak olurdu.
+    CarPlay.enableNowPlaying(true);
     this.watchPlayback();
     await this.buildRoot();
   }
@@ -133,6 +147,9 @@ export class CarPlayController {
     this.logger.info('CarPlay bağlantısı koptu');
     this.unsubscribePlayback?.();
     this.unsubscribePlayback = undefined;
+    CarPlay.enableNowPlaying(false);
+    // Şablonlar araçla birlikte gider; yeniden bağlanınca kök baştan kurulur.
+    this.nowPlayingTemplate = undefined;
   }
 
   /**
@@ -212,13 +229,42 @@ export class CarPlayController {
   /**
    * Tazelemeyi ateşle-unut olarak başlatır.
    *
-   * CarPlay geri çağrıları senkrondur; `void` ile bırakılan bir promise hata
-   * verirse "unhandled rejection" olarak düşer ve sebebi kaybolur. Tek giriş
-   * noktasından geçirip her zaman logluyoruz.
+   * Sekme değiştirme, oynatma değişimi ve kaydetme aynı anda tazeleme
+   * isteyebilir. Turlar BİRLEŞTİRİLİR: süren bir tur varsa yenisi başlatılmaz,
+   * yalnızca "bitince bir kez daha" işaretlenir. Aksi halde araçta her dokunuşta
+   * üst üste depolama/ağ turları birikirdi.
+   *
+   * CarPlay geri çağrıları senkrondur; buradan sızan bir promise hatası
+   * "unhandled rejection" olur — bu yüzden hata her zaman loglanır.
    */
   private refresh(): void {
-    this.refreshAll().catch(error => {
-      this.logger.error('CarPlay: içerik tazelenemedi', error);
+    if (this.refreshing) {
+      this.refreshQueued = true;
+      return;
+    }
+
+    this.refreshing = this.refreshAll()
+      .catch(error => {
+        this.logger.error('CarPlay: içerik tazelenemedi', error);
+      })
+      .finally(() => {
+        this.refreshing = undefined;
+        if (this.refreshQueued) {
+          this.refreshQueued = false;
+          this.refresh();
+        }
+      });
+  }
+
+  /**
+   * Ateşle-unut bir işi loglayarak çalıştırır.
+   *
+   * CarPlay düğme geri çağrıları senkron olduğu için promise'i bekleyemezler;
+   * hatanın kaybolmaması adına tek yerden geçirilir.
+   */
+  private run(label: string, work: () => Promise<void>): void {
+    work().catch(error => {
+      this.logger.error(`CarPlay: ${label}`, error);
     });
   }
 
@@ -276,19 +322,28 @@ export class CarPlayController {
     const saved = playlists.find(playlist => playlist.id === SAVED_PLAYLIST_ID);
     const savedEpisodes = (saved?.episodes ?? []).slice(0, MAX_SHELF);
 
+    // Devam rafındaki bölüm "Sonra dinle"de de olabilir; aynı ekranda iki kez
+    // görünmesin — üstteki raf kazanır.
+    const resumeIds = new Set(resumeItems.map(progress => progress.episodeId));
+    const savedOnly = savedEpisodes.filter(episode => !resumeIds.has(episode.id));
+
+    // Devam rafından çalınca kuyruk = rafın kendisi; böylece "Sıradakiler" ve
+    // direksiyon tuşları boş kalmaz.
+    const resumeEpisodes = resumeItems.map(progressToEpisode);
+
     return buildList([
       {
         header: 'Dinlemeye devam',
         items: resumeToItems(resumeItems, this.currentEpisodeId),
-        actions: resumeItems.map(
-          progress => () => this.playEpisode(progressToEpisode(progress)),
+        actions: resumeEpisodes.map(
+          (episode, index) => () => this.playEpisode(episode, resumeEpisodes, index),
         ),
       },
       {
         header: 'Sonra dinle',
-        items: episodesToItems(savedEpisodes, this.currentEpisodeId),
-        actions: savedEpisodes.map(
-          (episode, index) => () => this.playEpisode(episode, savedEpisodes, index),
+        items: episodesToItems(savedOnly, this.currentEpisodeId),
+        actions: savedOnly.map(
+          (episode, index) => () => this.playEpisode(episode, savedOnly, index),
         ),
       },
     ]);
@@ -387,62 +442,117 @@ export class CarPlayController {
   // --- oynatma ------------------------------------------------------------
 
   /**
-   * Bölümü kaldığı yerden çalar ve Now Playing şablonunu gösterir.
-   * `queue` verilirse "Sıradakiler" o kuyruk üzerinden çalışır.
+   * Bölümü kaldığı yerden çalar, kuyruğu kurar ve Now Playing'i gösterir.
+   *
+   * Kuyruk her zaman verilir: dokunulan listenin kendisi bağlam olur. Böylece
+   * direksiyon tuşları, kilit ekranı ve "Sıradakiler" aynı sırayı görür.
    */
   private async playEpisode(
     episode: Episode,
-    queue?: readonly Episode[],
-    index?: number,
+    queue: readonly Episode[] = [episode],
+    index = 0,
   ): Promise<void> {
+    // Kuyruk oynatmadan ÖNCE kurulur: oynatma başlar başlamaz gelen
+    // "sonraki bölüm" komutu doğru sırayı bulsun.
+    this.deps.playbackQueue.setQueue(queue, index);
+
     const result = await this.deps.continueEpisode.execute({ episode });
     if (!isOk(result)) {
       this.logger.error('CarPlay: oynatma başlatılamadı', result.error);
       return;
     }
     this.currentEpisodeId = episode.id;
-    this.showNowPlaying(episode, queue, index);
+    this.showNowPlaying();
   }
 
-  /** Now Playing şablonu — kuyruk, şov, hız ve kaydetme düğmeleriyle. */
-  private showNowPlaying(
-    episode: Episode,
-    queue?: readonly Episode[],
-    index?: number,
-  ): void {
-    CarPlay.enableNowPlaying(true);
+  /**
+   * Now Playing ekranını gösterir.
+   *
+   * CarPlay'in Now Playing şablonu bir SİNGLETON'dır (`CPNowPlayingTemplate`
+   * paylaşılan örnek). Bu yüzden:
+   *
+   *  - şablon bir kez kurulur (`nowPlaying`), her çalışta yeniden yaratılmaz —
+   *    aksi halde her oynatmada bir olay dinleyicisi daha eklenirdi,
+   *  - yığına aynı örneği İKİ KEZ eklemek iOS'ta istisna fırlatır ve uygulamayı
+   *    ÇÖKERTİR; bu yüzden önce köke dönülür, sonra eklenir. Böylece Now Playing
+   *    her zaman kökün bir üstündedir ve durum takibi gerekmez.
+   */
+  private showNowPlaying(): void {
+    CarPlay.popToRootTemplate();
+    CarPlay.pushTemplate(this.nowPlaying());
+  }
 
-    const show = this.shows.find(candidate => candidate.id === episode.showId);
+  /** Paylaşılan Now Playing şablonunu kurar (bir kez). */
+  private nowPlaying(): NowPlayingTemplate {
+    if (this.nowPlayingTemplate) {
+      return this.nowPlayingTemplate;
+    }
 
-    CarPlay.pushTemplate(
-      new NowPlayingTemplate({
-        // "Sıradakiler" — kuyruğu liste olarak açar.
-        upNextButtonEnabled: !!queue && queue.length > 1,
-        upNextButtonTitle: 'Sıradakiler',
-        onUpNextButtonPressed: () =>
-          this.pushEpisodes('Sıradakiler', (queue ?? []).slice(index ?? 0)),
-        // Şov adına dokunmak o şovun bölümlerine götürür (Spotify davranışı).
-        albumArtistButtonEnabled: !!show,
-        onAlbumArtistButtonPressed: () => {
-          if (show) {
-            void this.openShow(show);
-          }
-        },
-        buttons: [
-          // Oynatma hızı — sistem hız düğmesi.
-          { id: 'rate', type: 'playback' },
-          // Çalan bölümü "Sonra dinle" listesine ekler.
-          { id: 'save', type: 'add-to-library' },
-        ],
-        onButtonPressed: ({ id }) => {
-          if (id === 'rate') {
-            void this.cycleSpeed();
-          } else if (id === 'save') {
-            void this.deps.toggleSavedEpisode.execute({ episode });
-          }
-        },
-      }),
-    );
+    this.nowPlayingTemplate = new NowPlayingTemplate({
+      // Düğmeler sabit kalır; ne yapacaklarına dokunulduğu anda güncel duruma
+      // bakarak karar verilir (şablon yeniden yaratılamadığı için).
+      upNextButtonEnabled: true,
+      upNextButtonTitle: 'Sıradakiler',
+      onUpNextButtonPressed: () => this.showUpNext(),
+      // Şov adına dokunmak o şovun bölümlerine götürür (Spotify davranışı).
+      albumArtistButtonEnabled: true,
+      onAlbumArtistButtonPressed: () => this.openCurrentShow(),
+      buttons: [
+        // Oynatma hızı — sistem hız düğmesi.
+        { id: 'rate', type: 'playback' },
+        // Çalan bölümü "Sonra dinle" listesine ekler.
+        { id: 'save', type: 'add-to-library' },
+      ],
+      onButtonPressed: ({ id }) => {
+        if (id === 'rate') {
+          this.run('hız değiştirilemedi', () => this.cycleSpeed());
+        } else if (id === 'save') {
+          this.run('kaydedilemedi', () => this.toggleSaved());
+        }
+      },
+    });
+
+    return this.nowPlayingTemplate;
+  }
+
+  /** "Sıradakiler" — uygulamanın kuyruğundan, çalan bölümden itibaren. */
+  private showUpNext(): void {
+    const { episodes, index } = this.deps.playbackQueue.getQueue();
+    const upcoming = episodes.slice(Math.max(0, index));
+    if (upcoming.length === 0) {
+      this.logger.info('CarPlay: kuyruk boş, "Sıradakiler" açılmadı');
+      return;
+    }
+    this.pushEpisodes('Sıradakiler', upcoming);
+  }
+
+  /** Çalan bölümün şovunu açar (Now Playing'deki şov düğmesi). */
+  private openCurrentShow(): void {
+    const episode = this.currentEpisode();
+    const show = episode
+      ? this.shows.find(candidate => candidate.id === episode.showId)
+      : undefined;
+    if (!show) {
+      this.logger.info('CarPlay: çalan bölümün şovu bulunamadı');
+      return;
+    }
+    this.run('şov açılamadı', () => this.openShow(show));
+  }
+
+  /** Kuyruktaki çalan bölüm — düğmeler bunun üzerinden çalışır. */
+  private currentEpisode(): Episode | undefined {
+    const { episodes, index } = this.deps.playbackQueue.getQueue();
+    return episodes[index] ?? episodes.find(e => e.id === this.currentEpisodeId);
+  }
+
+  /** Çalan bölümü "Sonra dinle" listesine ekler/çıkarır. */
+  private async toggleSaved(): Promise<void> {
+    const episode = this.currentEpisode();
+    if (!episode) {
+      return;
+    }
+    await this.deps.toggleSavedEpisode.execute({ episode });
+    this.refresh();
   }
 
   /** Hız düğmesi — sabit değerler arasında dolaşır. */

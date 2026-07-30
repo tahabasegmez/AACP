@@ -2,6 +2,7 @@ import { ConsoleLogger } from '@core/logger';
 import { CarPlayController } from '@carplay';
 import { CarPlay } from 'react-native-carplay';
 import { getDependencies } from '../di';
+import { PlayerQueueAdapter } from './PlayerQueueAdapter';
 
 /**
  * registerCarPlay — CarPlay sahnesini paylaşılan bağımlılık grafiğine bağlar.
@@ -12,7 +13,7 @@ import { getDependencies } from '../di';
  */
 export const registerCarPlay = (): void => {
   const controller = new CarPlayController(
-    getDependencies(),
+    { ...getDependencies(), playbackQueue: new PlayerQueueAdapter() },
     new ConsoleLogger('CarPlay'),
   );
   CarPlay.registerOnConnect(() => {

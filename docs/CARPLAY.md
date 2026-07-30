@@ -49,6 +49,39 @@ Sistem oynatma ekranı kullanılır; üzerine şunlar eklenmiştir:
 Apple, Now Playing'e en fazla **5 özel düğme** koymaya izin verir; ikisi
 kullanılmıştır, yer vardır.
 
+### Paylaşılan şablon (çökme tuzağı)
+
+`CPNowPlayingTemplate` bir **singleton**'dır — `react-native-carplay` her
+`new NowPlayingTemplate(...)` çağrısında aynı native örneği yeniden yapılandırır.
+Bundan iki kural doğar:
+
+1. **Şablon bir kez kurulur.** Her oynatmada yeniden yaratmak, her seferinde bir
+   olay dinleyicisi daha bağlamak olurdu. Bu yüzden düğme davranışları
+   dokunulduğu anda güncel duruma bakar, şablona gömülmez.
+2. **Aynı örnek yığına iki kez eklenemez** — iOS istisna fırlatır ve uygulama
+   ÇÖKER. Bu yüzden Now Playing açılırken önce köke dönülür
+   (`popToRootTemplate`), sonra eklenir. Böylece Now Playing daima kökün bir
+   üstündedir ve ayrıca durum takibi gerekmez.
+
+`enableNowPlaying(true)` de bağlantı başında bir kez çağrılır (her oynatmada
+değil), bağlantı koptuğunda kapatılır.
+
+### Kuyruk tek yerde yaşar
+
+CarPlay kuyruğun kopyasını TUTMAZ. Bir listeden çalmaya başlayınca
+[`PlaybackQueueService`](../src/domain/services/PlaybackQueueService.ts) portu
+üzerinden uygulamanın kuyruğunu **kurar**; "Sıradakiler" listesi de aynı porttan
+okur. Böylece direksiyon tuşları, kilit ekranı, telefondaki "Sıra" ekranı ve
+CarPlay hep aynı sırayı görür.
+
+Port domain'de durur, somut uygulama
+[PlayerQueueAdapter](../src/app/carplay/PlayerQueueAdapter.ts) ile composition
+root'ta bağlanır — `@carplay` presentation'ı tanımaz.
+
+Kuyruk **her** oynatmada verilir: "Dinlemeye devam" rafından çalmak bile bağlam
+olarak o rafı bırakır. Aksi halde tek bölümlük kuyruk kalır ve "Sıradakiler"
+boş görünürdü.
+
 > **Arka plan rengi:** CarPlay'de template arka planı uygulamanın kontrolünde
 > DEĞİLDİR. Now Playing ekranının rengini iOS, albüm kapağından kendisi türetir
 > — telefondaki `CoverGradient` etkisinin karşılığı sistemde zaten vardır.
@@ -86,8 +119,28 @@ CarPlay geri çağrıları senkrondur; içeriden fırlayan bir hata "unhandled
 rejection" olarak düşer ve sebebi kaybolur. Bu yüzden:
 
 - Tüm ateşle-unut tazelemeler tek kapıdan geçer (`refresh()`) ve her zaman loglanır.
+- Düğme geri çağrıları `run()` üzerinden çalışır; hata yutulmaz.
 - Her kaynak ayrı okunur (`read()`): biri hata verse bile diğer sekmeler dolar.
 - Satır davranışları `try/catch` içinde çalışır; hangi listede patladığı loglanır.
+
+### Tazeleme turları birleştirilir
+
+Sekme değiştirme, oynatma değişimi ve "Sonra dinle"ye ekleme aynı anda tazeleme
+isteyebilir. Süren bir tur varsa yenisi başlatılmaz; yalnızca "bitince bir kez
+daha" işaretlenir (`refreshQueued`). Araçta her dokunuşta üst üste depolama
+turları birikmesin.
+
+## 3.2 Aynı bölümün iki kez görünmesi
+
+İki ayrı korumayla engellenir:
+
+- **Kaynakta:** [GetResumeList](../src/domain/usecases/player/GetResumeList.ts)
+  bölüm başına tek kayıt döndürür (en yeni damgalı kazanır) ve
+  [ProgressSyncAdapter](../src/data/sync/ProgressSyncAdapter.ts) uzak kaydı
+  daima kaydın kendi bölüm kimliğiyle anahtarlar. Ayıklama use case'te yapılır;
+  böylece telefon ve CarPlay aynı garantiyi paylaşır.
+- **Ekranda:** "Dinlemeye devam" rafındaki bir bölüm "Sonra dinle" rafından
+  düşürülür — aynı ekranda iki kez görünmez, üstteki raf kazanır.
 
 ## 4. Sesli komut (Siri)
 

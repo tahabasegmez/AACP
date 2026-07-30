@@ -1,4 +1,4 @@
-import { AudioPlayerService } from '@domain/services';
+import { AudioPlayerService, PlaybackQueueService } from '@domain/services';
 import {
   ContinueEpisode,
   GetDownloads,
@@ -44,6 +44,12 @@ export interface CarPlayDependencies {
   readonly setPlaybackRate: SetPlaybackRate;
   readonly toggleSavedEpisode: ToggleSavedEpisode;
   readonly audioPlayer: AudioPlayerService;
+  /**
+   * Uygulamanın kuyruğu. CarPlay bir listeden çalmaya başladığında kuyruğu
+   * KURAR ve "Sıradakiler" listesini buradan okur — kuyruğun ikinci bir
+   * kopyasını tutmaz.
+   */
+  readonly playbackQueue: PlaybackQueueService;
 
   // --- sesli komut --------------------------------------------------------
   /** Sesli sorguyu çalınabilir bir bölüme çevirir (Siri / sesli arama). */

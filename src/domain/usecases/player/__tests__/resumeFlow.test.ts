@@ -96,6 +96,38 @@ describe('GetResumeList', () => {
     const list = await resumeList.execute();
     expect(list.ok && list.value.map(p => p.episodeId)).toEqual(['yarim']);
   });
+
+  it('aynı bölümü tek kez döndürür (en yeni kayıt kazanır)', async () => {
+    // Bozuk/eski bir anahtarla yazılmış ikinci kayıt taklidi: depoda iki giriş
+    // ama ikisi de aynı bölüme ait.
+    const storage = new InMemoryKeyValueStorage();
+    storage.set(
+      'playback_progress_v1',
+      JSON.stringify({
+        'legacy:ep1': {
+          episodeId: 'ep1',
+          positionSec: 60,
+          durationSec: 600,
+          updatedAt: '2026-07-20T10:00:00.000Z',
+          completed: false,
+        },
+        ep1: {
+          episodeId: 'ep1',
+          positionSec: 300,
+          durationSec: 600,
+          updatedAt: '2026-07-21T10:00:00.000Z',
+          completed: false,
+        },
+      }),
+    );
+
+    const list = await new GetResumeList(
+      new PlaybackProgressRepositoryImpl(storage),
+    ).execute();
+
+    expect(list.ok && list.value).toHaveLength(1);
+    expect(list.ok && list.value[0].positionSec).toBe(300);
+  });
 });
 
 describe('ContinueEpisode', () => {

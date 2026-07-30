@@ -17,6 +17,28 @@ export class GetResumeList implements NoParamUseCase<readonly PlaybackProgress[]
     if (!result.ok) {
       return result;
     }
-    return ok(result.value.filter(p => !p.completed && p.positionSec > 0));
+    const open = result.value.filter(p => !p.completed && p.positionSec > 0);
+    return ok(dedupeByEpisode(open));
   }
 }
+
+/**
+ * Bölüm başına TEK kayıt bırakır (en yeni damgalı kazanır).
+ *
+ * Depoda kayıtlar bölüm kimliğine göre tutulur, ama senkronizasyonla gelen
+ * veri geçmişte farklı bir anahtarla yazılmış olabilir. Aynı bölümün listede
+ * iki kez görünmesi her yüzeyde (telefon, CarPlay) hatalıdır; bu yüzden
+ * ayıklama tek noktada — use case'te — yapılır.
+ */
+const dedupeByEpisode = (
+  items: readonly PlaybackProgress[],
+): readonly PlaybackProgress[] => {
+  const newest = new Map<string, PlaybackProgress>();
+  for (const item of items) {
+    const existing = newest.get(item.episodeId);
+    if (!existing || existing.updatedAt.localeCompare(item.updatedAt) < 0) {
+      newest.set(item.episodeId, item);
+    }
+  }
+  return [...newest.values()];
+};

@@ -93,6 +93,8 @@ const headersOf = (tab: MockList): (string | undefined)[] =>
 let continued: Episode | null = null;
 let rate: number | null = null;
 let saved: Episode | null = null;
+/** Uygulamanın kuyruğunun testteki karşılığı (tek gerçek kaynak). */
+let queue: { episodes: readonly Episode[]; index: number } = { episodes: [], index: -1 };
 
 const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies =>
   ({
@@ -130,6 +132,12 @@ const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies
       getState: async () => ({ ...INITIAL_PLAYBACK_STATE, rate: 1 }),
       subscribe: () => () => undefined,
     },
+    playbackQueue: {
+      setQueue: (episodes: readonly Episode[], index: number) => {
+        queue = { episodes, index };
+      },
+      getQueue: () => queue,
+    },
     ...overrides,
   }) as unknown as CarPlayDependencies;
 
@@ -138,6 +146,7 @@ beforeEach(() => {
   continued = null;
   rate = null;
   saved = null;
+  queue = { episodes: [], index: -1 };
 });
 
 describe('CarPlayController', () => {
@@ -281,6 +290,66 @@ describe('CarPlayController', () => {
     nowPlaying?.config?.onButtonPressed?.({ id: 'save' });
 
     expect(saved?.id).toBe('e-resume');
+  });
+
+  it('çalarken uygulamanın kuyruğunu dokunulan listeyle kurar', async () => {
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
+
+    await tabs()[0].config.onItemSelect?.({ index: 0 });
+
+    // Devam rafından çalmak bile bir bağlam kuyruğu bırakır: direksiyon
+    // tuşları ve "Sıradakiler" boş kalmamalı.
+    expect(queue.episodes.map(e => e.id)).toEqual(['e-resume']);
+    expect(queue.index).toBe(0);
+  });
+
+  it('Now Playing tek örnektir ve köke dönülerek açılır', async () => {
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
+
+    await tabs()[0].config.onItemSelect?.({ index: 0 });
+    const first = callsOf('pushTemplate').at(-1)?.[1];
+    await tabs()[0].config.onItemSelect?.({ index: 0 });
+    const second = callsOf('pushTemplate').at(-1)?.[1];
+
+    // Paylaşılan şablon (CPNowPlayingTemplate) yeniden yaratılmaz; aynı örneği
+    // iki kez yığına eklemek iOS'ta çökmeye yol açar, bu yüzden önce köke dönülür.
+    expect(second).toBe(first);
+    expect(callsOf('popToRootTemplate')).toHaveLength(2);
+  });
+
+  it('"Sıradakiler" kuyruğu çalan bölümden itibaren gösterir', async () => {
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
+
+    // İndirilenler sekmesi kuyruk kurar, sonra Now Playing açılır.
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+
+    const nowPlaying = callsOf('pushTemplate').at(-1)?.[1] as {
+      config?: { onUpNextButtonPressed?: () => void };
+    };
+    nowPlaying?.config?.onUpNextButtonPressed?.();
+
+    const pushed = callsOf('pushTemplate').at(-1)?.[1] as MockList;
+    expect(pushed.config.title).toBe('Sıradakiler');
+    expect(pushed.config.sections[0].items.map(i => i.text)).toEqual(['İndirilmiş bölüm']);
+  });
+
+  it('aynı bölüm iki rafta birden görünmez', async () => {
+    // "Sonra dinle" listesinde devam rafındaki bölüm de var.
+    const withSaved = {
+      ...playlist,
+      id: SAVED_PLAYLIST_ID,
+      name: 'Sonra dinle',
+      episodes: [{ ...episode('e-resume'), title: 'Yarım kalan' }, episode('e-baska')],
+    };
+    const deps = makeDeps({
+      getPlaylists: { execute: async () => ok([withSaved]) },
+    } as unknown as Partial<CarPlayDependencies>);
+
+    await new CarPlayController(deps, noopLogger).onConnect();
+
+    const sections = tabs()[0].config.sections;
+    expect(sections[0].items.map(i => i.text)).toEqual(['Yarım kalan']);
+    expect(sections[1].items.map(i => i.text)).toEqual(['Bölüm e-baska']);
   });
 
   it('bir kaynak çökerse diğer sekmeler yine dolar', async () => {

@@ -56,7 +56,11 @@ export class ProgressSyncAdapter implements SyncCollectionAdapter {
 
       const parsed = parseProgress(record.value);
       if (parsed) {
-        all[record.key] = parsed;
+        // Anahtar DAİMA kaydın kendi bölüm kimliğidir. Uzak anahtara güvenmek
+        // (eski/bozuk bir anahtar gelirse) aynı bölüm için iki kayıt oluşturur
+        // ve "Dinlemeye devam" listesinde çift görünürdü.
+        delete all[record.key];
+        all[parsed.episodeId] = parsed;
         changed = true;
       }
     }
