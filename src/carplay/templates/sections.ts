@@ -11,8 +11,15 @@ import { Episode, PlaybackProgress, Playlist, Show, playlistCoverUri } from '@do
 export interface CarPlayListItem {
   text: string;
   detailText?: string;
-  /** Kapak görseli — RN image source biçiminde (`{ uri }`). */
-  image?: { uri: string };
+  /**
+   * Kapak görselinin adresi.
+   *
+   * `image` alanı BİLİNÇLİ olarak kullanılmaz: onu native taraf RN'in
+   * `RCTConvert UIImage` yolundan geçirir ve o yol uzak adresi reddedip
+   * `file://` adresinde çökebiliyor (bkz. docs/CARPLAY.md). `imgUrl` görseli
+   * doğrudan okur; buraya DAİMA yerel bir dosya adresi verilir.
+   */
+  imgUrl?: string;
   /** O an çalan öğe mi (CarPlay bunu görsel olarak işaretler). */
   isPlaying?: boolean;
   /** Alt seviyeye gidiliyorsa ok işareti gösterilir. */
@@ -63,17 +70,17 @@ export const buildList = (groups: readonly CarPlayGroup[]): CarPlayList => {
 export const imageUrls = (sections: readonly CarPlaySection[]): string[] => [
   ...new Set(
     sections.flatMap(section =>
-      section.items.map(item => item.image?.uri).filter((uri): uri is string => !!uri),
+      section.items.map(item => item.imgUrl).filter((uri): uri is string => !!uri),
     ),
   ),
 ];
 
 /**
- * Kapak adreslerini yerel karşılıklarıyla değiştirir.
+ * Uzak kapak adreslerini yerel dosya adresleriyle değiştirir.
  *
- * CarPlay şablonları YALNIZCA yerel görsel kabul eder; uzak adres verilen satır
- * kapaksız çizilir ve ana iş parçacığında hata üretir. Haritada karşılığı
- * olmayan (indirilemeyen) kapaklar tümüyle düşürülür.
+ * CarPlay'e uzak adres VERİLMEZ (bkz. `CarPlayListItem.imgUrl`). Haritada
+ * karşılığı olmayan — yani henüz indirilememiş — kapaklar tümüyle düşürülür;
+ * satır kapaksız görünür, liste çalışmaya devam eder.
  */
 export const withLocalImages = (
   sections: readonly CarPlaySection[],
@@ -82,12 +89,12 @@ export const withLocalImages = (
   sections.map(section => ({
     ...section,
     items: section.items.map(item => {
-      const resolved = item.image ? local.get(item.image.uri) : undefined;
+      const resolved = item.imgUrl ? local.get(item.imgUrl) : undefined;
       if (resolved) {
-        return { ...item, image: { uri: resolved } };
+        return { ...item, imgUrl: resolved };
       }
       const copy = { ...item };
-      delete copy.image;
+      delete copy.imgUrl;
       return copy;
     }),
   }));
@@ -95,24 +102,22 @@ export const withLocalImages = (
 /**
  * Bölümleri kapaksız kopyalar.
  *
- * CarPlay şablon köprüsü, görsel alanlarını RN'in asset çözümleyicisinden
- * geçirir; kütüphane/RN sürüm uyumsuzluğunda bu adım patlayabilir
- * (bkz. docs/CARPLAY.md). Araçta BOŞ liste göstermektense kapaksız göstermek
- * yeğdir — bu yüzden yedek düzen olarak kullanılır.
+ * Görsel çizimi beklenmedik bir sebeple patlarsa araçta BOŞ liste göstermek
+ * yerine kapaksız göstermek yeğdir — bu yüzden yedek düzen olarak kullanılır.
  */
 export const withoutImages = (sections: readonly CarPlaySection[]): CarPlaySection[] =>
   sections.map(section => ({
     ...section,
     items: section.items.map(item => {
       const copy = { ...item };
-      delete copy.image;
+      delete copy.imgUrl;
       return copy;
     }),
   }));
 
-/** Uzak görseli CarPlay'in beklediği kaynağa çevirir; yoksa alan atlanır. */
-const cover = (uri?: string): { uri: string } | undefined =>
-  uri && uri.length > 0 ? { uri } : undefined;
+/** Boş adresleri eler; dolu olanlar sonradan yerel adresle değiştirilir. */
+const cover = (uri?: string): string | undefined =>
+  uri && uri.length > 0 ? uri : undefined;
 
 /** Kalan süreyi insan diline çevirir ("12 dk kaldı"). */
 const remainingText = (progress: PlaybackProgress): string => {
@@ -125,7 +130,7 @@ export const showsToItems = (shows: readonly Show[]): CarPlayListItem[] =>
   shows.map(show => ({
     text: show.title,
     detailText: show.description || undefined,
-    image: cover(show.imageUrl),
+    imgUrl: cover(show.imageUrl),
     showsDisclosureIndicator: true,
   }));
 
@@ -140,7 +145,7 @@ export const episodesToItems = (
   episodes.map(episode => ({
     text: episode.title,
     detailText: formatDuration(episode.durationSec),
-    image: cover(episode.imageUrl),
+    imgUrl: cover(episode.imageUrl),
     isPlaying: !!currentEpisodeId && episode.id === currentEpisodeId,
   }));
 
@@ -157,7 +162,7 @@ export const resumeToItems = (
   items.map(progress => ({
     text: progress.episodeTitle ?? 'Bölüm',
     detailText: remainingText(progress),
-    image: cover(progress.artworkUrl),
+    imgUrl: cover(progress.artworkUrl),
     isPlaying: !!currentEpisodeId && progress.episodeId === currentEpisodeId,
   }));
 
@@ -169,6 +174,6 @@ export const playlistsToItems = (playlists: readonly Playlist[]): CarPlayListIte
       playlist.episodes.length === 0
         ? 'Boş liste'
         : `${playlist.episodes.length} bölüm`,
-    image: cover(playlistCoverUri(playlist)),
+    imgUrl: cover(playlistCoverUri(playlist)),
     showsDisclosureIndicator: true,
   }));

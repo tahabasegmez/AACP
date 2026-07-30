@@ -11,6 +11,7 @@ import {
 import {
   CarPlay,
   ListTemplate,
+  ListTemplateConfig,
   NowPlayingTemplate,
   TabBarTemplate,
 } from 'react-native-carplay';
@@ -40,6 +41,19 @@ const MAX_SHELF = 8;
 
 /** Now Playing'deki hız düğmesinin dolaştığı değerler. */
 const SPEEDS = [1, 1.25, 1.5, 2];
+
+/**
+ * Bölümleri kütüphanenin beklediği tipe geçirir.
+ *
+ * `react-native-carplay` 2.3.0'ın tip tanımında `ListItem.imgUrl?: null` yazar
+ * ama native taraf orada bir METİN okur (`RNCarPlay.m`); tanım hatalıdır.
+ * Dönüşüm tek bir yerde ve gerekçesiyle yapılır ki kütüphane düzeltildiğinde
+ * kaldırılacak nokta belli olsun.
+ */
+const asListSections = (
+  sections: readonly CarPlaySection[],
+): ListTemplateConfig['sections'] =>
+  sections as unknown as ListTemplateConfig['sections'];
 
 /**
  * Sekme listesi — şablonu ve o an gösterdiği satır davranışlarını BİRLİKTE tutar.
@@ -84,12 +98,12 @@ class TabList {
     this.actions = list.actions;
     const sections = await this.render(list.sections);
     try {
-      this.template.updateSections(sections);
+      this.template.updateSections(asListSections(sections));
     } catch (error) {
       // Kapaklar çizilemezse sekmeyi boş bırakma: kapaksız da olsa içerik
       // göster (bkz. docs/CARPLAY.md).
       this.logger.error(`CarPlay: "${this.title}" kapakları çizilemedi`, error);
-      this.template.updateSections(withoutImages(sections));
+      this.template.updateSections(asListSections(withoutImages(sections)));
     }
   }
 }
@@ -441,7 +455,7 @@ export class CarPlayController {
       CarPlay.pushTemplate(
         new ListTemplate({
           title,
-          sections,
+          sections: asListSections(sections),
           onItemSelect: async ({ index }) => {
             try {
               await list.actions[index]?.();

@@ -89,13 +89,24 @@ boş görünürdü.
 
 ## 3. Kapak görselleri
 
-Listelerde kapaklar gösterilir (`ListItem.image`) ama **yalnızca yerel dosya
-adresiyle**. Bu bir tercih değil, kısıt:
+Kapaklar `ListItem.**imgUrl**` alanıyla ve **yalnızca yerel dosya adresiyle**
+verilir. İkisi de zorunlu; sebebi native tarafta:
 
-`https://` adresi verilen satırda native taraf `RCTConvert`'e düşer ve
-*"Only local files or data URIs are supported"* hatası verir. Üstelik bu
-dönüşüm **ana iş parçacığında** çalışır — liste her tazelendiğinde satır başına
-bir hata, sonuçta donma ve çökme (Thread 1).
+`image` alanı RN'in `RCTConvert UIImage` yoluna girer ve o yol bu iş için
+kullanılamaz:
+
+| Verilen | Sonuç |
+|---|---|
+| `https://…` | *"Only local files or data URIs are supported"* — kapak çizilmez, **ana iş parçacığında** hata üretir |
+| `file:///…` | `RCTImageFromLocalBundleAssetURL` içinde `URLByAppendingPathComponent:nil` → **NSInvalidArgumentException, Thread 1 çökmesi** |
+
+İkinci satır bir RN hatasıdır: `file:///…` adresinde `URL.host` **nil**'dir,
+`[nil stringByAppendingString:]` nil döner ve `URLByAppendingPathComponent:`
+nil argümanla çağrılır.
+
+`imgUrl` ise `RCTConvert`'e hiç uğramaz, görseli doğrudan okur. Ona **yerel**
+dosya verildiği için okuma da diskten olur — kütüphanenin varsayılan
+davranışındaki gibi ana iş parçacığında ağ beklenmez.
 
 Bu yüzden kapaklar önce indirilir:
 
@@ -114,6 +125,12 @@ Episode.imageUrl (https://…)
   (`withLocalImages`).
 - Adres → dosya eşlemesi saf fonksiyonlardadır (`imageUrls`, `withLocalImages`)
   ve ayrı test edilir.
+- Yol `encodeURI` ile kodlanır: kaçırılmamış bir karakterde `NSURL` nil döner
+  ve kapak sessizce kaybolurdu.
+
+> Kütüphanenin tip tanımında `ListItem.imgUrl?: null` yazar — native taraf
+> orada metin okuduğu için tanım hatalıdır. Dönüşüm tek bir yerde
+> (`asListSections`) ve gerekçesiyle yapılır.
 
 Çalan bölüm `isPlaying` ile işaretlenir; oynatma değiştikçe sekmeler tazelenir
 (`watchPlayback`) — böylece hem işaret hem "Dinlemeye devam" rafı güncel kalır.

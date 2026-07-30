@@ -22,9 +22,12 @@ export class BlobUtilArtworkCache implements ArtworkCache {
     if (!remoteUrl) {
       return undefined;
     }
-    // Zaten yerel bir adresse indirmeye gerek yok.
-    if (remoteUrl.startsWith('file://') || remoteUrl.startsWith('/')) {
-      return remoteUrl.startsWith('file://') ? remoteUrl : `file://${remoteUrl}`;
+    // Zaten yerel bir dosyaysa indirmeye gerek yok.
+    if (remoteUrl.startsWith('file://')) {
+      return fileUri(remoteUrl.slice('file://'.length));
+    }
+    if (remoteUrl.startsWith('/')) {
+      return fileUri(remoteUrl);
     }
 
     const existing = this.inFlight.get(remoteUrl);
@@ -41,19 +44,28 @@ export class BlobUtilArtworkCache implements ArtworkCache {
     const path = `${this.dir}/${fileNameFor(remoteUrl)}`;
     try {
       if (await ReactNativeBlobUtil.fs.exists(path)) {
-        return `file://${path}`;
+        return fileUri(path);
       }
       if (!(await ReactNativeBlobUtil.fs.isDir(this.dir))) {
         await ReactNativeBlobUtil.fs.mkdir(this.dir);
       }
       await ReactNativeBlobUtil.config({ path }).fetch('GET', remoteUrl);
-      return `file://${path}`;
+      return fileUri(path);
     } catch {
       // Kapak indirilemedi: liste kapaksız devam etsin.
       return undefined;
     }
   }
 }
+
+/**
+ * Dosya yolunu geçerli bir `file://` adresine çevirir.
+ *
+ * Yol native tarafta `NSURL` ile ayrıştırılır; kaçırılmamış boşluk ya da
+ * özel karakter varsa adres `nil` olur ve görsel sessizce kaybolur. Uygulama
+ * konteyneri yolunda bu karakterler bulunabildiği için kodlama şart.
+ */
+const fileUri = (path: string): string => `file://${encodeURI(path)}`;
 
 /** Adresten kararlı bir dosya adı üretir (aynı adres → aynı dosya). */
 const fileNameFor = (url: string): string => {

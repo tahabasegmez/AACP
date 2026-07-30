@@ -37,14 +37,14 @@ describe('showsToItems', () => {
 
     expect(item.text).toBe('Şov 1');
     expect(item.detailText).toBe('Açıklama');
-    expect(item.image).toEqual({ uri: 'https://img/s1.jpg' });
+    expect(item.imgUrl).toBe('https://img/s1.jpg');
     // Alt seviyeye gidiliyor → ok işareti.
     expect(item.showsDisclosureIndicator).toBe(true);
   });
 
-  it('kapak yoksa image alanı verilmez', () => {
+  it('kapak yoksa imgUrl alanı verilmez', () => {
     const [item] = showsToItems([{ ...show, imageUrl: undefined }]);
-    expect(item.image).toBeUndefined();
+    expect(item.imgUrl).toBeUndefined();
   });
 
   it('açıklama boşsa detay metni verilmez', () => {
@@ -59,7 +59,7 @@ describe('episodesToItems', () => {
 
     expect(item.text).toBe('Bölüm 1');
     expect(item.detailText).toBe('1:01:01');
-    expect(item.image).toEqual({ uri: 'https://img/e1.jpg' });
+    expect(item.imgUrl).toBe('https://img/e1.jpg');
   });
 
   it('çalan bölümü işaretler', () => {
@@ -121,7 +121,7 @@ describe('playlistsToItems', () => {
 
   it('kapak yoksa ilk bölümün görseline düşer', () => {
     const [item] = playlistsToItems([playlist]);
-    expect(item.image).toEqual({ uri: 'https://img/e1.jpg' });
+    expect(item.imgUrl).toBe('https://img/e1.jpg');
   });
 
   it('boş liste için uygun metin verir', () => {
@@ -177,8 +177,8 @@ describe('buildList', () => {
 
   it('imageUrls benzersiz kapak adreslerini toplar', () => {
     const sections = [
-      { items: [{ text: 'a', image: { uri: 'u1' } }, { text: 'b' }] },
-      { items: [{ text: 'c', image: { uri: 'u1' } }, { text: 'd', image: { uri: 'u2' } }] },
+      { items: [{ text: 'a', imgUrl: 'u1' }, { text: 'b' }] },
+      { items: [{ text: 'c', imgUrl: 'u1' }, { text: 'd', imgUrl: 'u2' }] },
     ];
 
     expect(imageUrls(sections)).toEqual(['u1', 'u2']);
@@ -188,8 +188,8 @@ describe('buildList', () => {
     const sections = [
       {
         items: [
-          { text: 'a', image: { uri: 'https://uzak/1.jpg' } },
-          { text: 'b', image: { uri: 'https://uzak/2.jpg' } },
+          { text: 'a', imgUrl: 'https://uzak/1.jpg' },
+          { text: 'b', imgUrl: 'https://uzak/2.jpg' },
         ],
       },
     ];
@@ -199,9 +199,9 @@ describe('buildList', () => {
       new Map([['https://uzak/1.jpg', 'file:///c/1.jpg']]),
     );
 
-    expect(result[0].items[0].image).toEqual({ uri: 'file:///c/1.jpg' });
+    expect(result[0].items[0].imgUrl).toBe('file:///c/1.jpg');
     // Karşılığı olmayan kapak DÜŞER: uzak adres CarPlay'de hata üretir.
-    expect(result[0].items[1].image).toBeUndefined();
+    expect(result[0].items[1].imgUrl).toBeUndefined();
     expect(result[0].items[1].text).toBe('b');
   });
 
@@ -209,7 +209,7 @@ describe('buildList', () => {
     const sections = [
       {
         header: 'A',
-        items: [{ text: 'x', detailText: 'd', image: { uri: 'https://a.jpg' }, isPlaying: true }],
+        items: [{ text: 'x', detailText: 'd', imgUrl: 'https://a.jpg', isPlaying: true }],
       },
     ];
 
@@ -217,7 +217,7 @@ describe('buildList', () => {
       { header: 'A', items: [{ text: 'x', detailText: 'd', isPlaying: true }] },
     ]);
     // Girdi değişmez (saf fonksiyon).
-    expect(sections[0].items[0].image).toEqual({ uri: 'https://a.jpg' });
+    expect(sections[0].items[0].imgUrl).toBe('https://a.jpg');
   });
 
   it('başlıksız grup başlıksız bölüm üretir', () => {

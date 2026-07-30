@@ -69,7 +69,7 @@ const playlist: Playlist = {
 /** Testlerin şablonlara baktığı yüzey (mock'un sakladığı config). */
 interface MockSection {
   header?: string;
-  items: { text: string; image?: { uri: string } }[];
+  items: { text: string; imgUrl?: string }[];
 }
 interface MockList {
   config: {
@@ -370,11 +370,9 @@ describe('CarPlayController', () => {
     await new CarPlayController(deps, noopLogger).onConnect();
     await tabs()[1].config.onItemSelect?.({ index: 0 });
 
-    // Uzak adres verilirse CarPlay satırı kapaksız çizer ve native hata üretir.
+    // Uzak adres verilirse native taraf ana iş parçacığında çöker.
     const pushed = callsOf('pushTemplate').at(-1)?.[1] as MockList;
-    expect(pushed.config.sections[0].items[0].image).toEqual({
-      uri: 'file:///cache/kapak.jpg',
-    });
+    expect(pushed.config.sections[0].items[0].imgUrl).toBe('file:///cache/kapak.jpg');
   });
 
   it('indirilemeyen kapak satırı düşürmez', async () => {
@@ -386,7 +384,7 @@ describe('CarPlayController', () => {
 
     const items = tabs()[1].config.sections[1].items;
     expect(items.map(i => i.text)).toEqual(['Şov 1']);
-    expect(items[0].image).toBeUndefined();
+    expect(items[0].imgUrl).toBeUndefined();
   });
 
   it('bir kaynak çökerse diğer sekmeler yine dolar', async () => {
