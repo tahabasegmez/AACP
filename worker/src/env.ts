@@ -1,3 +1,5 @@
+import type { KvNamespace } from './storage/KvSyncStore';
+
 /**
  * Env — Cloudflare Workers'a bağlanan ayarlar ve gizli değerler.
  *
@@ -17,6 +19,15 @@ export interface Env {
   readonly SUPABASE_SERVICE_KEY: string;
   /** Kullanıcı jetonlarını yerel doğrulamak için JWT gizli anahtarı. */
   readonly SUPABASE_JWT_SECRET: string;
+
+  // --- NoSQL (Cloudflare KV) --------------------------------------------
+  /**
+   * Yüksek hacimli, ilişkisiz kullanıcı durumu (kaldığın yer, tercihler).
+   *
+   * BAĞLANMAMIŞSA ilgili koleksiyonlar Postgres'e düşer: eksik yapılandırma
+   * servisi düşürmez, yalnızca yerleşim değişir (bkz. resolveStore).
+   */
+  readonly USER_STATE?: KvNamespace;
 
   // --- Yönetim ----------------------------------------------------------
   /** Katalog yayınlama gibi uçları korur. Boşsa bu uçlar KAPALIDIR. */

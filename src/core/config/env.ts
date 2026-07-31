@@ -186,8 +186,11 @@ const flag = (value?: string): boolean | undefined => {
 export const env: AppEnv = resolveEnv();
 
 /**
- * Katalog JSON adresini çözer: açık `remoteCatalogUrl` > backend `/v1/catalog`
- * > yok (bundled-only). Tek yerde hesaplanır ki DI ve testler aynı kuralı görsün.
+ * Katalog adresini çözer: açık `remoteCatalogUrl` > backend `/v1/catalog`.
+ *
+ * Katalog TEK KAYNAKTAN gelir (sunucudaki `shows` tablosu); uygulamaya gömülü
+ * bir liste yoktur. Adres hesabı tek yerde durur ki DI ve testler aynı kuralı
+ * görsün.
  */
 export const resolveCatalogUrl = (e: AppEnv = env): string | undefined => {
   if (e.remoteCatalogUrl) {

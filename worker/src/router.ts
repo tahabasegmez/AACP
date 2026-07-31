@@ -46,6 +46,10 @@ export class Router {
     return this.add('POST', path, handler);
   }
 
+  delete(path: string, handler: Handler): this {
+    return this.add('DELETE', path, handler);
+  }
+
   private add(method: string, path: string, handler: Handler): this {
     this.routes.push({ method, segments: split(path), handler });
     return this;
@@ -159,7 +163,7 @@ const corsHeaders = (env: Env, origin: string | null): Record<string, string> =>
   }
   return {
     'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization,Content-Type,x-admin-token',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',

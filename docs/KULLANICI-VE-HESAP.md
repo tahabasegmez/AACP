@@ -37,6 +37,9 @@ kullanıcı anonimse YENİ kullanıcı yaratılmaz, mevcut kayıt yükseltilir.
 
 ## 3. Hangi veri nerede yaşar?
 
+> Sunucu tarafındaki ayrıntı (hangi tablo, PostgreSQL mi NoSQL mi) için bkz.
+> [VERI-MIMARISI.md](VERI-MIMARISI.md).
+
 | Veri | Yer | Sebep |
 |---|---|---|
 | Kaldığın yer (progress) | cihaz + **sunucu** | Cihazlar arası devam |

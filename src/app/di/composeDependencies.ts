@@ -1,5 +1,4 @@
 import {
-  FEED_CATALOG,
   env,
   isAdsEnabled,
   isAnalyticsEnabled,
@@ -56,7 +55,7 @@ import {
   ProgressSyncAdapter,
   UserRepositoryImpl,
   SyncEngine,
-  HybridShowCatalogRepository,
+  RemoteShowCatalogRepository,
   InMemoryFeedCacheDataSource,
   PlaybackProgressRepositoryImpl,
   PodcastFeedRepositoryImpl,
@@ -166,13 +165,14 @@ export const composeDependencies = (): AppDependencies => {
         })
       : new RssFeedSource(new RssFeedDataSource(http, xmlParser));
   const feedRepo = new PodcastFeedRepositoryImpl(feedSource, feedCache, logger);
-  // Hibrit katalog: bundled fallback + (varsa) uzak remote-config / backend.
-  const catalogRepo = new HybridShowCatalogRepository(
-    FEED_CATALOG,
+  // Katalog sunucudaki `shows` tablosundan gelir; uygulamaya gömülü liste YOK.
+  // Adres yoksa (backend kapalı) katalog boş kalır — bu bilinçli: iki ayrı
+  // kaynak tutmak, ikisinin sessizce ayrışması demekti.
+  const catalogRepo = new RemoteShowCatalogRepository(
     remoteCatalog,
     storage,
     logger,
-    { remoteUrl: resolveCatalogUrl(env), ttlMs: env.remoteCatalogTtlMs },
+    { remoteUrl: resolveCatalogUrl(env) ?? '', ttlMs: env.remoteCatalogTtlMs },
   );
   const progressRepo = new PlaybackProgressRepositoryImpl(storage);
   const followRepo = new FollowRepositoryImpl(storage);

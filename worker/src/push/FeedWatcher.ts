@@ -47,28 +47,31 @@ export class FeedWatcher {
     return { checked: shows.length, notified };
   }
 
+  /** Yayındaki şovlar — katalog artık kendi tablosunda. */
   private async loadCatalog(scope: SupabaseScope): Promise<CatalogEntry[]> {
-    const rows = await scope.select<{ value: string }>(
-      'settings',
-      'select=value&key=eq.catalog',
+    const rows = await scope.select<{ slug: string; feed_url: string; title: string }>(
+      'shows',
+      'select=slug,feed_url,title&active=is.true',
     );
-    if (!rows[0]?.value) {
-      return [];
-    }
-    try {
-      const parsed = JSON.parse(rows[0].value) as CatalogEntry[];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    return rows.map(row => ({
+      slug: row.slug,
+      feedUrl: row.feed_url,
+      title: row.title,
+    }));
   }
 
   /** Tek bir şovu kontrol eder; gönderilen bildirim sayısını döner. */
   private async checkShow(scope: SupabaseScope, show: CatalogEntry): Promise<number> {
-    const latest = await this.fetchLatestEpisode(show.feedUrl);
+    const episodes = await this.fetchEpisodes(show.feedUrl);
+    const latest = episodes[0];
     if (!latest) {
       return 0;
     }
+
+    // Bölümler her taramada veritabanına işlenir: feed zaten indirildi,
+    // ikinci bir iş çalıştırmak gereksiz. Böylece bölüm listesi sunucuda da
+    // bulunur (arama, "yeni bölümler", ileride istemciye sunma).
+    await this.ingestEpisodes(scope, show.slug, episodes).catch(() => undefined);
 
     const key = lastSeenKey(show.slug);
     const rows = await scope.select<{ value: string }>(
@@ -112,15 +115,14 @@ export class FeedWatcher {
   /**
    * Şovu takip eden kullanıcıların push jetonları.
    *
-   * Takip kaydı `sync_records` içinde `collection='follows'`, `key=showId`
-   * olarak durur; silinmiş (tombstone) kayıtlar hariç tutulur. İki sorgu
-   * yapılır çünkü PostgREST gömülü join için tablolar arası ilişki tanımı
-   * ister; iki basit sorgu burada daha anlaşılır ve yeterince hızlıdır.
+   * Takipler `show_follows` tablosundan okunur: senkron kayıtları oraya
+   * izdüşürülür (bkz. schema-02) ve böylece "bu şovu kimler takip ediyor"
+   * sorusu tombstone filtrelemeden, indeksli bir sorguyla yanıtlanır.
    */
   private async followersOf(scope: SupabaseScope, showId: string): Promise<string[]> {
     const follows = await scope.select<{ user_id: string }>(
-      'sync_records',
-      `select=user_id&collection=eq.follows&key=eq.${encodeURIComponent(showId)}&deleted=is.false`,
+      'show_follows',
+      `select=user_id&show_slug=eq.${encodeURIComponent(showId)}`,
     );
     if (follows.length === 0) {
       return [];
@@ -135,40 +137,126 @@ export class FeedWatcher {
   }
 
   /**
-   * Feed'in EN SON bölümünü çözer.
+   * Feed'in bölümlerini çözer (en yeniden eskiye, feed sırasıyla).
    *
-   * Tam bir XML ayrıştırıcı yerine hedefli okuma yapılır: yalnızca ilk `<item>`
-   * bloğundan kimlik ve başlık alınır. Amaç "bir şey değişti mi?" sorusuna
-   * cevap vermek olduğu için bu yeterlidir ve Worker'a XML bağımlılığı eklemez.
+   * Tam bir XML ayrıştırıcı yerine hedefli okuma yapılır: Worker bundle'ına
+   * XML bağımlılığı eklememek için `<item>` blokları düz metin olarak taranır.
+   * İhtiyacımız olan alan kümesi dar ve RSS'te bu alanların biçimi sabittir.
    */
-  private async fetchLatestEpisode(
-    feedUrl: string,
-  ): Promise<{ id: string; title: string } | undefined> {
+  private async fetchEpisodes(feedUrl: string): Promise<FeedEpisode[]> {
     const response = await fetch(feedUrl, {
       headers: { Accept: 'application/rss+xml, application/xml, text/xml' },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!response.ok) {
-      return undefined;
+      return [];
     }
-    const xml = await response.text();
+    return parseEpisodes(await response.text());
+  }
 
-    const itemStart = xml.indexOf('<item');
-    if (itemStart === -1) {
-      return undefined;
+  /** Bölümleri veritabanına yazar (aynı guid tekrar gelirse günceller). */
+  private async ingestEpisodes(
+    scope: SupabaseScope,
+    slug: string,
+    episodes: readonly FeedEpisode[],
+  ): Promise<void> {
+    if (episodes.length === 0) {
+      return;
     }
-    const itemEnd = xml.indexOf('</item>', itemStart);
-    const item = xml.slice(itemStart, itemEnd === -1 ? undefined : itemEnd);
-
-    const title = readTag(item, 'title') ?? 'Yeni bölüm';
-    const id =
-      readTag(item, 'guid') ??
-      readAttribute(item, 'enclosure', 'url') ??
-      readTag(item, 'pubDate');
-
-    return id ? { id, title } : undefined;
+    await scope.upsert(
+      'episodes',
+      episodes.map(episode => ({
+        show_slug: slug,
+        guid: episode.id,
+        title: episode.title,
+        description: episode.description ?? null,
+        audio_url: episode.audioUrl,
+        image_url: episode.imageUrl ?? null,
+        duration_sec: episode.durationSec ?? null,
+        published_at: episode.publishedAt ?? null,
+      })),
+      'show_slug,guid',
+    );
   }
 }
+
+/** Feed'den okunan tek bölüm. */
+interface FeedEpisode {
+  readonly id: string;
+  readonly title: string;
+  readonly description?: string;
+  readonly audioUrl: string;
+  readonly imageUrl?: string;
+  readonly durationSec?: number;
+  readonly publishedAt?: string;
+}
+
+/** Tek taramada işlenecek en fazla bölüm — cron penceresi kilitlenmesin. */
+const MAX_ITEMS = 100;
+
+/**
+ * RSS gövdesinden bölümleri okur (saf fonksiyon — ayrı test edilir).
+ *
+ * Ses dosyası (`enclosure`) olmayan öğeler ATLANIR: çalınamayan bir kayıt
+ * bölüm listesinde yer tutmamalı.
+ */
+export const parseEpisodes = (xml: string): FeedEpisode[] => {
+  const episodes: FeedEpisode[] = [];
+  let cursor = 0;
+
+  while (episodes.length < MAX_ITEMS) {
+    const start = xml.indexOf('<item', cursor);
+    if (start === -1) {
+      break;
+    }
+    const end = xml.indexOf('</item>', start);
+    const item = xml.slice(start, end === -1 ? undefined : end);
+    cursor = end === -1 ? xml.length : end + 7;
+
+    const audioUrl = readAttribute(item, 'enclosure', 'url');
+    if (!audioUrl) {
+      continue;
+    }
+    const id = readTag(item, 'guid') ?? audioUrl;
+
+    episodes.push({
+      id,
+      title: readTag(item, 'title') ?? 'İsimsiz bölüm',
+      description: readTag(item, 'description'),
+      audioUrl,
+      imageUrl: readAttribute(item, 'itunes:image', 'href'),
+      durationSec: parseDuration(readTag(item, 'itunes:duration')),
+      publishedAt: parseDate(readTag(item, 'pubDate')),
+    });
+
+    if (end === -1) {
+      break;
+    }
+  }
+
+  return episodes;
+};
+
+/** `HH:MM:SS`, `MM:SS` ya da saniye — saniyeye çevirir. */
+const parseDuration = (value: string | undefined): number | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const parts = value.split(':').map(Number);
+  if (parts.some(Number.isNaN)) {
+    return undefined;
+  }
+  return parts.reduce((total, part) => total * 60 + part, 0);
+};
+
+/** RFC 822 tarihini ISO'ya çevirir; çözülemezse alan boş bırakılır. */
+const parseDate = (value: string | undefined): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? undefined : new Date(time).toISOString();
+};
 
 /** `<tag>değer</tag>` içeriğini okur (CDATA dahil). */
 const readTag = (xml: string, tag: string): string | undefined => {

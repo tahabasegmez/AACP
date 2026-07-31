@@ -1,6 +1,7 @@
 import { HttpError } from '../errors';
 import { requireSession } from '../auth';
-import { Supabase } from '../supabase';
+import { resolveStore } from '../storage/resolveStore';
+import type { SyncRecord } from '../storage/SyncStore';
 import { ok, type Ctx } from '../router';
 
 /**
@@ -23,32 +24,16 @@ export type SyncCollection = (typeof SYNC_COLLECTIONS)[number];
 /** Tek istekte kabul edilen en fazla kayıt — kötüye kullanımı sınırlar. */
 const MAX_RECORDS = 500;
 
-interface SyncRecord {
-  readonly key: string;
-  readonly value: string;
-  readonly updatedAt: number;
-  readonly deleted: boolean;
-}
-
-/** Veritabanı satırı (snake_case). */
-interface SyncRow {
-  readonly key: string;
-  readonly value: string;
-  readonly updated_at: number;
-  readonly deleted: boolean;
-}
-
 /**
  * Senkron uçları — delta + son-yazan-kazanır.
  *
- * Kullanıcı verisine erişim DAİMA kullanıcının kendi jetonuyla yapılır; böylece
- * Postgres RLS devreye girer ve bir kullanıcı başkasının satırlarını hiçbir
- * koşulda göremez. Yetkilendirme uygulama kodunda değil, veritabanında zorunlu
- * kılınır.
+ * Rotalar verinin NEREDE durduğunu bilmez: koleksiyon ilişkisel veritabanında
+ * da olabilir, anahtar-değer deposunda da. Yerleşim kararı tek yerdedir
+ * (`resolveStore`), protokol her ikisinde aynıdır.
  *
- * Çakışma çözümü veritabanındaki `merge_sync_records` fonksiyonunda yapılır:
- * gelen kayıt yalnızca `updated_at` sunucudakinden BÜYÜKSE yazılır. Bunu SQL
- * tarafında yapmak, oku-karşılaştır-yaz yarışını ortadan kaldırır.
+ * Kullanıcı verisine erişim DAİMA kullanıcının kendi kimliğiyle yapılır;
+ * ilişkisel tarafta bunu Postgres RLS zorunlu kılar, anahtar-değer tarafında
+ * kullanıcı kimliği anahtarın içindedir.
  */
 export const registerSyncRoutes = (router: {
   get: (p: string, h: (c: Ctx) => Promise<Response>) => unknown;
@@ -60,18 +45,13 @@ export const registerSyncRoutes = (router: {
     const collection = assertCollection(ctx.params.collection);
     const since = Number(ctx.query.get('since') ?? 0) || 0;
 
-    const supabase = Supabase.from(ctx.env);
-    const rows = await supabase
-      .asUser(session.accessToken)
-      .select<SyncRow>(
-        'sync_records',
-        `select=key,value,updated_at,deleted` +
-          `&collection=eq.${encodeURIComponent(collection)}` +
-          `&updated_at=gt.${since}` +
-          `&order=updated_at.asc&limit=${MAX_RECORDS}`,
-      );
+    const records = await resolveStore(ctx.env, collection).changesSince(
+      session,
+      collection,
+      since,
+      MAX_RECORDS,
+    );
 
-    const records = rows.map(toRecord);
     return ok({
       records,
       // Bir sonraki çekmede kullanılacak imleç.
@@ -79,29 +59,13 @@ export const registerSyncRoutes = (router: {
     });
   });
 
-  /** Yerel değişiklikleri gönderir (birleştirme SQL tarafında). */
+  /** Yerel değişiklikleri gönderir (birleştirme depo tarafında). */
   router.post('/v1/sync/:collection', async ctx => {
     const session = await requireSession(ctx);
     const collection = assertCollection(ctx.params.collection);
     const records = assertRecords(ctx.body);
 
-    const supabase = Supabase.from(ctx.env);
-    const scope = supabase.asUser(session.accessToken);
-
-    if (records.length > 0) {
-      await scope.upsert(
-        'sync_records',
-        records.map(record => ({
-          user_id: session.userId,
-          collection,
-          key: record.key,
-          value: record.value,
-          updated_at: record.updatedAt,
-          deleted: record.deleted,
-        })),
-        'user_id,collection,key',
-      );
-    }
+    await resolveStore(ctx.env, collection).put(session, collection, records);
 
     return ok({
       accepted: records.length,
@@ -144,10 +108,3 @@ const assertRecords = (body: unknown): SyncRecord[] => {
     };
   });
 };
-
-const toRecord = (row: SyncRow): SyncRecord => ({
-  key: row.key,
-  value: row.value,
-  updatedAt: Number(row.updated_at),
-  deleted: row.deleted,
-});

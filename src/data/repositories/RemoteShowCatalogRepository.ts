@@ -7,7 +7,7 @@ import { ShowCatalogRepository } from '@domain/repositories';
 import { RemoteCatalogDataSource } from '../datasources';
 import { catalogEntryToShow } from '../mappers';
 
-/** Uzak katalog cache'inin storage anahtarı. */
+/** Katalog önbelleğinin storage anahtarı. */
 const CACHE_KEY = 'remote_catalog_v1';
 
 interface CachedCatalog {
@@ -15,37 +15,37 @@ interface CachedCatalog {
   readonly entries: readonly FeedCatalogEntry[];
 }
 
-export interface HybridCatalogConfig {
-  /** Uzak katalog JSON URL'i. Boş/undefined ise yalnızca bundled kullanılır. */
-  readonly remoteUrl?: string;
-  /** Uzak katalog cache geçerlilik süresi (ms). */
+export interface RemoteCatalogConfig {
+  /** Katalog ucunun adresi. */
+  readonly remoteUrl: string;
+  /** Önbellek geçerlilik süresi (ms). */
   readonly ttlMs: number;
 }
 
 /**
- * HybridShowCatalogRepository — HİBRİT şov kataloğu.
+ * RemoteShowCatalogRepository — şov kataloğu SUNUCUDAN gelir.
  *
  * Öncelik sırası:
- *   1) TTL içinde önbelleğe alınmış uzak katalog varsa onu kullan (ağa çıkma).
- *   2) Yoksa uzak katalogu çek; başarılıysa önbelleğe al ve kullan (yetkili kaynak).
- *   3) Uzak çekim başarısızsa: bayat önbellek varsa onu, yoksa BUNDLED katalogu kullan.
+ *   1) TTL içinde önbellek varsa onu kullan (ağa çıkma),
+ *   2) yoksa sunucudan çek, önbelleğe al ve kullan (yetkili kaynak),
+ *   3) çekim başarısızsa bayat önbelleği kullan.
  *
- * Böylece:
- *   - Yeni şov = uzak JSON'a satır eklemek (app güncellemesi GEREKMEZ).
- *   - İlk açılış / çevrimdışı / sunucu çökük → uygulama yine çalışır (bundled).
- *   - remoteUrl verilmezse davranış birebir bundled-only'dir.
+ * Böylece yeni şov = veritabanına bir satır; uygulama güncellemesi GEREKMEZ.
  *
- * Uzak katalog "yetkili"dir (tam liste); bundled yalnızca güvenlik ağıdır.
- * Boş bir uzak liste hatalı deploy sayılır ve fallback tetikler (tüm şovları
+ * **Uygulamaya gömülü bir yedek liste yoktur.** İlk açılışta ağ yoksa katalog
+ * boş gelir; sonraki açılışlarda önbellek devreye girer ve çevrimdışı çalışır.
+ * Gömülü listeyi taşımak, kataloğu iki yerde tutmak ve ikisinin sessizce
+ * ayrışması demekti — tek kaynak sunucudur.
+ *
+ * Boş bir uzak liste hatalı deploy sayılır ve önbelleğe yazılmaz (tüm şovları
  * yanlışlıkla gizlememek için).
  */
-export class HybridShowCatalogRepository implements ShowCatalogRepository {
+export class RemoteShowCatalogRepository implements ShowCatalogRepository {
   constructor(
-    private readonly bundled: readonly FeedCatalogEntry[],
     private readonly remote: RemoteCatalogDataSource,
     private readonly storage: KeyValueStorage,
     private readonly logger: Logger,
-    private readonly config: HybridCatalogConfig,
+    private readonly config: RemoteCatalogConfig,
   ) {}
 
   async getShows(): Promise<Result<readonly Show[]>> {
@@ -61,12 +61,8 @@ export class HybridShowCatalogRepository implements ShowCatalogRepository {
       : fail(AppError.notFound(`Şov bulunamadı: ${id}`));
   }
 
-  /** Etkin katalogu (uzak/önbellek/bundled) çözer. */
+  /** Etkin katalogu (önbellek/uzak) çözer. */
   private async resolveCatalog(): Promise<readonly FeedCatalogEntry[]> {
-    if (!this.config.remoteUrl) {
-      return this.bundled;
-    }
-
     const cached = this.readCache();
     if (cached && this.isFresh(cached)) {
       return cached.entries;
@@ -80,11 +76,8 @@ export class HybridShowCatalogRepository implements ShowCatalogRepository {
       this.writeCache(entries);
       return entries;
     } catch (error) {
-      this.logger.warn(
-        'Uzak katalog alınamadı; fallback kullanılıyor',
-        error,
-      );
-      return cached?.entries ?? this.bundled;
+      this.logger.warn('Katalog alınamadı; önbellek kullanılıyor', error);
+      return cached?.entries ?? [];
     }
   }
 

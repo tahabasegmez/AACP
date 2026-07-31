@@ -6,6 +6,7 @@ import { registerAuthRoutes } from './routes/auth';
 import { registerCatalogRoutes } from './routes/catalog';
 import { registerMiscRoutes } from './routes/misc';
 import { registerSyncRoutes } from './routes/sync';
+import { storagePlacement } from './storage/resolveStore';
 
 /**
  * AACP API — Cloudflare Workers girişi.
@@ -32,6 +33,8 @@ router.get('/health', async ctx =>
     // Yapılandırmanın tamam olup olmadığını sızıntısız biçimde bildirir.
     supabase: Boolean(ctx.env.SUPABASE_URL && ctx.env.SUPABASE_ANON_KEY),
     push: Boolean(ctx.env.APNS_KEY && ctx.env.APNS_KEY_ID),
+    // Koleksiyonların hangi depoda olduğu — KV bağlanmamışsa burada görünür.
+    storage: storagePlacement(ctx.env),
   }),
 );
 

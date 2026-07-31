@@ -1,5 +1,5 @@
 export * from './PodcastFeedRepositoryImpl';
-export * from './HybridShowCatalogRepository';
+export * from './RemoteShowCatalogRepository';
 export * from './PlaybackProgressRepositoryImpl';
 export * from './FollowRepositoryImpl';
 export * from './PlaylistBackedSavedEpisodes';

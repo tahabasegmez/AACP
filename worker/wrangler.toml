@@ -28,6 +28,15 @@ APNS_BUNDLE_ID = "com.aa.podcast"
 # İzin verilen CORS kaynakları (virgülle). Boş = yalnızca native istemciler.
 CORS_ORIGINS = ""
 
+# --- NoSQL (KV) ---------------------------------------------------------------
+# Yüksek hacimli, ilişkisiz kullanıcı durumu: kaldığın yer + tercihler.
+# Namespace'i bir kez oluşturun ve id'yi buraya yazın:
+#   npx wrangler kv namespace create USER_STATE
+# Bağlanmazsa bu koleksiyonlar Postgres'e düşer (servis çalışmaya devam eder).
+# [[kv_namespaces]]
+# binding = "USER_STATE"
+# id = "<buraya-namespace-id>"
+
 # --- Zamanlanmış görevler -----------------------------------------------------
 # Takip edilen şovlarda yeni bölüm taraması (30 dakikada bir).
 [triggers]
