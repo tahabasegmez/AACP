@@ -43,6 +43,7 @@ kullanıcı anonimse YENİ kullanıcı yaratılmaz, mevcut kayıt yükseltilir.
 | Takip edilen şovlar | cihaz + **sunucu** | Kütüphane her cihazda aynı |
 | Sonra dinle | cihaz + **sunucu** | Sistem listesi, senkronlanır |
 | Kullanıcı listeleri | cihaz + **sunucu** | Playlist senkronu |
+| Tercihler | cihaz + **sunucu** | Bkz. [TERCIHLER.md](TERCIHLER.md) — misafirde de hatırlanır |
 | **İndirilen dosyalar** | **yalnızca cihaz** | Dosyalar cihaza özgü; sunucuya taşınmaz |
 | Oturum jetonu | yalnızca cihaz | Güvenlik |
 | Profil önbelleği | cihaz | Çevrimdışı açılışta ad/e-posta bilinsin |
@@ -53,7 +54,7 @@ kurulum container'ına) bağlıdır, başka cihazda anlamsızdır.
 ## 4. Senkron
 
 Model: **delta + son-yazan-kazanır**. Koleksiyonlar:
-`progress`, `follows`, `playlists`.
+`progress`, `follows`, `playlists`, `preferences`.
 
 > **"Sonra dinle" ayrı bir koleksiyon DEĞİLDİR.** O, playlist sisteminin sistem
 > listesidir (`SAVED_PLAYLIST_ID`) ve `playlists` içinde taşınır. Ayrı bir depo

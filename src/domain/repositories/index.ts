@@ -6,4 +6,5 @@ export * from './SavedEpisodesRepository';
 export * from './DownloadRepository';
 export * from './PlaylistRepository';
 export * from './UserRepository';
+export * from './PreferencesRepository';
 export * from './AdRepository';

@@ -10,7 +10,14 @@ import { ok, type Ctx } from '../router';
  * sistem listesi olarak `playlists` içinde taşınır. Eski istemcilerin veri
  * kaybetmemesi için değer kabul edilmeye devam eder ama yeni istemci kullanmaz.
  */
-export const SYNC_COLLECTIONS = ['progress', 'follows', 'saved', 'playlists'] as const;
+export const SYNC_COLLECTIONS = [
+  'progress',
+  'follows',
+  'saved',
+  'playlists',
+  // Kullanıcı tercihleri; her tercih ayrı kayıttır (anahtar = tercih adı).
+  'preferences',
+] as const;
 export type SyncCollection = (typeof SYNC_COLLECTIONS)[number];
 
 /** Tek istekte kabul edilen en fazla kayıt — kötüye kullanımı sınırlar. */

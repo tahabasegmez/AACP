@@ -36,13 +36,6 @@ const progressToEpisode = (p: PlaybackProgress): Episode => ({
   imageUrl: p.artworkUrl,
 });
 
-/** Dikey listede bir satırın verisi (bölüm + kaldığın-yer bilgisi). */
-interface Row {
-  episode: Episode;
-  progress?: number;
-  completed?: boolean;
-}
-
 /**
  * SeeAll — bir carousel'in tam dikey listesi. Şovlar grid; bölümler ise TÜM
  * uygulamada ortak olan EpisodeRow (şov detayındaki listeleme) ile gösterilir —
@@ -68,24 +61,6 @@ export const SeeAllScreen: React.FC<Props> = ({ route }) => {
   );
   const latest = useLatestEpisodes(followedFeedUrls);
 
-  // episodeId → kaldığın-yer (dikey satırlarda ilerleme çubuğu için).
-  const progressById = useMemo(() => {
-    const map = new Map<string, PlaybackProgress>();
-    (resume.data ?? []).forEach(p => map.set(p.episodeId, p));
-    return map;
-  }, [resume.data]);
-
-  const rowFromProgress = (id: string): Pick<Row, 'progress' | 'completed'> => {
-    const p = progressById.get(id);
-    if (!p) {
-      return {};
-    }
-    return {
-      progress: p.durationSec > 0 ? p.positionSec / p.durationSec : undefined,
-      completed: p.completed,
-    };
-  };
-
   const pad = theme.spacing(2);
   const gap = theme.spacing(1.5);
   const colW = Math.floor((width - pad * 2 - gap) / 2);
@@ -97,26 +72,20 @@ export const SeeAllScreen: React.FC<Props> = ({ route }) => {
       title: show.title,
     });
 
-  // Bölüm listeli türler için satırları ve boş/yükleniyor durumunu hesapla.
-  const episodeRows: Row[] = useMemo(() => {
+  // Bölüm listeli türler için satırlar. Dinlenme/ilerleme bilgisini satırın
+  // kendisi sorar (bkz. useEpisodeStatus); burada yalnızca bölümler taşınır.
+  const episodeRows: readonly Episode[] = useMemo(() => {
     if (kind === 'continue') {
-      return (resume.data ?? [])
-        .filter(p => p.audioUrl)
-        .map(p => ({
-          episode: progressToEpisode(p),
-          progress: p.durationSec > 0 ? p.positionSec / p.durationSec : undefined,
-          completed: p.completed,
-        }));
+      return (resume.data ?? []).filter(p => p.audioUrl).map(progressToEpisode);
     }
     if (kind === 'latest') {
-      return (latest.data ?? []).map(ep => ({ episode: ep, ...rowFromProgress(ep.id) }));
+      return latest.data ?? [];
     }
     if (kind === 'saved') {
-      return (saved.data ?? []).map(ep => ({ episode: ep, ...rowFromProgress(ep.id) }));
+      return saved.data ?? [];
     }
     return [];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kind, resume.data, latest.data, saved.data, progressById]);
+  }, [kind, resume.data, latest.data, saved.data]);
 
   const renderBody = () => {
     // Kullanıcı listeleri — şovlarla aynı ızgara düzeninde.
@@ -173,22 +142,19 @@ export const SeeAllScreen: React.FC<Props> = ({ route }) => {
       return <EmptyState title="Liste boş" description="Burada gösterilecek bölüm yok." />;
     }
 
-    const queue = episodeRows.map(r => r.episode);
     return (
       <FlashList
         data={episodeRows}
-        keyExtractor={r => r.episode.id}
+        keyExtractor={item => item.id}
         contentInsetAdjustmentBehavior="never"
         onScroll={scrimScrollHandler}
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: theme.spacing(12) }}
         renderItem={({ item, index }) => (
           <SwipeableEpisodeRow
-            episode={item.episode}
-            progress={item.progress}
-            completed={item.completed}
-            onPress={() => openSheet(item.episode)}
-            onPlay={() => play(item.episode, { episodes: queue, index })}
+            episode={item}
+            onPress={() => openSheet(item)}
+            onPlay={() => play(item, { episodes: [...episodeRows], index })}
           />
         )}
       />

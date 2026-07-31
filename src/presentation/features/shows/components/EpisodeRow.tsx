@@ -4,6 +4,7 @@ import { Episode } from '@domain/entities';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
 import { Icon, NowPlayingBars, Text } from '../../../ui';
+import { useEpisodeStatus } from '../../player/useEpisodeStatus';
 import { useNowPlaying } from '../../player/useNowPlaying';
 
 const formatDate = (iso: string): string => {
@@ -22,9 +23,6 @@ const formatDate = (iso: string): string => {
  */
 export const EpisodeRow: React.FC<{
   episode: Episode;
-  /** 0..1 arası kaldığın yer; yoksa çubuk gösterilmez. */
-  progress?: number;
-  completed?: boolean;
   /**
    * Meta satırında tarihin yerine gösterilecek metin (ör. listelerde şovun adı).
    * Verildiğinde ilerleme çubuğu yerine bu metin öne çıkar.
@@ -36,9 +34,12 @@ export const EpisodeRow: React.FC<{
   onPlay: () => void;
   /** Uzun basma → bağlama özel eylem (ör. listeden çıkar). */
   onLongPress?: () => void;
-}> = ({ episode, progress, completed, subtitle, onPress, onPlay, onLongPress }) => {
+}> = ({ episode, subtitle, onPress, onPlay, onLongPress }) => {
   const theme = useTheme();
   const { isCurrent, isPlaying } = useNowPlaying(episode.id);
+  // Dinlenme durumu satırın KENDİSİ tarafından sorulur; her ekranda prop olarak
+  // taşımak, yeni bir liste eklendiğinde işareti unutmaya açıktı.
+  const { completed, fraction, started } = useEpisodeStatus(episode.id);
   // Çalan bölüm tamamlanmış olsa da soluklaştırılmaz: dikkat çekmeli.
   const dim = completed && !isCurrent ? 0.5 : 1;
 
@@ -76,20 +77,20 @@ export const EpisodeRow: React.FC<{
             {subtitle || formatDate(episode.publishedAt)}
           </Text>
           <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: theme.colors.textMuted }} />
-          {/* subtitle verildiyse (ör. liste görünümü) süre gösterilir; kaldığın
-              yer çubuğu yalnızca şov listelerinde anlamlıdır. */}
-          {subtitle ? (
-            <Text variant="caption" color={theme.colors.textMuted}>
-              {formatDuration(episode.durationSec)}
-            </Text>
-          ) : completed ? (
+          {/* "Dinlendi" işareti her listede önceliklidir; kaldığın yer çubuğu
+              yalnızca yarım kalan bölümlerde anlamlıdır. */}
+          {completed ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
               <Icon name="checkmark" size={13} color={theme.colors.accent} />
               <Text variant="caption" color={theme.colors.accent}>
                 dinlendi
               </Text>
             </View>
-          ) : progress != null && progress > 0 ? (
+          ) : subtitle ? (
+            <Text variant="caption" color={theme.colors.textMuted}>
+              {formatDuration(episode.durationSec)}
+            </Text>
+          ) : started && fraction > 0 ? (
             <>
               <View
                 style={{
@@ -102,7 +103,7 @@ export const EpisodeRow: React.FC<{
                 <View
                   style={{
                     height: '100%',
-                    width: `${Math.min(1, progress) * 100}%`,
+                    width: `${fraction * 100}%`,
                     backgroundColor: theme.colors.accent,
                   }}
                 />

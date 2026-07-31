@@ -6,6 +6,7 @@ import { BottomSheet, CoverImage, Icon, IconName, Text } from '../../ui';
 import { useEpisodeNotes, useSavedEpisodes, useShowsQuery, useToggleSaved } from '../../query';
 import { useEpisodeSheetStore, usePlayerQueueStore } from '../../stores';
 import { usePlayEpisode } from '../player/usePlayEpisode';
+import { useEpisodeStatus, useSetEpisodeCompleted } from '../player/useEpisodeStatus';
 import { useDownloads, useDownloadStatus } from '../downloads/useDownloads';
 import { AddToPlaylistSheet } from '../playlists/components/AddToPlaylistSheet';
 
@@ -37,6 +38,8 @@ export const EpisodeSheet: React.FC = () => {
   const saved = useSavedEpisodes();
   const toggleSaved = useToggleSaved();
   const isSaved = (saved.data ?? []).some(e => e.id === episode?.id);
+  const { completed: listened } = useEpisodeStatus(episode?.id ?? '');
+  const setCompleted = useSetEpisodeCompleted();
 
   const showTitle =
     (shows.data ?? []).find(s => s.id === episode?.showId)?.title ?? '';
@@ -144,6 +147,12 @@ export const EpisodeSheet: React.FC = () => {
                   enqueue(episode);
                   close();
                 }}
+              />
+              <SheetAction
+                icon="checkmark"
+                label={listened ? 'Dinlenmedi say' : 'Dinlendi say'}
+                color={listened ? theme.colors.accent : undefined}
+                onPress={() => setCompleted.mutate({ episode, completed: !listened })}
               />
               <SheetAction
                 icon="share"

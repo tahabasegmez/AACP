@@ -9,10 +9,12 @@ export const queryKeys = {
   showEpisodes: (feedUrl: string, search: string, sort: EpisodeSortOrder) =>
     ['showEpisodes', feedUrl, search, sort] as const,
   resume: ['resume'] as const,
+  progress: ['progress'] as const,
   followedShows: ['followedShows'] as const,
   saved: ['saved'] as const,
   playlists: ['playlists'] as const,
   currentUser: ['currentUser'] as const,
+  preferences: ['preferences'] as const,
   isFollowed: (showId: string) => ['isFollowed', showId] as const,
   latestEpisodes: (feedUrls: readonly string[]) =>
     ['latestEpisodes', [...feedUrls].sort().join(',')] as const,

@@ -16,10 +16,12 @@ import {
   DownloadEpisode,
   GetDownloads,
   GetFollowedShows,
+  GetAllProgress,
   GetLatestEpisodes,
   GetPlaybackProgress,
   GetPlaylists,
   GetPodcastFeed,
+  GetPreferences,
   GetResumeList,
   GetSavedEpisodes,
   GetShowCatalog,
@@ -33,7 +35,9 @@ import {
   ResumePlayback,
   SavePlaybackProgress,
   SeekTo,
+  SetEpisodeCompleted,
   SetPlaybackRate,
+  SetPreference,
   SkipBy,
   StopPlayback,
   ToggleFollow,
@@ -101,6 +105,14 @@ export interface AppDependencies {
   readonly getPlaybackProgress: GetPlaybackProgress;
   readonly continueEpisode: ContinueEpisode;
   readonly getResumeList: GetResumeList;
+  /** Tüm kayıtlar (tamamlananlar dahil) — listelerdeki "dinlendi" işareti. */
+  readonly getAllProgress: GetAllProgress;
+  /** Elle "dinlendi" işaretleme / işareti kaldırma. */
+  readonly setEpisodeCompleted: SetEpisodeCompleted;
+
+  // Kullanıcı tercihleri — misafirde cihazda, hesapta senkron
+  readonly getPreferences: GetPreferences;
+  readonly setPreference: SetPreference;
 
   // Oynatıcı servisi (durum köprüsü için)
   readonly audioPlayer: AudioPlayerService;

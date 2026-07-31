@@ -20,9 +20,11 @@ import {
   DownloadEpisode,
   GetDownloads,
   GetFollowedShows,
+  GetAllProgress,
   GetLatestEpisodes,
   GetPlaybackProgress,
   GetPodcastFeed,
+  GetPreferences,
   GetResumeList,
   GetSavedEpisodes,
   GetShowCatalog,
@@ -34,7 +36,9 @@ import {
   ResumePlayback,
   SavePlaybackProgress,
   SeekTo,
+  SetEpisodeCompleted,
   SetPlaybackRate,
+  SetPreference,
   SkipBy,
   StopPlayback,
   ToggleFollow,
@@ -47,6 +51,8 @@ import {
   FollowRepositoryImpl,
   FollowsSyncAdapter,
   PlaylistSyncAdapter,
+  PreferencesRepositoryImpl,
+  PreferencesSyncAdapter,
   ProgressSyncAdapter,
   UserRepositoryImpl,
   SyncEngine,
@@ -140,6 +146,8 @@ export const composeDependencies = (): AppDependencies => {
       // "Sonra dinle" ayrı bir koleksiyon DEĞİL: playlist sisteminin sistem
       // listesi olarak `playlists` içinde senkronlanır.
       playlistSync,
+      // Tercihler: misafirde cihazda kalır, hesap açılınca hesaba taşınır.
+      new PreferencesSyncAdapter(storage),
     ],
     storage,
     logger,
@@ -176,6 +184,7 @@ export const composeDependencies = (): AppDependencies => {
   // "Sonra dinle" bağımsız bir depo DEĞİL, playlist sisteminin sistem
   // listesidir. Tek kaynak: aynı veri iki yerde tutulmaz, bir kez senkronlanır.
   const savedRepo = new PlaylistBackedSavedEpisodes(playlistRepo);
+  const preferencesRepo = new PreferencesRepositoryImpl(storage);
 
   // domain use case'leri — kataloglar
   const getShowCatalog = new GetShowCatalog(catalogRepo);
@@ -219,6 +228,12 @@ export const composeDependencies = (): AppDependencies => {
   const getPlaybackProgress = new GetPlaybackProgress(progressRepo);
   const continueEpisode = new ContinueEpisode(progressRepo, playEpisode);
   const getResumeList = new GetResumeList(progressRepo);
+  const getAllProgress = new GetAllProgress(progressRepo);
+  const setEpisodeCompleted = new SetEpisodeCompleted(progressRepo);
+
+  // domain use case'leri — tercihler
+  const getPreferences = new GetPreferences(preferencesRepo);
+  const setPreference = new SetPreference(preferencesRepo);
 
   // Sesli komut çözümleyicisi — CarPlay/Siri ve ileride sesli arama kullanır.
   const resolveVoiceQuery = new ResolveVoiceQuery(catalogRepo, feedRepo);
@@ -258,6 +273,10 @@ export const composeDependencies = (): AppDependencies => {
     getPlaybackProgress,
     continueEpisode,
     getResumeList,
+    getAllProgress,
+    setEpisodeCompleted,
+    getPreferences,
+    setPreference,
     audioPlayer,
     analytics,
     errorReporter,

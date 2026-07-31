@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
 import { CoverImage, Icon, IconName, NowPlayingBars, Text } from '../../../ui';
+import { useEpisodeStatus } from '../../player/useEpisodeStatus';
 import { useNowPlaying } from '../../player/useNowPlaying';
 
 const DEFAULT_W = 236;
@@ -65,6 +66,7 @@ export const EpisodeMiniCard: React.FC<{
 }) => {
   const theme = useTheme();
   const { isCurrent, isPlaying } = useNowPlaying(episodeId ?? '');
+  const { completed } = useEpisodeStatus(episodeId ?? '');
   const dateText = formatDate(publishedAt);
   const durationText = durationSec != null && durationSec > 0 ? formatDuration(durationSec) : '';
   const meta = [dateText, durationText].filter(Boolean).join(' · ');
@@ -82,8 +84,32 @@ export const EpisodeMiniCard: React.FC<{
         backgroundColor: theme.colors.surface,
         borderRadius: theme.radius.lg,
         padding: theme.spacing(1.25),
+        // Dinlenmiş kart soluklaşır; çalan bölüm istisnadır (dikkat çekmeli).
+        opacity: completed && !isCurrent ? 0.55 : 1,
       }}>
-      <CoverImage uri={artworkUrl} size={54} radius={theme.radius.md} />
+      <View>
+        <CoverImage uri={artworkUrl} size={54} radius={theme.radius.md} />
+        {/* Dinlenmiş bölüm: kapağın köşesinde çentik rozeti. Kartta meta satırı
+            her zaman olmadığı için işaret kapağa konur. */}
+        {completed && (
+          <View
+            style={{
+              position: 'absolute',
+              right: -3,
+              bottom: -3,
+              width: 18,
+              height: 18,
+              borderRadius: 9,
+              backgroundColor: theme.colors.accent,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 2,
+              borderColor: theme.colors.surface,
+            }}>
+            <Icon name="checkmark" size={10} color={theme.colors.bg} />
+          </View>
+        )}
+      </View>
 
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text

@@ -35,8 +35,14 @@ export interface PlaybackProgressInfo {
   readonly audioUrl?: string;
 }
 
-/** Bölüm bu orandan fazlası dinlendiyse "tamamlandı" sayılır. */
-export const COMPLETION_THRESHOLD = 0.95;
+/**
+ * Bölüm bu orandan fazlası dinlendiyse "tamamlandı" sayılır.
+ *
+ * %90: bölüm sonundaki jenerik/kapanış anonsu dinlenmese de bölüm bitmiş
+ * sayılmalı. Daha yükseği, sona birkaç saniye kala bırakan kullanıcıya bölümü
+ * bitmemiş gösterirdi.
+ */
+export const COMPLETION_THRESHOLD = 0.9;
 
 /**
  * Konum + süreden bir PlaybackProgress üretir; tamamlanma durumunu hesaplar.
@@ -64,3 +70,27 @@ export const buildPlaybackProgress = (
     audioUrl: info?.audioUrl,
   };
 };
+
+/**
+ * Elle "dinlendi" işaretlenmiş bir kayıt üretir.
+ *
+ * Eşik hesabına GİRMEZ: kullanıcı bölümü hiç açmadan da bitmiş sayabilir ve
+ * süresi bilinmeyen bölümlerde oran hesaplanamaz. Konum sona alınır ki
+ * "kaldığın yerden devam" bölümü baştan başlatsın.
+ */
+export const completedPlaybackProgress = (
+  episodeId: string,
+  durationSec: number,
+  now: Date = new Date(),
+  info?: PlaybackProgressInfo,
+): PlaybackProgress => ({
+  episodeId,
+  positionSec: Math.max(0, durationSec),
+  durationSec,
+  updatedAt: now.toISOString(),
+  completed: true,
+  episodeTitle: info?.episodeTitle,
+  showId: info?.showId,
+  artworkUrl: info?.artworkUrl,
+  audioUrl: info?.audioUrl,
+});

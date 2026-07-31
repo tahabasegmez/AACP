@@ -7,7 +7,13 @@
  */
 
 /** Senkronlanan koleksiyonlar — sunucudaki liste ile birebir aynı olmalı. */
-export const SYNC_COLLECTIONS = ['progress', 'follows', 'saved', 'playlists'] as const;
+export const SYNC_COLLECTIONS = [
+  'progress',
+  'follows',
+  'saved',
+  'playlists',
+  'preferences',
+] as const;
 export type SyncCollection = (typeof SYNC_COLLECTIONS)[number];
 
 export interface SyncRecord {

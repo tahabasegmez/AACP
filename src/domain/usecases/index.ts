@@ -38,3 +38,8 @@ export * from './player/SavePlaybackProgress';
 export * from './player/GetPlaybackProgress';
 export * from './player/ContinueEpisode';
 export * from './player/GetResumeList';
+export * from './player/GetAllProgress';
+export * from './player/SetEpisodeCompleted';
+
+// Kullanıcı tercihleri — misafirde cihazda, hesapta senkron
+export * from './preferences/preferencesUseCases';

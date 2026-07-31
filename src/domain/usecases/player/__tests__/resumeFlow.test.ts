@@ -11,6 +11,7 @@ import {
   GetResumeList,
   PlayEpisode,
   SavePlaybackProgress,
+  SetEpisodeCompleted,
 } from '@domain/usecases';
 
 /** Çağrıları kaydeden sahte oynatıcı. */
@@ -127,6 +128,35 @@ describe('GetResumeList', () => {
 
     expect(list.ok && list.value).toHaveLength(1);
     expect(list.ok && list.value[0].positionSec).toBe(300);
+  });
+});
+
+describe('SetEpisodeCompleted', () => {
+  const makeSut2 = () => {
+    const storage = new InMemoryKeyValueStorage();
+    const repo = new PlaybackProgressRepositoryImpl(storage);
+    return { repo, setCompleted: new SetEpisodeCompleted(repo) };
+  };
+
+  it('elle işaretleme kaydı tamamlandı yapar', async () => {
+    const { repo, setCompleted } = makeSut2();
+
+    await setCompleted.execute({ episode: episode('ep1'), completed: true });
+
+    const got = await repo.get('ep1');
+    expect(got.ok && got.value?.completed).toBe(true);
+    expect(got.ok && got.value?.episodeTitle).toBe('Bölüm ep1');
+  });
+
+  it('işareti kaldırmak kaydı tümüyle siler', async () => {
+    const { repo, setCompleted } = makeSut2();
+    await setCompleted.execute({ episode: episode('ep1'), completed: true });
+
+    await setCompleted.execute({ episode: episode('ep1'), completed: false });
+
+    // Bölüm hiç açılmamış hâline döner; "dinlemeye devam"da da görünmez.
+    const got = await repo.get('ep1');
+    expect(got.ok && got.value).toBeNull();
   });
 });
 

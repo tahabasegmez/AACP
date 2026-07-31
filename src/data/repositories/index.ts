@@ -5,5 +5,6 @@ export * from './FollowRepositoryImpl';
 export * from './PlaylistBackedSavedEpisodes';
 export * from './DownloadRepositoryImpl';
 export * from './PlaylistRepositoryImpl';
+export * from './PreferencesRepositoryImpl';
 export * from './UserRepositoryImpl';
 export * from './VastAdRepository';

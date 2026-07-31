@@ -16,8 +16,9 @@ import {
   useDebounced,
   useHeroCoverSize,
 } from '../../../ui';
-import { useResumeList, useShowEpisodes } from '../../../query';
+import { usePreference, useShowEpisodes } from '../../../query';
 import { useIsFollowed, useToggleFollow } from '../../../query';
+import { useProgressIndex } from '../../player/useEpisodeStatus';
 import { EmptyState, ErrorView, LoadingView } from '../../../shared/components';
 import { usePlayEpisode } from '../../player/usePlayEpisode';
 import { useEpisodeSheetStore } from '../../../stores';
@@ -55,26 +56,26 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
     hasNextPage,
     isFetchingNextPage,
   } = useShowEpisodes(feedUrl, { search });
-  const resume = useResumeList();
   const followed = useIsFollowed(showId);
   const toggleFollow = useToggleFollow();
+  // Filtre tercihi cihazlar arası hatırlanır (misafirde de).
+  const { value: hideCompleted, set: setHideCompleted } =
+    usePreference('hideCompletedEpisodes');
+  const { data: progressIndex } = useProgressIndex();
 
-  const episodes = useMemo(
+  const allEpisodes = useMemo(
     () => data?.pages.flatMap(p => p.episodes.items) ?? [],
     [data],
   );
   const show = data?.pages[0]?.show;
 
-  // Kaldığın-yer çubukları için episodeId → oran haritası.
-  const progressById = useMemo(() => {
-    const map = new Map<string, number>();
-    (resume.data ?? []).forEach(p => {
-      if (p.durationSec > 0) {
-        map.set(p.episodeId, p.positionSec / p.durationSec);
-      }
-    });
-    return map;
-  }, [resume.data]);
+  const episodes = useMemo(
+    () =>
+      hideCompleted
+        ? allEpisodes.filter(e => !progressIndex?.get(e.id)?.completed)
+        : allEpisodes,
+    [allEpisodes, hideCompleted, progressIndex],
+  );
 
   const BackButton = (
     <Pressable
@@ -182,6 +183,37 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
           kolaylaştırır. Sorgu tüm bölümlerde çalışır, yalnızca yüklenmiş
           sayfalarda değil. */}
       <SearchField value={query} onChangeText={setQuery} placeholder="Bu şovda ara" />
+
+      {/* Dinlenmişleri gizleme — seçim hatırlanır (cihazlar arası). */}
+      <Pressable
+        onPress={() => setHideCompleted(!hideCompleted)}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: hideCompleted }}
+        accessibilityLabel="Dinlenmiş bölümleri gizle"
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          alignSelf: 'flex-start',
+          gap: theme.spacing(0.75),
+          marginTop: theme.spacing(1),
+          paddingVertical: theme.spacing(0.75),
+          paddingHorizontal: theme.spacing(1.25),
+          borderRadius: theme.radius.md,
+          borderWidth: 1,
+          borderColor: hideCompleted ? theme.colors.accent : theme.colors.border,
+          backgroundColor: hideCompleted ? theme.colors.accent : 'transparent',
+        }}>
+        <Icon
+          name="checkmark"
+          size={14}
+          color={hideCompleted ? theme.colors.onAccent : theme.colors.textMuted}
+        />
+        <Text
+          variant="caption"
+          color={hideCompleted ? theme.colors.onAccent : theme.colors.textMuted}>
+          Dinlenmişleri gizle
+        </Text>
+      </Pressable>
     </View>
   );
 
@@ -190,11 +222,13 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
       <>
         {Header}
         <EmptyState
-          title={search ? 'Sonuç yok' : 'Bölüm yok'}
+          title={search ? 'Sonuç yok' : hideCompleted ? 'Hepsi dinlendi' : 'Bölüm yok'}
           description={
             search
               ? `"${search}" için bu şovda bölüm bulunamadı.`
-              : 'Bu şovda henüz yayınlanmış bölüm bulunmuyor.'
+              : hideCompleted
+                ? 'Bu şovdaki tüm bölümleri dinledin. Filtreyi kapatarak hepsini görebilirsin.'
+                : 'Bu şovda henüz yayınlanmış bölüm bulunmuyor.'
           }
         />
       </>,
@@ -213,7 +247,6 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
       renderItem={({ item }: { item: Episode }) => (
         <SwipeableEpisodeRow
           episode={item}
-          progress={progressById.get(item.id)}
           onPress={() => openSheet(item)}
           onPlay={() =>
             play(item, { episodes, index: episodes.findIndex(e => e.id === item.id) })
