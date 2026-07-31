@@ -73,11 +73,10 @@ Sistem ekranına eklenenler:
 | **Sonraki / önceki bölüm** | `Capability.SkipToNext/Previous` → uygulamanın kuyruğu |
 | **Sıradakiler** | `upNextButton` → kuyruk listesi, dokununca o bölüme atlar |
 | **Şov adı** | `albumArtistButton` → o şovun bölümleri (Spotify davranışı) |
-| **Oynatma hızı** | `playback` düğmesi (1 → 1.25 → 1.5 → 2) |
 
-Apple, Now Playing'e en fazla **5 özel düğme** koymaya izin verir; yalnızca hız
-düğmesi kullanılır. "Sonra dinle'ye ekle" (+) bilinçli olarak yoktur: sürüş
-sırasında listeleme değil dinleme yapılır.
+Apple, Now Playing'e en fazla 5 özel düğme koymaya izin verir; **hiçbiri
+kullanılmaz**. Hız ayarı ve "Sonra dinle'ye ekle" araçta anlamlı eylemler değil:
+sürüş sırasında ayar değil dinleme yapılır, ikisi de telefonda duruyor.
 
 **Sarma tuşları (15/30 sn) kapalıdır.** iOS kartta hem sarma hem bölüm değiştirme
 tuşlarını birden göstermez; araçta bölüm değiştirmek daha sık gerekir, sarma
@@ -85,10 +84,9 @@ zaten sürgüyle yapılabilir. Bu bir uygulama geneli ayardır
 (`TrackPlayerAudioService`), dolayısıyla **kilit ekranını da** aynı şekilde
 etkiler.
 
-> **Hız etiketi (`0×`) sistemindir.** CarPlay'in hız düğmesinin üstünde yazan
-> değeri iOS `MPNowPlayingInfoPropertyPlaybackRate`'ten okur; oraya JS'ten
-> yazılamaz. Bu yüzden seçilen hız "Şimdi çalan" sekmesinin başlığında
-> gösterilir (`Çalıyor · 1.5×`) — geri bildirim kendi yüzeyimizde verilir.
+> Hız düğmesi bir dönem denendi ama üstündeki etiket daima `0×` gösteriyordu:
+> o değeri iOS `MPNowPlayingInfoPropertyPlaybackRate`'ten okur ve oraya JS'ten
+> yazılamaz. Yanlış bilgi gösteren bir düğme, hiç düğme olmamasından kötüdür.
 
 ### Paylaşılan şablon (çökme tuzağı)
 
@@ -148,9 +146,15 @@ görünürdü.
 ### Oynatma kartının içeriği
 
 Sistem Now Playing ekranını iOS `MPNowPlayingInfoCenter`'dan doldurur; oraya
-yazan tek yer [`episodeToTrack`](../src/infrastructure/audio/playbackMapping.ts).
-Kartta yalnızca bölüm başlığının görünmemesi için şov adı `artist` ve `album`
-alanlarına da yazılır.
+yazan tek yer [playbackMapping](../src/infrastructure/audio/playbackMapping.ts).
+Kartta yalnızca bölüm başlığının görünmemesi için şov adı `artist` alanına da
+yazılır (`album` DOLDURULMAZ: CarPlay ikisini ayrı satırlarda gösterdiği için
+şov adı iki kez çıkıyordu).
+
+Kart oynatma başladıktan sonra **açıkça tazelenir**
+(`updateNowPlayingMetadata`): `TrackPlayer.reset()` kartı temizlediği için parça
+değişiminde boş kalabiliyor. Aynı alanlar tek fonksiyondan üretilir
+(`episodeToNowPlaying`) ki parça bilgisiyle kart çelişmesin.
 
 Şov adı bölümle birlikte taşınır (`Episode.showTitle`): kart bölümü tek başına
 alır, orada katalog araması yapmak gerekmemeli. İndirme ve "kaldığın yer"

@@ -11,7 +11,6 @@ import {
   PlayEpisode,
   ResolveVoiceQuery,
   ResumePlayback,
-  SetPlaybackRate,
 } from '@domain/usecases';
 
 /**
@@ -41,7 +40,6 @@ export interface CarPlayDependencies {
   readonly continueEpisode: ContinueEpisode;
   readonly pausePlayback: PausePlayback;
   readonly resumePlayback: ResumePlayback;
-  readonly setPlaybackRate: SetPlaybackRate;
   readonly audioPlayer: AudioPlayerService;
   /**
    * Oynatma oturumu. CarPlay bir listeden çalmaya başladığında bağlamı KURAR

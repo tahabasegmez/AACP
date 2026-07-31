@@ -94,7 +94,6 @@ const headersOf = (tab: MockList): (string | undefined)[] =>
   tab.config.sections.map(section => section.header);
 
 let continued: Episode | null = null;
-let rate: number | null = null;
 /** Oynatma oturumunun testteki karşılığı (tek gerçek kaynak). */
 let queue: { episodes: readonly Episode[]; index: number } = { episodes: [], index: -1 };
 
@@ -117,12 +116,6 @@ const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies
         return ok(undefined);
       },
     },
-    setPlaybackRate: {
-      execute: async ({ rate: r }: { rate: number }) => {
-        rate = r;
-        return ok(undefined);
-      },
-    },
     resolveVoiceQuery: { execute: async () => ok(null) },
     audioPlayer: {
       getState: async () => ({ ...INITIAL_PLAYBACK_STATE, rate: 1 }),
@@ -142,7 +135,6 @@ const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies
 beforeEach(() => {
   tp.__reset();
   continued = null;
-  rate = null;
   queue = { episodes: [], index: -1 };
 });
 
@@ -269,22 +261,15 @@ describe('CarPlayController', () => {
     expect(continued).toBeNull();
   });
 
-  it('hız düğmesi sonraki değere geçer', async () => {
-    const controller = new CarPlayController(makeDeps(), noopLogger);
-    await (controller as unknown as { cycleSpeed(): Promise<void> }).cycleSpeed();
-
-    expect(rate).toBe(1.25);
-  });
-
-  it('oynatıcıda yalnızca hız düğmesi bulunur', async () => {
+  it('oynatıcıda özel düğme bulunmaz', async () => {
     await new CarPlayController(makeDeps(), noopLogger).onConnect();
     await tabs()[2].config.onItemSelect?.({ index: 0 });
 
     const nowPlaying = callsOf('pushTemplate').at(-1)?.[1] as {
       config: { buttons: { id: string }[] };
     };
-    // "Sonra dinle'ye ekle" (+) araçta anlamlı bir eylem değil.
-    expect(nowPlaying.config.buttons.map(b => b.id)).toEqual(['rate']);
+    // Hız ve "Sonra dinle'ye ekle" araçta anlamlı eylemler değil.
+    expect(nowPlaying.config.buttons).toEqual([]);
   });
 
   it('zaten çalan bölüme dokunmak onu baştan başlatmaz', async () => {

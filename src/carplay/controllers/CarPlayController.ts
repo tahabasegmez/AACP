@@ -39,9 +39,6 @@ const MAX_EPISODES = 50;
 /** Ana sayfadaki her bölümün satır sınırı (Spotify de kısa raflar gösterir). */
 const MAX_SHELF = 8;
 
-/** Now Playing'deki hız düğmesinin dolaştığı değerler. */
-const SPEEDS = [1, 1.25, 1.5, 2];
-
 /**
  * Bölümleri kütüphanenin beklediği tipe geçirir.
  *
@@ -144,8 +141,6 @@ export class CarPlayController {
   private shows: readonly Show[] = [];
 
   private currentEpisodeId: string | null = null;
-  /** Son bilinen oynatma hızı — "Şimdi çalan" sekmesinde gösterilir. */
-  private rate = 1;
   private unsubscribePlayback?: () => void;
 
   /** Süren tazeleme; aynı anda ikinci bir tur başlatılmaz. */
@@ -481,7 +476,7 @@ export class CarPlayController {
 
     return buildList([
       {
-        header: this.rate === 1 ? 'Çalıyor' : `Çalıyor · ${this.rate}×`,
+        header: 'Çalıyor',
         items: current ? episodesToItems([current], this.currentEpisodeId) : [],
         actions: current ? [() => this.showNowPlaying()] : [],
       },
@@ -669,14 +664,10 @@ export class CarPlayController {
       // Şov adına dokunmak o şovun bölümlerine götürür (Spotify davranışı).
       albumArtistButtonEnabled: true,
       onAlbumArtistButtonPressed: () => this.openCurrentShow(),
-      // Yalnızca hız düğmesi. "Sonra dinle'ye ekle" (+) araçta anlamlı bir
-      // eylem değil; sürüş sırasında listeleme değil dinleme yapılır.
-      buttons: [{ id: 'rate', type: 'playback' }],
-      onButtonPressed: ({ id }) => {
-        if (id === 'rate') {
-          this.run('hız değiştirilemedi', () => this.cycleSpeed());
-        }
-      },
+      // Özel düğme YOK. Hız ve "Sonra dinle'ye ekle" araçta anlamlı eylemler
+      // değil; sürüş sırasında ayar değil dinleme yapılır. Taşıma kontrolleri
+      // (oynat/duraklat, sarma, bölüm değiştirme) sistemden gelir.
+      buttons: [],
     });
 
     return this.nowPlayingTemplate;
@@ -725,21 +716,6 @@ export class CarPlayController {
   private currentEpisode(): Episode | undefined {
     const { episodes, index } = this.deps.playbackSession.getQueue();
     return episodes[index] ?? episodes.find(e => e.id === this.currentEpisodeId);
-  }
-
-  /**
-   * Hız düğmesi — sabit değerler arasında dolaşır.
-   *
-   * Seçilen hız "Şimdi çalan" sekmesinde de yazılır: sistem düğmesinin üstündeki
-   * etiketi iOS `MPNowPlayingInfoCenter`'dan okur ve oraya JS'ten yazılamaz,
-   * dolayısıyla geri bildirimi kendi yüzeyimizde veririz.
-   */
-  private async cycleSpeed(): Promise<void> {
-    const state = await this.deps.audioPlayer.getState();
-    const next = SPEEDS[(SPEEDS.indexOf(state.rate) + 1) % SPEEDS.length];
-    await this.deps.setPlaybackRate.execute({ rate: next });
-    this.rate = next;
-    this.refresh();
   }
 
   /**

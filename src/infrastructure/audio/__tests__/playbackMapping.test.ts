@@ -1,6 +1,10 @@
 import { Episode } from '@domain/entities';
 import { State } from 'react-native-track-player';
-import { episodeToTrack, mapTrackPlayerState } from '../playbackMapping';
+import {
+  episodeToNowPlaying,
+  episodeToTrack,
+  mapTrackPlayerState,
+} from '../playbackMapping';
 
 describe('mapTrackPlayerState', () => {
   it('track-player state → domain status', () => {
@@ -40,5 +44,52 @@ describe('episodeToTrack', () => {
   it('süre 0 ise duration undefined', () => {
     const track = episodeToTrack({ ...episode, durationSec: 0 });
     expect(track.duration).toBeUndefined();
+  });
+
+  it('şov adı sanatçı olarak yazılır', () => {
+    const track = episodeToTrack({ ...episode, showTitle: 'Şov 1' });
+    expect(track.artist).toBe('Şov 1');
+  });
+
+  it('şov adı yoksa yayıncıya düşer', () => {
+    expect(episodeToTrack(episode).artist).toBe('Anadolu Ajansı');
+  });
+
+  it('albüm alanı doldurulmaz (kartta şov adı iki kez çıkardı)', () => {
+    expect(episodeToTrack({ ...episode, showTitle: 'Şov 1' }).album).toBeUndefined();
+  });
+});
+
+describe('episodeToNowPlaying', () => {
+  const episode: Episode = {
+    id: 'ep1',
+    showId: 'show1',
+    showTitle: 'Şov 1',
+    title: 'Başlık',
+    description: '',
+    audioUrl: 'https://media/ep1.mp3',
+    durationSec: 1200,
+    publishedAt: '',
+    imageUrl: 'https://img/ep1.jpg',
+  };
+
+  it('kart alanları track ile AYNI kaynaktan gelir', () => {
+    const card = episodeToNowPlaying(episode);
+    const track = episodeToTrack(episode);
+
+    expect(card).toEqual({
+      title: 'Başlık',
+      artist: 'Şov 1',
+      artwork: 'https://img/ep1.jpg',
+      duration: 1200,
+    });
+    // Kart tazelendiğinde parça bilgisiyle çelişmemeli.
+    expect(track.title).toBe(card.title);
+    expect(track.artist).toBe(card.artist);
+    expect(track.artwork).toBe(card.artwork);
+  });
+
+  it('çalınabilir adres taşımaz (yalnızca gösterim)', () => {
+    expect(episodeToNowPlaying(episode)).not.toHaveProperty('url');
   });
 });

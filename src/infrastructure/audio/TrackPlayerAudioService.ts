@@ -7,7 +7,11 @@ import TrackPlayer, {
   IOSCategory,
   IOSCategoryMode,
 } from 'react-native-track-player';
-import { episodeToTrack, mapTrackPlayerState } from './playbackMapping';
+import {
+  episodeToNowPlaying,
+  episodeToTrack,
+  mapTrackPlayerState,
+} from './playbackMapping';
 
 /**
  * TrackPlayerAudioService — AudioPlayerService portunun react-native-track-player
@@ -76,6 +80,15 @@ export class TrackPlayerAudioService implements AudioPlayerService {
     await TrackPlayer.reset();
     await TrackPlayer.add(episodeToTrack(episode));
     await TrackPlayer.play();
+
+    // Oynatma kartını (kilit ekranı / CarPlay) açıkça tazele. `reset()` kartı
+    // temizlediği için parça değişiminde boş kalabiliyor; bu çağrı kartın
+    // dolmasını garantiler. Başarısız olursa oynatma etkilenmez.
+    try {
+      await TrackPlayer.updateNowPlayingMetadata(episodeToNowPlaying(episode));
+    } catch {
+      /* kart tazelenemedi; ses çalmaya devam eder */
+    }
   }
 
   async resume(): Promise<void> {
