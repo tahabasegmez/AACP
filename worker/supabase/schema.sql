@@ -127,8 +127,8 @@ alter table public.settings enable row level security;
 -- ============================================================================
 -- Telemetri sonsuza kadar birikmemeli. pg_cron eklentisi etkinse:
 --
---   select cron.schedule(
---     'analytics-temizlik', '0 3 * * *',
---     $$ delete from public.analytics_events
---        where occurred_at < (extract(epoch from now() - interval '90 days') * 1000) $$
---   );
+select cron.schedule(
+ 'analytics-temizlik', '0 3 * * *',
+  $$ delete from public.analytics_events
+     where occurred_at < (extract(epoch from now() - interval '90 days') * 1000) $$
+);

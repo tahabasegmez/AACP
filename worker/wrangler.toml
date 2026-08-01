@@ -33,9 +33,9 @@ CORS_ORIGINS = ""
 # Namespace'i bir kez oluşturun ve id'yi buraya yazın:
 #   npx wrangler kv namespace create USER_STATE
 # Bağlanmazsa bu koleksiyonlar Postgres'e düşer (servis çalışmaya devam eder).
-# [[kv_namespaces]]
-# binding = "USER_STATE"
-# id = "<buraya-namespace-id>"
+[[kv_namespaces]]
+binding = "USER_STATE"
+id = "e685c980b738415d9d85373dbbb9c447"
 
 # --- Zamanlanmış görevler -----------------------------------------------------
 # Takip edilen şovlarda yeni bölüm taraması (30 dakikada bir).
