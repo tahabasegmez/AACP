@@ -1,5 +1,6 @@
 import { HttpError } from '../errors';
 import { requireAdmin } from '../auth';
+import { CatalogImportService } from '../catalog/CatalogImportService';
 import { Supabase, type SupabaseScope } from '../supabase';
 import { ok, type Ctx } from '../router';
 
@@ -111,11 +112,25 @@ export const registerCatalogRoutes = (router: {
   });
 
   /**
+   * Katalogu OTOMATİK doldurur — elle şov bilgisi girmenin yerini alır.
+   *
+   * Gövde boşsa yayıncı hesabındaki şovlar keşfedilir; `feedUrls` verilirse
+   * yalnızca onlar aktarılır. Her iki durumda da başlık, açıklama, kapak ve
+   * kategoriler FEED'İN KENDİSİNDEN okunur.
+   */
+  router.post('/v1/catalog/import', async ctx => {
+    requireAdmin(ctx);
+    const feedUrls = readFeedUrls(ctx.body);
+
+    return ok(await new CatalogImportService(ctx.env).run(feedUrls));
+  });
+
+  /**
    * Eski uç — geriye dönük uyumluluk.
    *
-   * İlk kurulumda ya da gömülü listeden geçişte tüm katalogu bir kerede
-   * aktarmak için durur. Gönderilen şovlar yazılır; LİSTEDE OLMAYANLAR
-   * silinmez (yanlış bir istek katalogu boşaltmasın).
+   * Şov bilgisini elle vermek için durur (ör. feed'i olmayan bir kayıt).
+   * Olağan yol `/v1/catalog/import`'tur. Gönderilen şovlar yazılır; LİSTEDE
+   * OLMAYANLAR silinmez (yanlış bir istek katalogu boşaltmasın).
    */
   router.post('/v1/catalog', async ctx => {
     requireAdmin(ctx);
@@ -133,6 +148,23 @@ export const registerCatalogRoutes = (router: {
     await service(ctx).upsert('shows', [{ slug, active: false }], 'slug');
     return ok({ slug, active: false });
   });
+};
+
+/**
+ * Aktarım gövdesinden feed adreslerini okur.
+ *
+ * Gövde YOK sayılabilir: adres verilmediğinde keşif devreye girer, bu yüzden
+ * boş istek geçerlidir ve hata değildir.
+ */
+const readFeedUrls = (body: unknown): string[] => {
+  const value = (body as { feedUrls?: unknown })?.feedUrls;
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value) || value.some(url => typeof url !== 'string')) {
+    throw HttpError.badRequest('feedUrls bir metin dizisi olmalı');
+  }
+  return value as string[];
 };
 
 /** Katalog kullanıcıya ait değildir → servis kimliği (RLS'e tabi değil). */

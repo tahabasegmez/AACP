@@ -1,6 +1,7 @@
 import type { Env } from '../env';
 import type { CatalogEntry } from '../routes/catalog';
 import { Supabase, type SupabaseScope } from '../supabase';
+import { readAttribute, readTag } from '../xml';
 import { ApnsSender, type PushMessage } from './ApnsSender';
 
 /** Bir şovun en son görülen bölümünün saklandığı ayar anahtarı. */
@@ -258,18 +259,3 @@ const parseDate = (value: string | undefined): string | undefined => {
   return Number.isNaN(time) ? undefined : new Date(time).toISOString();
 };
 
-/** `<tag>değer</tag>` içeriğini okur (CDATA dahil). */
-const readTag = (xml: string, tag: string): string | undefined => {
-  const match = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i').exec(xml);
-  if (!match) {
-    return undefined;
-  }
-  const value = match[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim();
-  return value.length > 0 ? value : undefined;
-};
-
-/** `<tag attr="değer" .../>` özniteliğini okur. */
-const readAttribute = (xml: string, tag: string, attribute: string): string | undefined => {
-  const match = new RegExp(`<${tag}[^>]*\\b${attribute}=["']([^"']+)["']`, 'i').exec(xml);
-  return match?.[1];
-};

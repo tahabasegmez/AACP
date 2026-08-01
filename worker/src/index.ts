@@ -1,4 +1,5 @@
 import { requireAdmin } from './auth';
+import { CatalogImportService } from './catalog/CatalogImportService';
 import type { Env } from './env';
 import { FeedWatcher } from './push/FeedWatcher';
 import { Router, ok } from './router';
@@ -50,13 +51,21 @@ export default {
   },
 
   /**
-   * Cron Trigger — takip edilen şovlarda yeni bölüm taraması.
-   * Hata yutulur: bir turun başarısız olması sonraki turu engellememelidir.
+   * Cron Trigger — katalog tazeleme + yeni bölüm taraması.
+   *
+   * Katalog ÖNCE tazelenir: yayıncı yeni bir şov açtıysa aynı turda bölümleri
+   * de taranır ve takipçilere bildirim gider. Sıra ters olsaydı yeni şov bir
+   * tur gecikirdi.
+   *
+   * Hatalar yutulur: bir turun başarısız olması sonraki turu engellememelidir.
    */
   async scheduled(_event: ScheduledEvent, env: Env, context: ExecutionContext): Promise<void> {
     context.waitUntil(
-      new FeedWatcher(env)
-        .runOnce()
+      new CatalogImportService(env)
+        .run()
+        .then(result => console.log('katalog tazeleme', result))
+        .catch(error => console.error('katalog tazeleme başarısız', error))
+        .then(() => new FeedWatcher(env).runOnce())
         .then(result => console.log('feed taraması', result))
         .catch(error => console.error('feed taraması başarısız', error)),
     );

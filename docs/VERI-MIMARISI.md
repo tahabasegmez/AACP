@@ -81,8 +81,47 @@ servisi düşürmez; yalnızca yerleşim değişir ve `/v1/health` bunu bildirir
 |---|---|---|
 | `GET /v1/catalog` | herkes | Yayındaki şovlar (istemcinin kaynağı) |
 | `GET /v1/catalog/shows/:slug/episodes` | herkes | Şovun bölümleri |
-| `POST /v1/catalog/shows` | admin | Şov ekle/güncelle (tek ya da dizi) |
+| **`POST /v1/catalog/import`** | admin | **Katalogu otomatik doldur** (§4.1) |
+| `POST /v1/catalog/shows` | admin | Şov bilgisini ELLE ver (istisna) |
 | `DELETE /v1/catalog/shows/:slug` | admin | Yayından kaldır (`active=false`) |
+
+### 4.1 Katalog otomasyonu
+
+**Şov bilgisi elle girilmez.** Aktarım feed'in kendisini yetkili kaynak sayar:
+başlık, açıklama, kapak, yazar, dil ve kategoriler `<channel>` bloğundan okunur.
+Yayıncı bir şeyi değiştirdiğinde katalog kendiliğinden düzelir.
+
+Adres bile vermek gerekmez: `TRANSISTOR_API_KEY` tanımlıysa yayıncı hesabındaki
+şovlar **keşfedilir**.
+
+```
+POST /v1/catalog/import
+  gövde boş        → hesaptaki tüm şovlar keşfedilir ve aktarılır
+  { feedUrls: [] } → yalnızca verilen adresler aktarılır
+```
+
+Komut satırından:
+
+```bash
+cd worker
+API_URL=https://aacp-api.<hesap>.workers.dev ADMIN_TOKEN=<jeton> \
+  npm run catalog:import                      # hepsi
+API_URL=... ADMIN_TOKEN=... \
+  npm run catalog:import https://feeds.transistor.fm/bir-bakista   # tek şov
+```
+
+**Cron her turda katalogu tazeler** (30 dk). Yeni bir şov açıldığında kimsenin
+bir şey yapmasına gerek yoktur: aynı turda bölümleri de taranır ve takipçilere
+bildirim gider — bu yüzden tazeleme, tarama SIRASINDAN ÖNCE çalışır.
+
+| Alan | Aktarımda | Neden |
+|---|---|---|
+| başlık, açıklama, kapak, yazar, dil, kategoriler | **yazılır** | Feed yetkili kaynak |
+| `active`, `sort_order` | **yazılmaz** | Yönetim kararı; otomasyon yayından kaldırılmış şovu geri açmamalı, elle verilen sırayı bozmamalı |
+
+> Şov kimliği (`slug`) feed adresinin son parçasından türer ve **istemcideki
+> kuralla birebir aynıdır**. İki taraf ayrışsaydı dinleme kayıtları şovla
+> eşleşmezdi; bu yüzden testle sabitlenmiştir.
 
 İstemci tarafında
 [`RemoteShowCatalogRepository`](../src/data/repositories/RemoteShowCatalogRepository.ts)
@@ -105,17 +144,17 @@ cd worker
 npx wrangler kv namespace create USER_STATE
 # çıkan id'yi wrangler.toml içindeki [[kv_namespaces]] bloğuna yazıp yorumu kaldırın
 
-# 3. Katalogu bir kez aktar (şovlar artık veritabanında)
-curl -X POST https://<worker>/v1/catalog/shows \
-  -H "x-admin-token: $ADMIN_TOKEN" -H 'Content-Type: application/json' \
-  -d '[{"slug":"bir-bakista","feedUrl":"https://feeds.transistor.fm/bir-bakista","title":"Bir bakışta"}]'
-
-# 4. Yayınla
+# 3. Yayınla
 npx wrangler deploy
+
+# 4. Katalogu doldur — şov bilgisi elle girilmez, feed'den okunur
+API_URL=https://aacp-api.<hesap>.workers.dev ADMIN_TOKEN=<jeton> \
+  npm run catalog:import
 ```
 
-Katalog aktarılmadan uygulama şov listesini boş görür — bu bilinçli bir
-kurulum adımıdır, gömülü liste artık yoktur.
+Son adım bir kereliktir: sonrasında cron her 30 dakikada bir katalogu tazeler
+ve yeni şovları kendiliğinden ekler. Katalog doldurulmadan uygulama şov
+listesini boş görür — gömülü liste artık yoktur.
 
 ## 6. Sonraki adımlar
 
