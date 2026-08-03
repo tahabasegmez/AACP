@@ -91,4 +91,28 @@ describe('parseEpisodes', () => {
   it('bölümü olmayan feed boş dizi döner', () => {
     expect(parseEpisodes(feed(''))).toEqual([]);
   });
+
+  it('sınır verildiğinde EN YENİLERİ tutar', () => {
+    // Feed en yeniden eskiye sıralıdır; sınır baştan kesildiği için rutin
+    // tarama her zaman yeni bölümleri görür.
+    const xml = feed(
+      ['yeni', 'orta', 'eski']
+        .map(id => item(`<guid>${id}</guid><enclosure url="https://m/${id}.mp3"/>`))
+        .join(''),
+    );
+
+    expect(parseEpisodes(xml, 2).map(e => e.id)).toEqual(['yeni', 'orta']);
+  });
+
+  it('sınırsız çağrıldığında tüm arşivi döner', () => {
+    // Arşiv doldurması varsayılan tavana takılmamalı.
+    const xml = feed(
+      Array.from({ length: 250 }, (_, i) =>
+        item(`<guid>e${i}</guid><enclosure url="https://m/${i}.mp3"/>`),
+      ).join(''),
+    );
+
+    expect(parseEpisodes(xml, Number.POSITIVE_INFINITY)).toHaveLength(250);
+    expect(parseEpisodes(xml)).toHaveLength(100); // varsayılan rutin tavan
+  });
 });

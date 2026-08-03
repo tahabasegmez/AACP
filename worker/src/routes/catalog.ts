@@ -14,7 +14,7 @@ export interface CatalogEntry {
 }
 
 /** `shows` tablosu satırı (snake_case). */
-interface ShowRow {
+export interface ShowRow {
   readonly slug: string;
   readonly feed_url: string;
   readonly title: string;
@@ -25,6 +25,8 @@ interface ShowRow {
   readonly categories: string[] | null;
   readonly active: boolean;
   readonly sort_order: number;
+  /** Gömülü: yalnızca en son bölümün tarihi (sıralama için). */
+  readonly episodes?: readonly { readonly published_at: string | null }[];
 }
 
 /** `episodes` tablosu satırı. */
@@ -59,12 +61,17 @@ export const registerCatalogRoutes = (router: {
 }): void => {
   /** Yayındaki şovlar — istemcinin katalog kaynağı. */
   router.get('/v1/catalog', async ctx => {
+    // Her şovun EN SON bölümünün tarihi gömülü olarak çekilir; sıralama buna
+    // dayanır (bkz. `byFreshness`). PostgREST üst kaydı alt kaydın alanına göre
+    // sıralayamadığı için son adım burada atılır — katalog 11 satırlık.
     const rows = await service(ctx).select<ShowRow>(
       'shows',
-      'select=slug,feed_url,title,description,image_url' +
-        '&active=is.true&order=sort_order.asc,title.asc',
+      'select=slug,feed_url,title,description,image_url,sort_order,' +
+        'episodes(published_at)' +
+        '&active=is.true' +
+        '&episodes.order=published_at.desc.nullslast&episodes.limit=1',
     );
-    return ok(rows.map(toEntry));
+    return ok([...rows].sort(byFreshness).map(toEntry));
   });
 
   /** Bir şovun bölümleri (feed taramasından birikir). */
@@ -75,12 +82,25 @@ export const registerCatalogRoutes = (router: {
       Number(ctx.query.get('limit') ?? 50) || 50,
     );
 
-    const rows = await service(ctx).select<EpisodeRow>(
-      'episodes',
-      'select=guid,title,description,audio_url,image_url,duration_sec,published_at' +
-        `&show_slug=eq.${encodeURIComponent(slug)}` +
-        `&order=published_at.desc.nullslast&limit=${limit}`,
-    );
+    const scope = service(ctx);
+    const [rows, shows] = await Promise.all([
+      scope.select<EpisodeRow>(
+        'episodes',
+        'select=guid,title,description,audio_url,image_url,duration_sec,published_at' +
+          `&show_slug=eq.${encodeURIComponent(slug)}` +
+          `&order=published_at.desc.nullslast&limit=${limit}`,
+      ),
+      scope.select<{ image_url: string | null }>(
+        'shows',
+        `select=image_url&slug=eq.${encodeURIComponent(slug)}&limit=1`,
+      ),
+    ]);
+
+    // Bölümlerin çoğunda `itunes:image` yoktur; yayıncı yalnızca şov kapağını
+    // verir. Yedek OKUMA anında uygulanır, yazarken değil: şov kapağı
+    // değiştiğinde tüm bölümler kendiliğinden düzelir, binlerce satır
+    // yeniden yazılmaz. İstemcideki RSS yolu da aynı kuralı uygular.
+    const showCover = shows[0]?.image_url ?? undefined;
 
     return ok(
       rows.map(row => ({
@@ -89,7 +109,7 @@ export const registerCatalogRoutes = (router: {
         title: row.title,
         description: row.description ?? '',
         audioUrl: row.audio_url,
-        imageUrl: row.image_url ?? undefined,
+        imageUrl: row.image_url ?? showCover,
         durationSec: row.duration_sec ?? 0,
         publishedAt: row.published_at ?? '',
       })),
@@ -169,6 +189,26 @@ const readFeedUrls = (body: unknown): string[] => {
 
 /** Katalog kullanıcıya ait değildir → servis kimliği (RLS'e tabi değil). */
 const service = (ctx: Ctx): SupabaseScope => Supabase.from(ctx.env).asService();
+
+/** Şovun en son bölümünün zamanı; hiç bölümü yoksa 0. */
+const freshness = (row: ShowRow): number => {
+  const published = row.episodes?.[0]?.published_at;
+  const time = published ? Date.parse(published) : Number.NaN;
+  return Number.isNaN(time) ? 0 : time;
+};
+
+/**
+ * Katalog sırası: EN SON YAYINLANAN ÜSTTE.
+ *
+ * `sort_order` önce gelir ve bir yönetim kancası olarak durur — varsayılan 0
+ * bırakıldığında hiçbir etkisi yoktur, bir şovu tepeye sabitlemek gerekirse
+ * tek satırla yapılır. Bölümü olmayan şov (henüz taranmamış) sona düşer;
+ * eşitlik başlığa göre çözülür ki sıra turdan tura oynamasın.
+ */
+export const byFreshness = (a: ShowRow, b: ShowRow): number =>
+  a.sort_order - b.sort_order ||
+  freshness(b) - freshness(a) ||
+  a.title.localeCompare(b.title, 'tr');
 
 const toEntry = (row: ShowRow): CatalogEntry => ({
   slug: row.slug,

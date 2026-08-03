@@ -82,6 +82,7 @@ servisi düşürmez; yalnızca yerleşim değişir ve `/v1/health` bunu bildirir
 | `GET /v1/catalog` | herkes | Yayındaki şovlar (istemcinin kaynağı) |
 | `GET /v1/catalog/shows/:slug/episodes` | herkes | Şovun bölümleri |
 | **`POST /v1/catalog/import`** | admin | **Katalogu otomatik doldur** (§4.1) |
+| **`POST /v1/push/scan`** | admin | Feed taraması; `{"backfill":true}` ile tüm arşiv (§4.2) |
 | `POST /v1/catalog/shows` | admin | Şov bilgisini ELLE ver (istisna) |
 | `DELETE /v1/catalog/shows/:slug` | admin | Yayından kaldır (`active=false`) |
 
@@ -104,11 +105,14 @@ Komut satırından:
 
 ```bash
 cd worker
-API_URL=https://aacp-api.<hesap>.workers.dev ADMIN_TOKEN=<jeton> \
-  npm run catalog:import                      # hepsi
-API_URL=... ADMIN_TOKEN=... \
-  npm run catalog:import https://feeds.transistor.fm/bir-bakista   # tek şov
+npm run catalog:import                                           # hepsi (keşif)
+npm run catalog:import https://feeds.transistor.fm/bir-bakista   # tek şov
 ```
+
+> **Jeton nerede durur:** `API_URL` ve `ADMIN_TOKEN` ya ortam değişkenidir ya
+> da `worker/.dev.vars` içindedir (git'e girmez). Kök `.env`'e YAZILMAZ:
+> react-native-config oradaki her değişkeni derlenen IPA'ya gömer ve yönetim
+> jetonu uygulamayla birlikte dağıtılırdı.
 
 **Cron her turda katalogu tazeler** (30 dk). Yeni bir şov açıldığında kimsenin
 bir şey yapmasına gerek yoktur: aynı turda bölümleri de taranır ve takipçilere
@@ -122,6 +126,38 @@ bildirim gider — bu yüzden tazeleme, tarama SIRASINDAN ÖNCE çalışır.
 > Şov kimliği (`slug`) feed adresinin son parçasından türer ve **istemcideki
 > kuralla birebir aynıdır**. İki taraf ayrışsaydı dinleme kayıtları şovla
 > eşleşmezdi; bu yüzden testle sabitlenmiştir.
+
+**Keşif yalnızca `TRANSISTOR_API_KEY` tanımlıysa çalışır.** Anahtar yoksa
+argümansız aktarım hiçbir şey bulamaz (betik bunu açıkça söyler) ve cron'un
+katalog tazelemesi de boşa döner — şovlar ancak adres verilerek eklenir.
+
+### 4.2 Bölüm arşivi
+
+Arşivler büyüktür: tek bir şovda 1900'ü aşkın bölüm, ~4 MB feed. Bu yüzden iş
+ikiye ayrılmıştır:
+
+| | Ne yapar | Ne zaman |
+|---|---|---|
+| Rutin tarama (cron, 30 dk) | En yeni **100** bölüme bakar | Sürekli |
+| `npm run episodes:backfill` | **Tüm arşivi** işler | Yeni şov eklendiğinde, bir kez |
+
+Rutin turun tek sorusu "yeni bölüm çıktı mı" olduğu için en yeniler yeter.
+Tavanı kaldırmak, yarım saatte bir hiç değişmemiş binlerce satırı yeniden
+yazmak olurdu.
+
+> **Bölüm kapağı boşsa şov kapağına düşülür** — ve bu YAZARKEN değil, okurken
+> yapılır. Yayıncıların çoğu `<item>` içine `itunes:image` koymaz; yedek okuma
+> anında uygulandığı için şov kapağı değiştiğinde tüm bölümler kendiliğinden
+> düzelir. İstemcideki RSS yolu da aynı kuralı uygular.
+
+### 4.3 Katalog sırası
+
+Liste **en son yayınlanan şov üstte** gelir. Sıra, her şovun en yeni bölümünün
+tarihinden hesaplanır; `sort_order` bir yönetim kancası olarak önde durur ve
+varsayılan `0` bırakıldığında hiçbir etkisi yoktur — bir şovu tepeye
+sabitlemek gerektiğinde tek satırla yapılır. Hiç bölümü olmayan (henüz
+taranmamış) şov sona düşer, eşitlik başlığa göre çözülür ki sıra turdan tura
+oynamasın.
 
 İstemci tarafında
 [`RemoteShowCatalogRepository`](../src/data/repositories/RemoteShowCatalogRepository.ts)
@@ -147,14 +183,19 @@ npx wrangler kv namespace create USER_STATE
 # 3. Yayınla
 npx wrangler deploy
 
-# 4. Katalogu doldur — şov bilgisi elle girilmez, feed'den okunur
-API_URL=https://aacp-api.<hesap>.workers.dev ADMIN_TOKEN=<jeton> \
-  npm run catalog:import
+# 4. Yönetim jetonunu yerine koy (git'e girmez)
+cp .dev.vars.example .dev.vars   # ADMIN_TOKEN + API_URL doldurun
+
+# 5. Katalogu doldur — şov bilgisi elle girilmez, feed'den okunur
+npm run catalog:import
+
+# 6. Bölüm arşivini bir kez doldur
+npm run episodes:backfill
 ```
 
-Son adım bir kereliktir: sonrasında cron her 30 dakikada bir katalogu tazeler
-ve yeni şovları kendiliğinden ekler. Katalog doldurulmadan uygulama şov
-listesini boş görür — gömülü liste artık yoktur.
+Son iki adım bir kereliktir: sonrasında cron her 30 dakikada bir katalogu
+tazeler ve yeni bölümleri yakalar. Katalog doldurulmadan uygulama şov listesini
+boş görür — gömülü liste artık yoktur.
 
 ## 6. Sonraki adımlar
 

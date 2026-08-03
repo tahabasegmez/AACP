@@ -88,6 +88,6 @@ Hazırlık yapıldı, geçiş iOS 26 SDK'sı ile — bkz. [LIQUID_GLASS.md](LIQU
 ## Sunucu ayağa kalkınca
 
 1. `.env` oluştur (kök dizin): `cp .env.example .env` → `APP_API_BASE_URL` doldur
-2. Kataloğu yayınla: `node scripts/generate-shows-json.js shows.json`
+2. Kataloğu doldur: `cd worker && npm run catalog:import` (bkz. [VERI-MIMARISI.md](VERI-MIMARISI.md) §4.1)
 
 Bkz. [CLOUDFLARE-SUPABASE-KURULUM.md](CLOUDFLARE-SUPABASE-KURULUM.md).

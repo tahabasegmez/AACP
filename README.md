@@ -29,7 +29,7 @@ npm run ci     # typecheck + lint + test
 | [docs/IOS_SETUP.md](docs/IOS_SETUP.md) | **macOS'ta çalıştırma**: kurulum, imzalama, CarPlay, sorun giderme |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Clean Architecture katmanları, bağımlılık kuralı, yeni özellik ekleme |
 | [src/README.md](src/README.md) | Klasör haritası (hızlı bakış) |
-| [docs/REMOTE_CONFIG.md](docs/REMOTE_CONFIG.md) | Dinamik şov kataloğu: sunucu kurulumu, yeni şov ekleme |
+| [docs/VERI-MIMARISI.md](docs/VERI-MIMARISI.md) | Hangi veri nerede yaşar (PostgreSQL / NoSQL), şov kataloğu otomasyonu |
 | [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md) | Bağımlılıklar ve neden seçildikleri |
 
 ## Mimari özet

@@ -15,7 +15,13 @@ SUPABASE_JWT_SECRET=
 
 # Yönetim uçlarını korur (katalog yayınlama, feed tarama).
 # Üretmek için: openssl rand -hex 24
+#
+# Yönetim BETİKLERİ de bu dosyadan okur (scripts/admin.mjs). Jetonu uygulamanın
+# kök `.env`'ine YAZMAYIN: react-native-config oradaki her değişkeni derlenen
+# IPA'ya gömer ve jeton uygulamayla birlikte dağıtılır.
 ADMIN_TOKEN=
+# Yönetim betiklerinin hedefi (ör. https://aacp-api.<hesap>.workers.dev).
+API_URL=
 
 # Transistor proxy (opsiyonel) — anahtarı uygulamaya gömmemek için.
 TRANSISTOR_API_KEY=

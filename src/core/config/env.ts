@@ -32,11 +32,6 @@ export interface AppEnv {
    */
   readonly apiBaseUrl?: string;
 
-  /**
-   * Uzak (remote-config) şov kataloğu JSON URL'i. Verilmezse `apiBaseUrl`
-   * üzerinden `/v1/catalog` kullanılır; o da yoksa yalnızca bundled katalog.
-   */
-  readonly remoteCatalogUrl?: string;
   /** Uzak katalog cache geçerlilik süresi (ms). */
   readonly remoteCatalogTtlMs: number;
 
@@ -115,7 +110,6 @@ const ENVIRONMENTS: Record<AppEnv['name'], AppEnv> = {
 interface RawOverrides {
   APP_ENV?: string;
   APP_API_BASE_URL?: string;
-  APP_CATALOG_URL?: string;
   APP_EPISODE_SOURCE?: string;
   APP_TRANSISTOR_API_KEY?: string;
   APP_AD_TAG_URL?: string;
@@ -161,7 +155,6 @@ const resolveEnv = (): AppEnv => {
   return {
     ...preset,
     apiBaseUrl: trimmed(raw.APP_API_BASE_URL) ?? preset.apiBaseUrl,
-    remoteCatalogUrl: trimmed(raw.APP_CATALOG_URL) ?? preset.remoteCatalogUrl,
     episodeSource: isSourceKind(raw.APP_EPISODE_SOURCE)
       ? raw.APP_EPISODE_SOURCE
       : preset.episodeSource,
@@ -186,18 +179,15 @@ const flag = (value?: string): boolean | undefined => {
 export const env: AppEnv = resolveEnv();
 
 /**
- * Katalog adresini çözer: açık `remoteCatalogUrl` > backend `/v1/catalog`.
+ * Katalog adresi — backend'in `/v1/catalog` ucu.
  *
- * Katalog TEK KAYNAKTAN gelir (sunucudaki `shows` tablosu); uygulamaya gömülü
- * bir liste yoktur. Adres hesabı tek yerde durur ki DI ve testler aynı kuralı
- * görsün.
+ * Katalog TEK KAYNAKTAN gelir (sunucudaki `shows` tablosu): ne uygulamaya
+ * gömülü bir liste ne de ayrı bir JSON adresi vardır. İkinci bir kaynak
+ * tutmak, ikisinin sessizce ayrışması demekti. Adres hesabı tek yerde durur ki
+ * DI ve testler aynı kuralı görsün.
  */
-export const resolveCatalogUrl = (e: AppEnv = env): string | undefined => {
-  if (e.remoteCatalogUrl) {
-    return e.remoteCatalogUrl;
-  }
-  return e.apiBaseUrl ? `${e.apiBaseUrl.replace(/\/+$/, '')}/v1/catalog` : undefined;
-};
+export const resolveCatalogUrl = (e: AppEnv = env): string | undefined =>
+  e.apiBaseUrl ? `${e.apiBaseUrl.replace(/\/+$/, '')}/v1/catalog` : undefined;
 
 /** Sunucu gerektiren özellikler yalnızca apiBaseUrl varken açılır. */
 export const isBackendEnabled = (e: AppEnv = env): boolean => Boolean(e.apiBaseUrl);

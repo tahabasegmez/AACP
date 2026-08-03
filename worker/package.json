@@ -9,6 +9,7 @@
     "deploy:staging": "wrangler deploy --env staging",
     "tail": "wrangler tail",
     "catalog:import": "node scripts/import-catalog.mjs",
+    "episodes:backfill": "node scripts/backfill-episodes.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "ci": "npm run typecheck && npm test"

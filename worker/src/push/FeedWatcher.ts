@@ -10,6 +10,19 @@ const lastSeenKey = (slug: string): string => `push.lastSeen.${slug}`;
 const FETCH_TIMEOUT_MS = 10_000;
 
 /**
+ * Rutin taramada işlenecek en fazla bölüm.
+ *
+ * Arşivler büyüktür (tek bir şovda 1900+ bölüm, ~4 MB feed). Bunu yarım saatte
+ * bir baştan işlemek, hiç değişmemiş binlerce satırı boşuna yeniden yazmaktı.
+ * Rutin turun tek sorusu "yeni bölüm çıktı mı" olduğu için en yeniler yeter;
+ * arşivin tamamı `runOnce(true)` ile BİR KEZ doldurulur.
+ */
+const SCAN_LIMIT = 100;
+
+/** Tek upsert isteğinde taşınacak en fazla satır — gövde sınırına dayanmasın. */
+const UPSERT_CHUNK = 500;
+
+/**
  * FeedWatcher — takip edilen şovlarda yeni bölüm çıkınca bildirim gönderir.
  *
  * Akış (şov başına):
@@ -30,22 +43,30 @@ export class FeedWatcher {
     this.apns = new ApnsSender(env);
   }
 
-  async runOnce(): Promise<{ checked: number; notified: number }> {
+  /**
+   * @param backfill Tüm arşivi işle (bkz. `SCAN_LIMIT`). Rutin cron turunda
+   *   KULLANILMAZ; elle tetiklenen bir kerelik doldurma içindir.
+   */
+  async runOnce(backfill = false): Promise<{ checked: number; ingested: number; notified: number }> {
     const supabase = Supabase.from(this.env);
     // Tarama kullanıcıya ait olmayan bir yönetim işidir → servis kimliği.
     const scope = supabase.asService();
 
     const shows = await this.loadCatalog(scope);
+    const limit = backfill ? Number.POSITIVE_INFINITY : SCAN_LIMIT;
     let notified = 0;
+    let ingested = 0;
 
     for (const show of shows) {
       try {
-        notified += await this.checkShow(scope, show);
+        const result = await this.checkShow(scope, show, limit);
+        notified += result.notified;
+        ingested += result.ingested;
       } catch {
         // Bir şovdaki hata diğerlerini etkilemez.
       }
     }
-    return { checked: shows.length, notified };
+    return { checked: shows.length, ingested, notified };
   }
 
   /** Yayındaki şovlar — katalog artık kendi tablosunda. */
@@ -61,12 +82,16 @@ export class FeedWatcher {
     }));
   }
 
-  /** Tek bir şovu kontrol eder; gönderilen bildirim sayısını döner. */
-  private async checkShow(scope: SupabaseScope, show: CatalogEntry): Promise<number> {
-    const episodes = await this.fetchEpisodes(show.feedUrl);
+  /** Tek bir şovu kontrol eder; işlenen bölüm ve gönderilen bildirim sayısını döner. */
+  private async checkShow(
+    scope: SupabaseScope,
+    show: CatalogEntry,
+    limit: number,
+  ): Promise<{ ingested: number; notified: number }> {
+    const episodes = await this.fetchEpisodes(show.feedUrl, limit);
     const latest = episodes[0];
     if (!latest) {
-      return 0;
+      return { ingested: 0, notified: 0 };
     }
 
     // Bölümler her taramada veritabanına işlenir: feed zaten indirildi,
@@ -82,13 +107,13 @@ export class FeedWatcher {
     const seen = rows[0]?.value;
 
     if (seen === latest.id) {
-      return 0; // değişiklik yok
+      return { ingested: episodes.length, notified: 0 }; // değişiklik yok
     }
 
     // İlk kez görülüyor: durumu kaydet ama bildirim gönderme.
     if (seen === undefined) {
       await scope.upsert('settings', [{ key, value: latest.id }], 'key');
-      return 0;
+      return { ingested: episodes.length, notified: 0 };
     }
 
     const targets = await this.followersOf(scope, show.slug);
@@ -110,7 +135,7 @@ export class FeedWatcher {
     }
 
     await scope.upsert('settings', [{ key, value: latest.id }], 'key');
-    return targets.length;
+    return { ingested: episodes.length, notified: targets.length };
   }
 
   /**
@@ -144,7 +169,7 @@ export class FeedWatcher {
    * XML bağımlılığı eklememek için `<item>` blokları düz metin olarak taranır.
    * İhtiyacımız olan alan kümesi dar ve RSS'te bu alanların biçimi sabittir.
    */
-  private async fetchEpisodes(feedUrl: string): Promise<FeedEpisode[]> {
+  private async fetchEpisodes(feedUrl: string, limit: number): Promise<FeedEpisode[]> {
     const response = await fetch(feedUrl, {
       headers: { Accept: 'application/rss+xml, application/xml, text/xml' },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -152,32 +177,36 @@ export class FeedWatcher {
     if (!response.ok) {
       return [];
     }
-    return parseEpisodes(await response.text());
+    return parseEpisodes(await response.text(), limit);
   }
 
-  /** Bölümleri veritabanına yazar (aynı guid tekrar gelirse günceller). */
+  /**
+   * Bölümleri veritabanına yazar (aynı guid tekrar gelirse günceller).
+   *
+   * Parçalar hâlinde gönderilir: bir arşiv doldurmasında tek istek binlerce
+   * satır taşıyabilir ve gövde sınırına dayanabilirdi.
+   */
   private async ingestEpisodes(
     scope: SupabaseScope,
     slug: string,
     episodes: readonly FeedEpisode[],
   ): Promise<void> {
-    if (episodes.length === 0) {
-      return;
+    for (let start = 0; start < episodes.length; start += UPSERT_CHUNK) {
+      await scope.upsert(
+        'episodes',
+        episodes.slice(start, start + UPSERT_CHUNK).map(episode => ({
+          show_slug: slug,
+          guid: episode.id,
+          title: episode.title,
+          description: episode.description ?? null,
+          audio_url: episode.audioUrl,
+          image_url: episode.imageUrl ?? null,
+          duration_sec: episode.durationSec ?? null,
+          published_at: episode.publishedAt ?? null,
+        })),
+        'show_slug,guid',
+      );
     }
-    await scope.upsert(
-      'episodes',
-      episodes.map(episode => ({
-        show_slug: slug,
-        guid: episode.id,
-        title: episode.title,
-        description: episode.description ?? null,
-        audio_url: episode.audioUrl,
-        image_url: episode.imageUrl ?? null,
-        duration_sec: episode.durationSec ?? null,
-        published_at: episode.publishedAt ?? null,
-      })),
-      'show_slug,guid',
-    );
   }
 }
 
@@ -192,20 +221,20 @@ interface FeedEpisode {
   readonly publishedAt?: string;
 }
 
-/** Tek taramada işlenecek en fazla bölüm — cron penceresi kilitlenmesin. */
-const MAX_ITEMS = 100;
-
 /**
  * RSS gövdesinden bölümleri okur (saf fonksiyon — ayrı test edilir).
  *
  * Ses dosyası (`enclosure`) olmayan öğeler ATLANIR: çalınamayan bir kayıt
  * bölüm listesinde yer tutmamalı.
+ *
+ * @param limit En fazla kaç bölüm okunacağı. Feed'ler en yeniden eskiye
+ *   sıralıdır, dolayısıyla sınır her zaman EN YENİLERİ tutar.
  */
-export const parseEpisodes = (xml: string): FeedEpisode[] => {
+export const parseEpisodes = (xml: string, limit = SCAN_LIMIT): FeedEpisode[] => {
   const episodes: FeedEpisode[] = [];
   let cursor = 0;
 
-  while (episodes.length < MAX_ITEMS) {
+  while (episodes.length < limit) {
     const start = xml.indexOf('<item', cursor);
     if (start === -1) {
       break;

@@ -39,10 +39,16 @@ router.get('/health', async ctx =>
   }),
 );
 
-/** Yönetim: feed taramasını elle tetikle (kurulum doğrulaması için). */
+/**
+ * Yönetim: feed taramasını elle tetikle.
+ *
+ * `{ backfill: true }` ile ARŞİVİN TAMAMI işlenir — yeni bir şov eklendiğinde
+ * bir kez çalıştırılır. Rutin cron turu bunu yapmaz (bkz. `SCAN_LIMIT`).
+ */
 router.post('/v1/push/scan', async ctx => {
   requireAdmin(ctx);
-  return ok(await new FeedWatcher(ctx.env).runOnce());
+  const backfill = (ctx.body as { backfill?: unknown } | undefined)?.backfill === true;
+  return ok(await new FeedWatcher(ctx.env).runOnce(backfill));
 });
 
 export default {

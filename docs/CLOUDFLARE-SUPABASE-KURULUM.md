@@ -135,28 +135,35 @@ curl https://aacp-api.<hesabın>.workers.dev/health
 
 `supabase: false` görüyorsan anahtarlar eksik.
 
-## 4. Kataloğu yayınla
+## 4. Kataloğu doldur
 
-Katalog tek kaynakta yaşar (`src/core/config/feedCatalog.ts`). JSON'u üret:
+Katalog `shows` tablosunda yaşar ve **şov bilgisi elle girilmez** — başlık,
+açıklama, kapak ve kategoriler feed'in kendisinden okunur:
 
 ```bash
-# proje kökünde
-node scripts/generate-shows-json.js shows.json
+cd worker
+API_URL=https://aacp-api.<hesabın>.workers.dev ADMIN_TOKEN=<jeton> \
+  npm run catalog:import https://feeds.transistor.fm/<slug> ...
 ```
 
-Yayınla:
+`TRANSISTOR_API_KEY` tanımlıysa adres vermeye bile gerek yoktur; yayıncı
+hesabındaki şovlar keşfedilir. Ayrıntı: [VERI-MIMARISI.md](VERI-MIMARISI.md) §4.1.
+
+Ardından bölüm arşivini bir kez doldur:
 
 ```bash
-curl -X POST https://aacp-api.<hesabın>.workers.dev/v1/catalog \
+curl -X POST https://aacp-api.<hesabın>.workers.dev/v1/push/scan \
      -H "x-admin-token: $ADMIN_TOKEN" \
      -H "Content-Type: application/json" \
-     --data @shows.json
-# {"count":11}
+     --data '{"backfill":true}'
 ```
 
 > **Gizli değerleri buraya yazmayın.** Bu dosya depoda tutulur; depo herkese
 > açıksa `ADMIN_TOKEN` de açık olur. Anahtarı kabuk değişkeninde tutun:
 > `export ADMIN_TOKEN=...` (ya da her seferinde elle yapıştırın).
+>
+> **Kök `.env`'e de yazmayın:** react-native-config oradaki HER değişkeni
+> derlenen IPA'ya gömer, yani yönetim jetonu uygulamanın içinde dağıtılır.
 
 Doğrula:
 
@@ -164,8 +171,8 @@ Doğrula:
 curl https://aacp-api.<hesabın>.workers.dev/v1/catalog
 ```
 
-> Yeni şov eklemek artık uygulama güncellemesi gerektirmez: `feedCatalog.ts`'i
-> güncelle, betiği çalıştır, yukarıdaki komutu tekrarla.
+> Yeni şov eklemek artık uygulama güncellemesi gerektirmez; cron her 30
+> dakikada bir katalogu tazeler ve yeni şovu kendiliğinden ekler.
 
 ## 5. Uygulamayı bağla
 
