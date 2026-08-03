@@ -1,7 +1,7 @@
 import { AppError, Result, fail, ok } from '@core/error';
 import { KeyValueStorage } from '@core/ports';
 import { User, isValidEmail, isValidPassword } from '@domain/entities';
-import { CredentialsInput, UserRepository } from '@domain/repositories';
+import { AvatarUpload, CredentialsInput, UserRepository } from '@domain/repositories';
 
 /** Kullanıcı profilinin yerel önbelleği — çevrimdışı açılışta da bilinsin. */
 const USER_KEY = 'aacp.user.profile';
@@ -20,6 +20,7 @@ interface PublicUserDto {
   readonly id?: string;
   readonly email?: string;
   readonly displayName?: string;
+  readonly avatarUrl?: string;
   readonly createdAt?: number;
 }
 
@@ -133,6 +134,23 @@ export class UserRepositoryImpl implements UserRepository {
     }
   }
 
+  async uploadAvatar(input: AvatarUpload): Promise<Result<User>> {
+    if (!this.api.enabled) {
+      return fail(AppError.validation('Sunucu yapılandırılmadığı için fotoğraf yüklenemez'));
+    }
+    try {
+      const dto = await this.api.post<PublicUserDto>('/v1/auth/avatar', input);
+      if (!dto?.id) {
+        return fail(AppError.network('Fotoğraf yüklenemedi'));
+      }
+      const user = toUser(dto);
+      this.writeCache(user);
+      return ok(user);
+    } catch (error) {
+      return fail(AppError.from(error, 'NETWORK'));
+    }
+  }
+
   /** Kayıt/giriş ortak akışı: oturum al, jetonu kur, profili önbelleğe yaz. */
   private async authenticate(path: string, input: CredentialsInput): Promise<Result<User>> {
     if (!this.api.enabled) {
@@ -198,5 +216,6 @@ const toUser = (dto: PublicUserDto): User => ({
   id: dto.id ?? '',
   email: dto.email,
   displayName: dto.displayName,
+  avatarUrl: dto.avatarUrl,
   createdAt: dto.createdAt ?? Date.now(),
 });

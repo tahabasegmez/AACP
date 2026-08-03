@@ -12,6 +12,8 @@ export * from './headerMetrics';
 export * from './ImmersiveHeader';
 export * from './SearchField';
 export * from './BottomSheet';
+export * from './Popover';
+export * from './Avatar';
 export * from './TextSheet';
 export * from './CoverGradient';
 export * from './useReducedMotion';

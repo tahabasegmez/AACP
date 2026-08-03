@@ -35,6 +35,11 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
+	<!-- Fotoğraf kitaplığı erişimi. Bu açıklama OLMADAN iOS, seçici açılırken
+	     uygulamayı sonlandırır. Metin kullanıcıya izin diyaloğunda gösterilir;
+	     yalnızca profil fotoğrafı ve liste kapağı için okunur, yazma yapılmaz. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Profil fotoğrafını ve liste kapaklarını seçebilmen için fotoğraflarına erişim gerekir.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIBackgroundModes</key>

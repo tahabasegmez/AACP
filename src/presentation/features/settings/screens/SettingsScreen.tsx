@@ -1,20 +1,11 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { env } from '@core/config';
-import { isAnonymous, userDisplayName } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { Icon, IconName, Screen, ScreenHeader, Text, scrimScrollHandler } from '../../../ui';
 import { useDependencies } from '../../../di';
-import {
-  useAccountsAvailable,
-  useCurrentUser,
-  useRefreshPending,
-  useSignOut,
-  useSyncNow,
-  useSyncStatus,
-} from '../../../query';
-import { AuthSheet } from '../../account/AuthSheet';
+import { useRefreshPending, useSyncNow, useSyncStatus } from '../../../query';
 
 /** "3 dakika önce" gibi kısa görece zaman — senkron tazeliğini anlatır. */
 const formatRelative = (epochMs: number): string => {
@@ -45,36 +36,16 @@ const formatRelative = (epochMs: number): string => {
  * yalnızca gerçekten işlevi olan seçenekler bulunur: senkron durumu, veri
  * yönetimi ve uygulama bilgisi. Sunucu yapılandırılmamışsa senkron bölümü
  * "kapalı" olarak dürüstçe gösterilir.
+ *
+ * HESAP BURADA DEĞİLDİR: giriş, çıkış, ad ve fotoğraf ana sayfadaki hesap
+ * düğmesinden yönetilir. İki giriş noktası tutmak, ikisinin zamanla ayrışması
+ * demekti.
  */
 export const SettingsScreen: React.FC = () => {
   const theme = useTheme();
   const { analytics, errorReporter } = useDependencies();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<string>('');
-
-  // Hesap durumu
-  const accountsAvailable = useAccountsAvailable();
-  const { data: user } = useCurrentUser();
-  const signOut = useSignOut();
-  const [authOpen, setAuthOpen] = useState(false);
-  const signedIn = !!user && !isAnonymous(user);
-
-  const confirmSignOut = (): void => {
-    Alert.alert(
-      'Çıkış yap',
-      'Bu cihazda misafir olarak devam edeceksin. Hesabındaki veriler sunucuda korunur.',
-      [
-        { text: 'Vazgeç', style: 'cancel' },
-        {
-          text: 'Çıkış yap',
-          style: 'destructive',
-          onPress: () => {
-            signOut.mutate(undefined, { onSuccess: () => setStatus('Çıkış yapıldı') });
-          },
-        },
-      ],
-    );
-  };
 
   // Senkron durumu — motordan canlı gelir (son senkron, bekleyen, hata).
   const syncStatus = useSyncStatus();
@@ -131,35 +102,6 @@ export const SettingsScreen: React.FC = () => {
         onScroll={scrimScrollHandler}
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: theme.spacing(10) }}>
-        {/* Hesap — yalnızca sunucu yapılandırılmışsa anlamlıdır. */}
-        {accountsAvailable && (
-          <Section title="Hesap">
-            {signedIn ? (
-              <>
-                <Row
-                  icon="info"
-                  title={userDisplayName(user)}
-                  subtitle={user?.email ?? 'Hesabın bu cihaza bağlı'}
-                  onPress={() => {}}
-                />
-                <Row
-                  icon="close"
-                  title="Çıkış yap"
-                  subtitle="Verilerin sunucuda kalır; bu cihazda misafir olarak devam edersin."
-                  onPress={confirmSignOut}
-                />
-              </>
-            ) : (
-              <Row
-                icon="library"
-                title="Giriş yap veya hesap oluştur"
-                subtitle="Listelerin ve kaldığın yer tüm cihazlarında aynı olsun."
-                onPress={() => setAuthOpen(true)}
-              />
-            )}
-          </Section>
-        )}
-
         <Section title="Senkron">
           <Row
             icon="refresh"
@@ -217,12 +159,6 @@ export const SettingsScreen: React.FC = () => {
           </Text>
         </View>
       </ScrollView>
-
-      <AuthSheet
-        visible={authOpen}
-        onClose={() => setAuthOpen(false)}
-        onFeedback={setStatus}
-      />
     </Screen>
   );
 };

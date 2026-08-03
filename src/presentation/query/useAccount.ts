@@ -132,3 +132,48 @@ export const useUpdateProfile = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.currentUser }),
   });
 };
+
+/**
+ * Profil fotoğrafının uzun kenarı için üst sınır (px).
+ *
+ * Avatar en fazla birkaç yüz piksel gösterilir; daha büyüğünü yüklemek ağı ve
+ * depoyu boşuna meşgul ederdi. Küçültme seçim anında yapılır.
+ */
+const AVATAR_MAX_SIZE = 512;
+
+/**
+ * Profil fotoğrafını değiştirir: galeriden seç → sunucuya yükle.
+ *
+ * İki adım TEK yerde birleştirilir; çağıran ekran ne seçiciyi ne de yükleme
+ * biçimini bilir. Kullanıcı seçimi iptal ederse hiçbir şey olmaz (hata değil).
+ */
+export const useChangeAvatar = () => {
+  const { userRepository, imagePicker } = useDependencies();
+  const qc = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const picked = await imagePicker.pick({
+        maxSize: AVATAR_MAX_SIZE,
+        withData: true,
+      });
+      if (!picked?.base64) {
+        return null; // iptal edildi ya da seçici yok
+      }
+      return unwrap(
+        await userRepository.uploadAvatar({
+          base64: picked.base64,
+          // Seçici tür bildirmezse JPEG varsayılır; küçültülmüş çıktı JPEG'tir.
+          contentType: picked.contentType ?? 'image/jpeg',
+        }),
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.currentUser }),
+  });
+
+  return {
+    run: mutation.mutateAsync,
+    busy: mutation.isPending,
+    available: imagePicker.available,
+  };
+};

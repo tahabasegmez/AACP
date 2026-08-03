@@ -119,7 +119,7 @@ export interface AppDependencies {
 
   // Kapak görselinden baskın renk (arka plan renklendirme)
   readonly imagePalette: ImagePalette;
-  /** Cihazdan görsel seçme (playlist kapağı). Kullanılamıyorsa özellik pasifleşir. */
+  /** Cihazdan görsel seçme (liste kapağı, profil fotoğrafı). Yoksa özellik pasifleşir. */
   readonly imagePicker: ImagePicker;
 
   /** Kullanıcı kimliği ve profili (anonim ya da hesaplı). */

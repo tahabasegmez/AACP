@@ -1,7 +1,11 @@
 import { HttpError } from '../errors';
 import { requireSession } from '../auth';
+import { avatarPath, decodeAvatar } from '../avatarImage';
 import { Supabase } from '../supabase';
 import { created, ok, type Ctx } from '../router';
+
+/** Profil fotoğraflarının tutulduğu genel kova (bkz. schema-03). */
+const AVATAR_BUCKET = 'avatars';
 
 /** GoTrue oturum yanıtı. */
 interface GoTrueSession {
@@ -16,7 +20,10 @@ interface GoTrueUser {
   readonly email?: string;
   readonly created_at?: string;
   readonly is_anonymous?: boolean;
-  readonly user_metadata?: { readonly display_name?: string };
+  readonly user_metadata?: {
+    readonly display_name?: string;
+    readonly avatar_url?: string;
+  };
 }
 
 /**
@@ -52,6 +59,7 @@ const toUser = (user: GoTrueUser) => ({
   // Anonim kullanıcıda e-posta yoktur — uygulama bunu "misafir" olarak yorumlar.
   email: user.email && user.email.length > 0 ? user.email : undefined,
   displayName: user.user_metadata?.display_name,
+  avatarUrl: user.user_metadata?.avatar_url,
   createdAt: user.created_at ? Date.parse(user.created_at) : Date.now(),
 });
 
@@ -145,6 +153,32 @@ export const registerAuthRoutes = (router: {
     const supabase = Supabase.from(ctx.env);
     const user = await supabase.updateAuthUser<GoTrueUser>(session.accessToken, {
       data: { display_name: displayName },
+    });
+    return ok(toUser(user));
+  });
+
+  /**
+   * Profil fotoğrafını yükler.
+   *
+   * Dosya GENEL bir kovaya sunucu kimliğiyle yazılır, adresi kullanıcının
+   * meta verisine işlenir. Yolun başında kullanıcı kimliği vardır ve bu kimlik
+   * JETONDAN okunur — istemcinin verdiği bir kimliğe güvenmek, herkesin
+   * başkasının fotoğrafını değiştirebilmesi demekti.
+   */
+  router.post('/v1/auth/avatar', async ctx => {
+    const session = await requireSession(ctx);
+    const image = decodeAvatar(ctx.body);
+    const supabase = Supabase.from(ctx.env);
+
+    const url = await supabase.uploadPublic(
+      AVATAR_BUCKET,
+      avatarPath(session.userId, image.extension, Date.now()),
+      image.bytes,
+      image.contentType,
+    );
+
+    const user = await supabase.updateAuthUser<GoTrueUser>(session.accessToken, {
+      data: { avatar_url: url },
     });
     return ok(toUser(user));
   });

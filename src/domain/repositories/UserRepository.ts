@@ -37,4 +37,20 @@ export interface UserRepository {
 
   /** Profil bilgisini günceller. */
   updateProfile(input: { displayName?: string }): Promise<Result<User>>;
+
+  /**
+   * Profil fotoğrafını yükler ve güncellenmiş kullanıcıyı döner.
+   *
+   * Görsel base64 olarak verilir: dosya yolu vermek platforma bağımlılık
+   * (iOS `ph://`, Android `content://`) sızdırırdı; bu port platformu bilmez.
+   */
+  uploadAvatar(input: AvatarUpload): Promise<Result<User>>;
+}
+
+/** Yüklenecek profil fotoğrafı. */
+export interface AvatarUpload {
+  /** Görselin base64 gövdesi (veri öneki OLMADAN). */
+  readonly base64: string;
+  /** MIME türü, ör. `image/jpeg`. */
+  readonly contentType: string;
 }

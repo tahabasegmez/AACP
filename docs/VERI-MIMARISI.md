@@ -175,6 +175,7 @@ kaynak tutmak, ikisinin sessizce ayrışması demekti — tek kaynak sunucudur.
 # 1. Şema (Supabase Studio → SQL Editor, sırayla)
 worker/supabase/schema.sql
 worker/supabase/schema-02-catalog-and-billing.sql
+worker/supabase/schema-03-avatars.sql
 
 # 2. NoSQL namespace'i
 cd worker

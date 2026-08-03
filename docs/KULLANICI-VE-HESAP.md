@@ -31,8 +31,11 @@ kullanıcı anonimse YENİ kullanıcı yaratılmaz, mevcut kayıt yükseltilir.
 | domain | [UserRepository.ts](../src/domain/repositories/UserRepository.ts) | Kimlik PORTU |
 | data | [UserRepositoryImpl.ts](../src/data/repositories/UserRepositoryImpl.ts) | API çağrıları + yerel profil önbelleği |
 | presentation | [useAccount.ts](../src/presentation/query/useAccount.ts) | Query/mutation hook'ları |
+| presentation | [AccountButton.tsx](../src/presentation/features/account/AccountButton.tsx) | Başlıktaki avatar düğmesi — hesabın TEK giriş noktası |
+| presentation | [AccountPanel.tsx](../src/presentation/features/account/AccountPanel.tsx) | Panel içeriği: ad, fotoğraf, giriş/çıkış |
 | presentation | [AuthSheet.tsx](../src/presentation/features/account/AuthSheet.tsx) | Giriş/kayıt paneli |
 | worker | [routes/auth.ts](../worker/src/routes/auth.ts) | Supabase Auth proxy'si |
+| worker | [avatarImage.ts](../worker/src/avatarImage.ts) | Profil fotoğrafı çözümleme (saf) |
 | worker | [auth.ts](../worker/src/auth.ts) | Jeton doğrulama (yerel, HS256) |
 
 ## 3. Hangi veri nerede yaşar?
@@ -108,7 +111,7 @@ bekleyen değişiklik sayısı ve son hata.
 ## 5. Sunucusuz çalışma
 
 `APP_API_BASE_URL` boşsa:
-- hesap bölümü Ayarlar'da **görünmez**,
+- hesap panelinde eylemler **görünmez** (panel yalnızca misafir kimliğini anlatır),
 - senkron ve telemetri sessizce kapanır,
 - uygulama tamamen yerel çalışır ve hiçbir akış kırılmaz.
 
@@ -124,6 +127,7 @@ Bu, kurulumun güvenli varsayılanıdır.
 | `POST /v1/auth/refresh` | Erişim jetonunu yeniler |
 | `GET /v1/auth/me` | Oturumdaki kullanıcının profili |
 | `POST /v1/auth/profile` | Görünen adı güncelle |
+| `POST /v1/auth/avatar` | Profil fotoğrafı yükle (base64 → genel kova) |
 | `POST /v1/auth/reset-password` | Şifre sıfırlama e-postası |
 
 ### Güvenlik notları
@@ -158,7 +162,9 @@ misafire dönerdi.
 
 - **SSO** (Apple/Google ile giriş) — Supabase destekliyor, uç eklenmedi.
 - **Oturum listesi / uzaktan çıkış** yok.
-- Profil yalnızca görünen ad içerir; avatar yok.
+- Profil `auth.users.user_metadata` içinde yaşar (ad ve avatar adresi).
+  `profiles` tablosu şemada var ama uygulama onu OKUMUYOR; ilişkisel bir profil
+  sorgusu gerektiğinde (ör. "kim ne kadar dinledi" raporu) oraya geçilmelidir.
 
 > Şifre sıfırlama artık **var** (Supabase Auth e-posta gönderir); uygulamada
 > arayüzü henüz bağlanmadı — uç hazır.

@@ -189,6 +189,9 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
           renderItem={({ item, index }) => (
             <SwipeableEpisodeRow
               episode={item}
+              // Bağlam verildiği için sola kaydırma "listeye ekle" değil
+              // "listeden çıkar" olur.
+              context={{ playlistId: playlist.id }}
               // Listelerde "kaldığın yer" yerine bölümün ait olduğu ŞOV yazar.
               subtitle={showTitleOf(item.showId)}
               onPress={() => openSheet(item)}

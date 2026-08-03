@@ -50,6 +50,7 @@ Bunlar bilinçli tercihlerdir; değiştirmeden önce sebebini bilin:
 | `POST /v1/auth/reset-password` | — | Şifre sıfırlama e-postası |
 | `GET /v1/sync/:collection` | zorunlu | Delta çekme (`?since=`) |
 | `POST /v1/sync/:collection` | zorunlu | Yerel değişiklikleri gönder |
+| `POST /v1/auth/avatar` | zorunlu | Profil fotoğrafı yükle |
 | `GET /v1/catalog` | — | Şov listesi (en yeni bölüm üstte) |
 | `GET /v1/catalog/shows/:slug/episodes` | — | Şovun bölümleri |
 | `POST /v1/catalog/import` | admin | Şov bilgisini RSS'ten aktar |

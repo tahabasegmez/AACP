@@ -45,9 +45,9 @@ export const PlaylistEditorSheet: React.FC<{
   const busy = createPlaylist.isPending || updatePlaylist.isPending;
 
   const pickCover = async (): Promise<void> => {
-    const uri = await imagePicker.pick();
-    if (uri) {
-      setCoverUri(uri);
+    const picked = await imagePicker.pick();
+    if (picked) {
+      setCoverUri(picked.uri);
     }
   };
 

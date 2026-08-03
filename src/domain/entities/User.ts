@@ -13,6 +13,8 @@ export interface User {
   readonly email?: string;
   /** Görünen ad (profil). */
   readonly displayName?: string;
+  /** Profil fotoğrafının genel adresi; yoksa baş harf rozeti gösterilir. */
+  readonly avatarUrl?: string;
   readonly createdAt: number;
 }
 
@@ -30,6 +32,19 @@ export const userDisplayName = (user: User | null | undefined): string => {
   }
   // E-postanın yerel kısmı makul bir varsayılan addır.
   return user.email?.split('@')[0] ?? 'Misafir';
+};
+
+/**
+ * Avatar rozetinde gösterilecek TEK harf.
+ *
+ * Görünen addan türer, böylece kullanıcı adını değiştirdiğinde rozet de
+ * değişir. Türkçe'ye duyarlı büyütme kullanılır: `i` harfi `I` değil `İ`
+ * olmalıdır. Harf bulunamazsa (ör. ad yalnızca emoji) boş döner ve çağıran
+ * taraf kişi simgesine düşer.
+ */
+export const userInitial = (user: User | null | undefined): string => {
+  const letter = [...userDisplayName(user)].find(char => /\p{L}|\p{N}/u.test(char));
+  return letter ? letter.toLocaleUpperCase('tr-TR') : '';
 };
 
 /**

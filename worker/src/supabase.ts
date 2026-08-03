@@ -73,6 +73,50 @@ export class Supabase {
     return readAuthResponse<T>(response);
   }
 
+  /**
+   * Dosyayı GENEL bir kovaya yükler ve okunabilir adresini döner.
+   *
+   * Servis anahtarıyla yazılır: kova genel okumaya açıktır ama yazma yalnızca
+   * sunucudan yapılır — istemcinin başkasının yoluna dosya koyabilmesi kabul
+   * edilemez. Aynı yola tekrar yazma `x-upsert` ile serbesttir.
+   */
+  async uploadPublic(
+    bucket: string,
+    path: string,
+    body: ArrayBuffer,
+    contentType: string,
+  ): Promise<string> {
+    if (!this.serviceKey) {
+      throw HttpError.internal('Servis anahtarı yapılandırılmamış');
+    }
+
+    const response = await fetch(`${this.url}/storage/v1/object/${bucket}/${path}`, {
+      method: 'POST',
+      headers: {
+        apikey: this.serviceKey,
+        Authorization: `Bearer ${this.serviceKey}`,
+        'Content-Type': contentType,
+        'x-upsert': 'true',
+      },
+      body,
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      // Depo, eksik kovayı HTTP 400 ile bildirir ve 404'ü GÖVDEYE koyar; bu
+      // yüzden durum koduna değil hata koduna bakılır. Kurulum adımı
+      // atlanmışsa mesaj bunu açıkça söylemelidir.
+      if (text.includes('NoSuchBucket')) {
+        throw HttpError.internal(
+          `"${bucket}" kovası yok — worker/supabase/schema-03-avatars.sql çalıştırılmalı`,
+        );
+      }
+      throw HttpError.internal(`Yükleme başarısız (${response.status}): ${text.slice(0, 200)}`);
+    }
+
+    return `${this.url}/storage/v1/object/public/${bucket}/${path}`;
+  }
+
   /** Kullanıcı profilini günceller (ad, meta veri). */
   async updateAuthUser<T>(accessToken: string, body: unknown): Promise<T> {
     const response = await fetch(`${this.url}/auth/v1/user`, {
