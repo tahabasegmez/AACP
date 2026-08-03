@@ -11,9 +11,6 @@
  * bile uygulama tarafında yalnızca bu adres değişir.
  */
 
-/** Bölüm listesinin hangi kaynaktan çözüleceği. */
-export type EpisodeSourceKind = 'rss' | 'transistor';
-
 export interface AppEnv {
   /** Ortam adı — loglama/telemetri etiketlemesi için. */
   readonly name: 'development' | 'staging' | 'production';
@@ -34,15 +31,6 @@ export interface AppEnv {
 
   /** Uzak katalog cache geçerlilik süresi (ms). */
   readonly remoteCatalogTtlMs: number;
-
-  /** Bölümler nereden okunacak: RSS feed (varsayılan) veya Transistor API. */
-  readonly episodeSource: EpisodeSourceKind;
-  /**
-   * Transistor API anahtarı. Yalnızca `episodeSource: 'transistor'` iken gerekir.
-   * İstemciye anahtar gömmek yerine backend proxy'si (apiBaseUrl) önerilir;
-   * bu alan doğrudan-erişim senaryosu (ör. dahili build) içindir.
-   */
-  readonly transistorApiKey?: string;
 
   /** Kullanım telemetrisi gönderilsin mi (apiBaseUrl gerektirir). */
   readonly analyticsEnabled: boolean;
@@ -70,7 +58,6 @@ const base = {
   feedCacheTtlMs: 10 * 60_000, // 10 dakika
   networkRetryCount: 2,
   remoteCatalogTtlMs: 6 * 60 * 60_000, // 6 saat
-  episodeSource: 'rss' as EpisodeSourceKind,
   adEveryNEpisodes: 1,
 } as const;
 
@@ -110,8 +97,6 @@ const ENVIRONMENTS: Record<AppEnv['name'], AppEnv> = {
 interface RawOverrides {
   APP_ENV?: string;
   APP_API_BASE_URL?: string;
-  APP_EPISODE_SOURCE?: string;
-  APP_TRANSISTOR_API_KEY?: string;
   APP_AD_TAG_URL?: string;
   /** "false" ile senkronu kapatır (ortam varsayılanını geçersiz kılar). */
   APP_SYNC_ENABLED?: string;
@@ -136,9 +121,6 @@ const readOverrides = (): RawOverrides => {
 const isEnvName = (v: unknown): v is AppEnv['name'] =>
   v === 'development' || v === 'staging' || v === 'production';
 
-const isSourceKind = (v: unknown): v is EpisodeSourceKind =>
-  v === 'rss' || v === 'transistor';
-
 const trimmed = (v?: string): string | undefined => {
   const s = v?.trim();
   return s && s.length > 0 ? s : undefined;
@@ -155,10 +137,6 @@ const resolveEnv = (): AppEnv => {
   return {
     ...preset,
     apiBaseUrl: trimmed(raw.APP_API_BASE_URL) ?? preset.apiBaseUrl,
-    episodeSource: isSourceKind(raw.APP_EPISODE_SOURCE)
-      ? raw.APP_EPISODE_SOURCE
-      : preset.episodeSource,
-    transistorApiKey: trimmed(raw.APP_TRANSISTOR_API_KEY) ?? preset.transistorApiKey,
     adTagUrl: trimmed(raw.APP_AD_TAG_URL) ?? preset.adTagUrl,
     syncEnabled: flag(raw.APP_SYNC_ENABLED) ?? preset.syncEnabled,
   };

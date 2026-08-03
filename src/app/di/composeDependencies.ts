@@ -64,7 +64,6 @@ import {
   RssFeedSource,
   PlaylistBackedSavedEpisodes,
   PlaylistRepositoryImpl,
-  TransistorFeedSource,
   VastAdRepository,
 } from '@data';
 import {
@@ -155,15 +154,10 @@ export const composeDependencies = (): AppDependencies => {
   // data (kaynaklar + repository implementasyonları)
   const remoteCatalog = new RemoteCatalogDataSource(http);
   const feedCache = new InMemoryFeedCacheDataSource(env.feedCacheTtlMs);
-  // Bölüm kaynağı bir STRATEJİ: RSS (varsayılan) veya Transistor API.
-  // env.episodeSource dışında hiçbir yer bu seçimi bilmez.
-  const feedSource: FeedSource =
-    env.episodeSource === 'transistor'
-      ? new TransistorFeedSource(http, {
-          apiKey: env.transistorApiKey,
-          baseUrl: env.apiBaseUrl ? `${env.apiBaseUrl.replace(/\/+$/, '')}/v1/transistor` : undefined,
-        })
-      : new RssFeedSource(new RssFeedDataSource(http, xmlParser));
+  // Bölümler RSS'ten okunur — podcast dünyasının ortak, sağlayıcıdan bağımsız
+  // arayüzü budur. `FeedSource` portu, kaynağı ileride değiştirmek (ör. bölüm
+  // listesini sunucudan sunmak) gerekirse tek bağlama noktası olarak durur.
+  const feedSource: FeedSource = new RssFeedSource(new RssFeedDataSource(http, xmlParser));
   const feedRepo = new PodcastFeedRepositoryImpl(feedSource, feedCache, logger);
   // Katalog sunucudaki `shows` tablosundan gelir; uygulamaya gömülü liste YOK.
   // Adres yoksa (backend kapalı) katalog boş kalır — bu bilinçli: iki ayrı

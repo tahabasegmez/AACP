@@ -50,15 +50,21 @@ Bunlar bilinçli tercihlerdir; değiştirmeden önce sebebini bilin:
 | `POST /v1/auth/reset-password` | — | Şifre sıfırlama e-postası |
 | `GET /v1/sync/:collection` | zorunlu | Delta çekme (`?since=`) |
 | `POST /v1/sync/:collection` | zorunlu | Yerel değişiklikleri gönder |
-| `GET /v1/catalog` | — | Şov listesi |
-| `POST /v1/catalog` | admin | Kataloğu yayınla |
+| `GET /v1/catalog` | — | Şov listesi (en yeni bölüm üstte) |
+| `GET /v1/catalog/shows/:slug/episodes` | — | Şovun bölümleri |
+| `POST /v1/catalog/import` | admin | Şov bilgisini RSS'ten aktar |
+| `POST /v1/catalog/shows` | admin | Şov bilgisini elle ver (istisna) |
+| `DELETE /v1/catalog/shows/:slug` | admin | Yayından kaldır |
 | `POST /v1/analytics` | opsiyonel | Telemetri (toplu) |
 | `POST /v1/push/register` | zorunlu | Cihaz jetonu kaydı |
 | `POST /v1/push/unregister` | zorunlu | Jeton sil |
-| `POST /v1/push/scan` | admin | Feed taramasını elle tetikle |
-| `GET /v1/transistor/:resource` | — | Transistor API proxy'si |
+| `POST /v1/push/scan` | admin | Feed taraması; `{"backfill":true}` ile tüm arşiv |
 
-Koleksiyonlar: `progress`, `follows`, `saved`, `playlists`.
+Koleksiyonlar: `progress`, `follows`, `saved`, `playlists`, `preferences`.
+
+> Barındırıcıya özel bir API (ör. Transistor) YOKTUR: şov ve bölüm verisi
+> RSS'ten okunur. RSS her sağlayıcıda çalışan ortak arayüzdür; barındırıcı
+> değiştiğinde tek değişen şey feed adresidir.
 
 ## 2. Kimlik akışı
 

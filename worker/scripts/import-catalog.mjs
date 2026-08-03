@@ -2,8 +2,8 @@
 /**
  * Katalog aktarımını tetikler.
  *
- *   npm run catalog:import                      # hesaptaki tüm şovları keşfet
- *   npm run catalog:import <feedUrl> [feedUrl…] # yalnızca verilenleri aktar
+ *   npm run catalog:import <feedUrl> [feedUrl…] # şov ekle / verilenleri aktar
+ *   npm run catalog:import                      # katalogdakilerin bilgisini tazele
  *
  * Yapılandırma (`API_URL`, `ADMIN_TOKEN`): ortam değişkeni ya da
  * `worker/.dev.vars` — bkz. admin.mjs.
@@ -17,7 +17,9 @@ import { adminPost } from './admin.mjs';
 const feedUrls = process.argv.slice(2);
 const result = await adminPost('/v1/catalog/import', feedUrls.length > 0 ? { feedUrls } : {});
 
-console.log(`Kaynak      : ${result.source === 'transistor' ? 'yayıncı hesabı' : 'verilen adresler'}`);
+console.log(
+  `Kaynak      : ${result.source === 'catalog' ? 'katalogdaki şovlar' : 'verilen adresler'}`,
+);
 console.log(`Aktarılan   : ${result.imported.length}`);
 result.imported.forEach(slug => console.log(`  ✓ ${slug}`));
 
@@ -26,11 +28,9 @@ if (result.failed.length > 0) {
   result.failed.forEach(url => console.log(`  ✗ ${url}`));
 }
 
-// Keşif, sunucuda TRANSISTOR_API_KEY tanımlı değilse boş döner. Sessizce
-// "0 aktarıldı" demek başarı gibi okunurdu; sebebi söylemek gerekir.
-if (result.imported.length === 0 && result.failed.length === 0 && result.source === 'transistor') {
-  console.log('\nHiçbir şov keşfedilemedi. Sunucuda TRANSISTOR_API_KEY tanımlı mı?');
-  console.log('  npx wrangler secret put TRANSISTOR_API_KEY');
-  console.log('Alternatif: feed adreslerini doğrudan verin —');
-  console.log('  npm run catalog:import https://feeds.transistor.fm/<slug>');
+// Boş katalogda argümansız çağrı hiçbir şey yapmaz; "0 aktarıldı" başarı gibi
+// okunurdu, sebebi söylemek gerekir.
+if (result.imported.length === 0 && result.failed.length === 0 && result.source === 'catalog') {
+  console.log('\nKatalog boş — tazelenecek şov yok. Feed adresi vererek ekleyin:');
+  console.log('  npm run catalog:import https://feeds.ornek.fm/<slug>');
 }

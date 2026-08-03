@@ -146,8 +146,8 @@ API_URL=https://aacp-api.<hesabın>.workers.dev ADMIN_TOKEN=<jeton> \
   npm run catalog:import https://feeds.transistor.fm/<slug> ...
 ```
 
-`TRANSISTOR_API_KEY` tanımlıysa adres vermeye bile gerek yoktur; yayıncı
-hesabındaki şovlar keşfedilir. Ayrıntı: [VERI-MIMARISI.md](VERI-MIMARISI.md) §4.1.
+Tek girdi RSS adresidir; sonrasında argümansız çalıştırmak katalogdaki
+şovların bilgisini tazeler. Ayrıntı: [VERI-MIMARISI.md](VERI-MIMARISI.md) §4.1.
 
 Ardından bölüm arşivini bir kez doldur:
 

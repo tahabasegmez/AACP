@@ -92,21 +92,22 @@ servisi düşürmez; yalnızca yerleşim değişir ve `/v1/health` bunu bildirir
 başlık, açıklama, kapak, yazar, dil ve kategoriler `<channel>` bloğundan okunur.
 Yayıncı bir şeyi değiştirdiğinde katalog kendiliğinden düzelir.
 
-Adres bile vermek gerekmez: `TRANSISTOR_API_KEY` tanımlıysa yayıncı hesabındaki
-şovlar **keşfedilir**.
+Tek girdi **RSS adresidir**. Barındırıcıya özel bir keşif API'sine (Transistor
+vb.) bağlanmak, barındırıcı değiştiğinde sunucuyu da değiştirmek demekti; RSS
+ise her sağlayıcıda çalışan ortak arayüzdür.
 
 ```
 POST /v1/catalog/import
-  gövde boş        → hesaptaki tüm şovlar keşfedilir ve aktarılır
-  { feedUrls: [] } → yalnızca verilen adresler aktarılır
+  { feedUrls: [] } → verilen adresler aktarılır (yeni şov eklemenin yolu)
+  gövde boş        → KATALOGDAKİ şovların bilgisi tazelenir (cron'un işi)
 ```
 
 Komut satırından:
 
 ```bash
 cd worker
-npm run catalog:import                                           # hepsi (keşif)
-npm run catalog:import https://feeds.transistor.fm/bir-bakista   # tek şov
+npm run catalog:import https://feeds.transistor.fm/bir-bakista   # şov ekle
+npm run catalog:import                                           # hepsini tazele
 ```
 
 > **Jeton nerede durur:** `API_URL` ve `ADMIN_TOKEN` ya ortam değişkenidir ya
@@ -114,9 +115,13 @@ npm run catalog:import https://feeds.transistor.fm/bir-bakista   # tek şov
 > react-native-config oradaki her değişkeni derlenen IPA'ya gömer ve yönetim
 > jetonu uygulamayla birlikte dağıtılırdı.
 
-**Cron her turda katalogu tazeler** (30 dk). Yeni bir şov açıldığında kimsenin
-bir şey yapmasına gerek yoktur: aynı turda bölümleri de taranır ve takipçilere
-bildirim gider — bu yüzden tazeleme, tarama SIRASINDAN ÖNCE çalışır.
+**Cron her turda katalogdaki şovları tazeler** (30 dk): kapak, başlık ve
+açıklama yayıncıyı takip eder. Tazeleme, bölüm taramasından ÖNCE çalışır ki
+aynı turda eklenen bir şovun bölümleri de taranıp takipçilere bildirim gitsin.
+
+Yeni şovun katalogda belirmesi ise bilinçli bir karardır — feed adresi açıkça
+verilir. Böylece yayıncının test amaçlı açtığı bir şov uygulamada kendiliğinden
+görünmez.
 
 | Alan | Aktarımda | Neden |
 |---|---|---|
@@ -126,10 +131,6 @@ bildirim gider — bu yüzden tazeleme, tarama SIRASINDAN ÖNCE çalışır.
 > Şov kimliği (`slug`) feed adresinin son parçasından türer ve **istemcideki
 > kuralla birebir aynıdır**. İki taraf ayrışsaydı dinleme kayıtları şovla
 > eşleşmezdi; bu yüzden testle sabitlenmiştir.
-
-**Keşif yalnızca `TRANSISTOR_API_KEY` tanımlıysa çalışır.** Anahtar yoksa
-argümansız aktarım hiçbir şey bulamaz (betik bunu açıkça söyler) ve cron'un
-katalog tazelemesi de boşa döner — şovlar ancak adres verilerek eklenir.
 
 ### 4.2 Bölüm arşivi
 
@@ -203,7 +204,8 @@ boş görür — gömülü liste artık yoktur.
   `payments`) ama webhook ucu yok. Abonelik durumunu YALNIZCA sunucu
   değiştirebilmeli — RLS'te yazma politikası bilinçli olarak tanımlanmadı.
 - **Bölüm listesini sunucudan sunmak.** `episodes` tablosu doluyor ve ucu
-  hazır; istemci hâlâ RSS'i kendisi çekiyor. Geçiş, `FeedSource` stratejisine
-  üçüncü bir implementasyon eklemektir (RSS / Transistor / API).
+  hazır; istemci hâlâ RSS'i kendisi çekiyor. Geçiş, `FeedSource` portuna ikinci
+  bir implementasyon eklemektir (RSS / kendi API'miz) — istemcinin geri kalanı
+  değişmez.
 - **Liste ve "sonra dinle" izdüşümü.** Takipler için yapıldı (`show_follows`);
   aynı desen listelere de uygulanabilir.

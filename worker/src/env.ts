@@ -37,9 +37,6 @@ export interface Env {
   readonly ANALYTICS_ENABLED?: string;
   readonly CORS_ORIGINS?: string;
 
-  // --- Transistor (opsiyonel proxy) -------------------------------------
-  readonly TRANSISTOR_BASE_URL?: string;
-  readonly TRANSISTOR_API_KEY?: string;
 
   // --- APNs (iOS bildirimleri) ------------------------------------------
   /** `.p8` anahtar içeriği (PEM). Boşsa bildirim gönderimi kapalıdır. */

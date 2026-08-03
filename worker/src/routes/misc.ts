@@ -14,13 +14,12 @@ interface AnalyticsEvent {
 }
 
 /**
- * Telemetri, push kaydı ve Transistor proxy uçları.
+ * Telemetri ve push kaydı uçları.
  *
- * Üçü de küçük olduğu için tek dosyada toplanmıştır; ayrı modüllere bölmek
+ * İkisi de küçük olduğu için tek dosyada toplanmıştır; ayrı modüllere bölmek
  * gezinmeyi zorlaştırırdı.
  */
 export const registerMiscRoutes = (router: {
-  get: (p: string, h: (c: Ctx) => Promise<Response>) => unknown;
   post: (p: string, h: (c: Ctx) => Promise<Response>) => unknown;
 }): void => {
   // --- telemetri ---------------------------------------------------------
@@ -94,35 +93,6 @@ export const registerMiscRoutes = (router: {
     return noContent();
   });
 
-  // --- Transistor proxy --------------------------------------------------
-  /**
-   * Transistor API'sine yetkili proxy.
-   *
-   * Amaç: API anahtarını UYGULAMAYA GÖMMEMEK. İstemci anahtarsız çağırır,
-   * anahtar yalnızca Worker gizli değerlerinde durur.
-   */
-  router.get('/v1/transistor/:resource', async ctx => {
-    const apiKey = ctx.env.TRANSISTOR_API_KEY;
-    if (!apiKey) {
-      throw HttpError.forbidden('Transistor proxy yapılandırılmamış');
-    }
-    const base = ctx.env.TRANSISTOR_BASE_URL ?? 'https://api.transistor.fm/v1';
-    const resource = ctx.params.resource;
-    if (!/^[a-z_]+$/i.test(resource)) {
-      throw HttpError.badRequest('Geçersiz kaynak');
-    }
-
-    const target = new URL(`${base.replace(/\/+$/, '')}/${resource}`);
-    ctx.query.forEach((value, key) => target.searchParams.append(key, value));
-
-    const response = await fetch(target.toString(), {
-      headers: { 'x-api-key': apiKey, Accept: 'application/json' },
-    });
-    if (!response.ok) {
-      throw HttpError.internal(`Transistor hatası (${response.status})`);
-    }
-    return ok(await response.json());
-  });
 };
 
 const assertEvents = (body: unknown): AnalyticsEvent[] => {

@@ -19,8 +19,6 @@ enabled = true
 SUPABASE_URL = "https://gagracdjloiklqafxvtz.supabase.co"
 # Telemetri toplansın mı.
 ANALYTICS_ENABLED = "true"
-# Transistor API tabanı (proxy için).
-TRANSISTOR_BASE_URL = "https://api.transistor.fm/v1"
 # APNs: üretim sunucusu mu kullanılsın (false → sandbox).
 APNS_PRODUCTION = "false"
 # Bildirimlerin apns-topic değeri (uygulamanın bundle kimliği).
@@ -51,7 +49,6 @@ name = "aacp-api-staging"
 [env.staging.vars]
 SUPABASE_URL = ""
 ANALYTICS_ENABLED = "true"
-TRANSISTOR_BASE_URL = "https://api.transistor.fm/v1"
 APNS_PRODUCTION = "false"
 APNS_BUNDLE_ID = "com.aa.podcast"
 CORS_ORIGINS = ""

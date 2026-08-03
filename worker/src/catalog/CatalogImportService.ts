@@ -1,7 +1,6 @@
 import type { Env } from '../env';
-import { Supabase } from '../supabase';
+import { Supabase, type SupabaseScope } from '../supabase';
 import { FeedImporter, type ImportedShow } from './FeedImporter';
-import { TransistorDiscovery } from './TransistorDiscovery';
 
 export interface ImportResult {
   /** Kataloğa yazılan şovlar. */
@@ -9,19 +8,23 @@ export interface ImportResult {
   /** Çözülemeyen adresler (diğerlerini etkilemez). */
   readonly failed: string[];
   /** Adresler nereden geldi? */
-  readonly source: 'transistor' | 'request';
+  readonly source: 'catalog' | 'request';
 }
 
 /**
- * CatalogImportService — katalogu KENDİLİĞİNDEN doldurur.
+ * CatalogImportService — şov bilgisini RSS'ten okuyup kataloğa yazar.
  *
- * İki kaynak, aynı akış:
- *   1. adres verilmezse yayıncı hesabındaki şovlar keşfedilir (Transistor),
- *   2. adres verilirse yalnızca onlar aktarılır.
+ * İki çağrı biçimi, aynı akış:
+ *   1. adres verilirse o feed'ler aktarılır (yeni şov eklemenin yolu),
+ *   2. adres verilmezse KATALOGDAKİ şovların adresleri tazelenir.
  *
- * Her adresin RSS'i çekilir ve şov bilgisi FEED'İN KENDİSİNDEN okunur; başlık,
- * açıklama, kapak ve kategoriler elle girilmez. Yayıncı bir şeyi değiştirdiğinde
- * katalog bir sonraki aktarımda kendiliğinden düzelir.
+ * İkincisi cron'un işidir: yayıncı kapağı ya da açıklamayı değiştirdiğinde
+ * katalog kendiliğinden düzelir. Yeni şovun katalogda belirmesi ise BİLİNÇLİ
+ * bir karardır — barındırıcıya özel bir keşif API'sine bağlanmak yerine feed
+ * adresi açıkça verilir; RSS her sağlayıcıda çalışan ortak arayüzdür.
+ *
+ * Şov bilgisi FEED'İN KENDİSİNDEN okunur; başlık, açıklama, kapak ve
+ * kategoriler elle girilmez.
  *
  * `active` ve `sort_order` yazılmaz: bunlar YÖNETİM kararlarıdır ve otomatik
  * aktarım, yayından kaldırılmış bir şovu geri açmamalı ya da elle verilmiş
@@ -33,28 +36,34 @@ export class CatalogImportService {
   constructor(private readonly env: Env) {}
 
   async run(feedUrls?: readonly string[]): Promise<ImportResult> {
+    // Katalog kullanıcıya ait değildir → servis kimliği.
+    const scope = Supabase.from(this.env).asService();
+
     const explicit = (feedUrls ?? []).filter(url => url.trim().length > 0);
-    const source = explicit.length > 0 ? 'request' : 'transistor';
-    const urls =
-      explicit.length > 0
-        ? explicit
-        : await new TransistorDiscovery(this.env).feedUrls();
+    const source = explicit.length > 0 ? 'request' : 'catalog';
+    const urls = explicit.length > 0 ? explicit : await this.catalogFeedUrls(scope);
 
     const { shows, failed } = await this.importer.importMany(urls);
-    await this.save(shows);
+    await this.save(scope, shows);
 
     return { imported: shows.map(show => show.slug), failed, source };
   }
 
+  /** Katalogdaki yayında olan şovların feed adresleri (tazeleme turu için). */
+  private async catalogFeedUrls(scope: SupabaseScope): Promise<string[]> {
+    const rows = await scope.select<{ feed_url: string }>(
+      'shows',
+      'select=feed_url&active=is.true',
+    );
+    return rows.map(row => row.feed_url);
+  }
+
   /** Şovları kataloğa yazar (varsa günceller). */
-  private async save(shows: readonly ImportedShow[]): Promise<void> {
+  private async save(scope: SupabaseScope, shows: readonly ImportedShow[]): Promise<void> {
     if (shows.length === 0) {
       return;
     }
-    // Katalog kullanıcıya ait değildir → servis kimliği.
-    await Supabase.from(this.env)
-      .asService()
-      .upsert('shows', shows.map(toRow), 'slug');
+    await scope.upsert('shows', shows.map(toRow), 'slug');
   }
 }
 

@@ -23,8 +23,6 @@ ADMIN_TOKEN=
 # Yönetim betiklerinin hedefi (ör. https://aacp-api.<hesap>.workers.dev).
 API_URL=
 
-# Transistor proxy (opsiyonel) — anahtarı uygulamaya gömmemek için.
-TRANSISTOR_API_KEY=
 
 # APNs (opsiyonel) — boşsa bildirim gönderilmez, tarama yine çalışır.
 APNS_KEY=
