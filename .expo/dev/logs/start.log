@@ -1,0 +1,8 @@
+{"_e":"root:init","_t":1785749840672,"format":"v0-jsonl","version":"57.0.11"}
+{"_e":"env:mode","_t":1785749840673,"nodeEnv":"development","babelEnv":"development","mode":"development"}
+{"_e":"env:load","_t":1785749840678,"mode":"development","files":["../..\\..\\.env"],"env":{"APP_AD_TAG_URL":"","APP_API_BASE_URL":"https://aacp-api.tahabasegmez.workers.dev","APP_ENV":"development"}}
+{"_e":"devserver:start","_t":1785749841030,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1785749841599,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"expo:dev-tools-plugin:load","_t":1785749842229,"plugins":[]}
+{"_e":"metro:instantiate","_t":1785749847704,"atlas":false,"workers":10,"host":"::","port":8081}
+{"_e":"metro:client_log","_t":1785750090539,"level":"error","data":["Project is incompatible with this version of Expo Go\n\nThe project you requested requires a newer version of Expo Go.\n\nHow to fix this error:\n\nDownload the latest version of Expo Go from the App Store."]}

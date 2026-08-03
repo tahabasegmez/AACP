@@ -1,8 +1,13 @@
 import { HttpError } from '../errors';
 import { requireAdmin } from '../auth';
 import { CatalogImportService } from '../catalog/CatalogImportService';
+import {
+  buildEpisodeQuery,
+  encodeCursor,
+  readQuery,
+} from '../catalog/episodeQuery';
 import { Supabase, type SupabaseScope } from '../supabase';
-import { ok, type Ctx } from '../router';
+import { json, ok, type Ctx } from '../router';
 
 /** İstemcinin beklediği katalog girdisi (şov listesi). */
 export interface CatalogEntry {
@@ -38,10 +43,23 @@ interface EpisodeRow {
   readonly image_url: string | null;
   readonly duration_sec: number | null;
   readonly published_at: string | null;
+  /** Sıralama anahtarı — üretilmiş sütun, hiç boş olmaz (bkz. schema-04). */
+  readonly published_sort: string;
 }
 
-/** Tek istekte dönen en fazla bölüm. */
-const MAX_EPISODES = 200;
+/**
+ * Katalog yanıtlarının kenarda önbelleklenme süresi.
+ *
+ * Katalog kullanıcıya özel DEĞİLDİR ve yayın hızı dakikalarla ölçülür; kısa
+ * bir önbellek, aynı sayfayı isteyen binlerce cihazın veritabanına inmesini
+ * engeller. `stale-while-revalidate` sayesinde süre dolduğunda kullanıcı
+ * beklemez, tazeleme arkada yapılır.
+ */
+const CACHE_HEADER = 'public, max-age=60, stale-while-revalidate=300';
+
+/** Herkese açık, önbelleklenebilir yanıt. */
+const cacheable = (body: unknown): Response =>
+  json(body, 200, { 'Cache-Control': CACHE_HEADER });
 
 /**
  * Katalog uçları — şov listesi ve bölümleri.
@@ -74,27 +92,30 @@ export const registerCatalogRoutes = (router: {
     return ok([...rows].sort(byFreshness).map(toEntry));
   });
 
-  /** Bir şovun bölümleri (feed taramasından birikir). */
+  /**
+   * Bir şovun bölümleri — İMLEÇLE sayfalanır (bkz. episodeQuery).
+   *
+   * İstemci artık şov açılışında tüm RSS'i (tek şovda 4 MB'a varan) indirmez;
+   * yalnızca gördüğü sayfayı ister. Yanıt kullanıcıya özel değildir, bu yüzden
+   * kenarda önbelleklenebilir.
+   */
   router.get('/v1/catalog/shows/:slug/episodes', async ctx => {
-    const slug = ctx.params.slug;
-    const limit = Math.min(
-      MAX_EPISODES,
-      Number(ctx.query.get('limit') ?? 50) || 50,
-    );
+    const query = readQuery(ctx.params.slug, ctx.query);
 
     const scope = service(ctx);
     const [rows, shows] = await Promise.all([
-      scope.select<EpisodeRow>(
-        'episodes',
-        'select=guid,title,description,audio_url,image_url,duration_sec,published_at' +
-          `&show_slug=eq.${encodeURIComponent(slug)}` +
-          `&order=published_at.desc.nullslast&limit=${limit}`,
-      ),
+      scope.select<EpisodeRow>('episodes', buildEpisodeQuery(query)),
       scope.select<{ image_url: string | null }>(
         'shows',
-        `select=image_url&slug=eq.${encodeURIComponent(slug)}&limit=1`,
+        `select=image_url&slug=eq.${encodeURIComponent(query.slug)}&limit=1`,
       ),
     ]);
+
+    // Sorgu bir fazla satır ister; fazlalık "devamı var" demektir ve
+    // kullanıcıya gösterilmez.
+    const hasMore = rows.length > query.limit;
+    const page = hasMore ? rows.slice(0, query.limit) : rows;
+    const last = page[page.length - 1];
 
     // Bölümlerin çoğunda `itunes:image` yoktur; yayıncı yalnızca şov kapağını
     // verir. Yedek OKUMA anında uygulanır, yazarken değil: şov kapağı
@@ -102,10 +123,10 @@ export const registerCatalogRoutes = (router: {
     // yeniden yazılmaz. İstemcideki RSS yolu da aynı kuralı uygular.
     const showCover = shows[0]?.image_url ?? undefined;
 
-    return ok(
-      rows.map(row => ({
+    return cacheable({
+      items: page.map(row => ({
         id: row.guid,
-        showId: slug,
+        showId: query.slug,
         title: row.title,
         description: row.description ?? '',
         audioUrl: row.audio_url,
@@ -113,7 +134,11 @@ export const registerCatalogRoutes = (router: {
         durationSec: row.duration_sec ?? 0,
         publishedAt: row.published_at ?? '',
       })),
-    );
+      nextCursor:
+        hasMore && last
+          ? encodeCursor({ publishedSort: last.published_sort, guid: last.guid })
+          : undefined,
+    });
   });
 
   /**

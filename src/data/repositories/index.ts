@@ -1,4 +1,7 @@
 export * from './PodcastFeedRepositoryImpl';
+export * from './ApiEpisodePageRepository';
+export * from './FeedEpisodePageRepository';
+export * from './FallbackEpisodePageRepository';
 export * from './RemoteShowCatalogRepository';
 export * from './PlaybackProgressRepositoryImpl';
 export * from './FollowRepositoryImpl';

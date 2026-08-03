@@ -1,6 +1,17 @@
 import type { KvNamespace } from './storage/KvSyncStore';
 
 /**
+ * Cloudflare Queues'un kullandığımız yüzeyi.
+ *
+ * Tip `@cloudflare/workers-types` yerine burada tanımlanır: yalnızca toplu
+ * gönderim kullanılıyor ve bağımlılık yüzeyini dar tutmak, yükseltmelerde
+ * kırılma riskini azaltıyor.
+ */
+export interface MessageQueue {
+  sendBatch(messages: readonly { body: unknown }[]): Promise<void>;
+}
+
+/**
  * Env — Cloudflare Workers'a bağlanan ayarlar ve gizli değerler.
  *
  * `wrangler.toml` içindeki `[vars]` gizli OLMAYAN ayarlardır; anahtarlar
@@ -28,6 +39,27 @@ export interface Env {
    * servisi düşürmez, yalnızca yerleşim değişir (bkz. resolveStore).
    */
   readonly USER_STATE?: KvNamespace;
+
+  // --- NoSQL (Redis) ----------------------------------------------------
+  /**
+   * Redis REST adresi ve jetonu (Upstash uyumlu).
+   *
+   * VERİLİRSE `progress`/`preferences` buraya gider: delta okuma sıralı
+   * kümeyle yapılır ve maliyet DEĞİŞEN kayıt sayısıyla orantılı olur. KV'de
+   * aynı sorgu tüm anahtarları taramak demektir (bkz. resolveStore).
+   */
+  readonly REDIS_URL?: string;
+  readonly REDIS_TOKEN?: string;
+
+  // --- Kuyruk -----------------------------------------------------------
+  /**
+   * Feed tarama işleri.
+   *
+   * BAĞLANMAMIŞSA tarama sınırlı sayıda şov için satır içi çalışır: eksik
+   * yapılandırma servisi düşürmez, yalnızca ölçek özelliği devre dışı kalır
+   * (bkz. FeedWatcher).
+   */
+  readonly FEED_SCAN?: MessageQueue;
 
   // --- Yönetim ----------------------------------------------------------
   /** Katalog yayınlama gibi uçları korur. Boşsa bu uçlar KAPALIDIR. */

@@ -1,5 +1,6 @@
 export * from './ShowCatalogRepository';
 export * from './PodcastFeedRepository';
+export * from './EpisodePageRepository';
 export * from './PlaybackProgressRepository';
 export * from './FollowRepository';
 export * from './SavedEpisodesRepository';

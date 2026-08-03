@@ -24,6 +24,13 @@ ADMIN_TOKEN=
 API_URL=
 
 
+# Redis (opsiyonel, Upstash uyumlu REST) — kaldığın yer ve tercihler.
+# VERİLİRSE bu koleksiyonlar KV yerine Redis'e gider: delta senkron sıralı
+# kümeyle yapılır ve maliyet DEĞİŞEN kayıt sayısıyla orantılı olur.
+# Boşsa KV, o da yoksa Postgres kullanılır — servis her durumda çalışır.
+REDIS_URL=
+REDIS_TOKEN=
+
 # APNs (opsiyonel) — boşsa bildirim gönderilmez, tarama yine çalışır.
 APNS_KEY=
 APNS_KEY_ID=

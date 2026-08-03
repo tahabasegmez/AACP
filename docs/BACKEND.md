@@ -52,7 +52,7 @@ Bunlar bilinçli tercihlerdir; değiştirmeden önce sebebini bilin:
 | `POST /v1/sync/:collection` | zorunlu | Yerel değişiklikleri gönder |
 | `POST /v1/auth/avatar` | zorunlu | Profil fotoğrafı yükle |
 | `GET /v1/catalog` | — | Şov listesi (en yeni bölüm üstte) |
-| `GET /v1/catalog/shows/:slug/episodes` | — | Şovun bölümleri |
+| `GET /v1/catalog/shows/:slug/episodes` | — | Şovun bölümleri — imleçli sayfalama (`?limit&cursor&search&sort`) |
 | `POST /v1/catalog/import` | admin | Şov bilgisini RSS'ten aktar |
 | `POST /v1/catalog/shows` | admin | Şov bilgisini elle ver (istisna) |
 | `DELETE /v1/catalog/shows/:slug` | admin | Yayından kaldır |

@@ -1,15 +1,9 @@
 import { AppError, Result, fail, ok } from '@core/error';
+import { CursorPage, Episode, EpisodeSortOrder, Show, mergeShow } from '../entities';
 import {
-  Episode,
-  EpisodeSortOrder,
-  Page,
-  Show,
-  mergeShow,
-  paginate,
-  searchEpisodes,
-  sortEpisodes,
-} from '../entities';
-import { PodcastFeedRepository, ShowCatalogRepository } from '../repositories';
+  EpisodePageRepository,
+  ShowCatalogRepository,
+} from '../repositories';
 import { UseCase } from './UseCase';
 
 export interface GetShowEpisodesParams {
@@ -17,8 +11,8 @@ export interface GetShowEpisodesParams {
   readonly showId?: string;
   /** Sayfa boyutu (varsayılan 20). */
   readonly limit?: number;
-  /** Kaçıncı öğeden başlanacağı (varsayılan 0). */
-  readonly offset?: number;
+  /** Önceki sayfanın imleci; ilk sayfada boştur. */
+  readonly cursor?: string;
   /** Başlık/açıklamada arama (opsiyonel). */
   readonly search?: string;
   /** Sıralama (varsayılan: en yeni önce). */
@@ -26,67 +20,89 @@ export interface GetShowEpisodesParams {
 }
 
 export interface ShowEpisodesResult {
-  /** Feed'den gelen güncel şov meta verisi (katalog ile birleştirilmiş). */
+  /** Katalog ve (varsa) feed meta verisinin birleşimi. */
   readonly show: Show;
-  /** Arama + sıralama uygulanmış, sayfalanmış bölümler. */
-  readonly episodes: Page<Episode>;
+  /** İmleçle sayfalanmış bölümler. */
+  readonly episodes: CursorPage<Episode>;
 }
 
 const DEFAULT_LIMIT = 20;
 
 /**
  * GetShowEpisodes — bir şovun bölümlerini sayfalı, aranabilir ve sıralı getirir;
- * şov meta verisini feed + katalog birleşimiyle zenginleştirir.
+ * şov meta verisini katalog + kaynak birleşimiyle zenginleştirir.
  *
- * Büyük feed'ler (1900+ bölüm) tek seferde UI'a verilmez: feed bir kez çekilip
- * cache'lenir (PodcastFeedRepository), ardından bu use case arama/sıralama/
- * sayfalama uygular. "Daha fazla yükle" için sonraki çağrı artan offset ile
- * gelir ve cache sayesinde ağa çıkmaz.
+ * Sayfalama, arama ve sıralama artık burada YAPILMAZ; `EpisodePageRepository`
+ * portuna devredilir. Sebebi ölçek: bunları bellekte yapabilmek için önce tüm
+ * listenin belleğe alınmış olması gerekir ve bu, her şov açılışında binlerce
+ * bölümü indirmek demektir. Port, işi veriyi tutan tarafa (sunucu) bırakır;
+ * yerel RSS kaynağı aynı sözleşmeyi bellekte karşılar.
  */
 export class GetShowEpisodes
   implements UseCase<GetShowEpisodesParams, ShowEpisodesResult>
 {
   constructor(
-    private readonly feedRepo: PodcastFeedRepository,
+    private readonly episodes: EpisodePageRepository,
     private readonly catalog: ShowCatalogRepository,
   ) {}
 
   async execute(
     params: GetShowEpisodesParams,
   ): Promise<Result<ShowEpisodesResult>> {
-    let feedUrl = params.feedUrl;
     let catalogShow: Show | undefined;
+    let feedUrl = params.feedUrl;
+    let showId = params.showId;
 
-    // showId verilmişse katalogdan fallback meta veri + feedUrl çöz.
-    if (params.showId) {
-      const showResult = await this.catalog.getShowById(params.showId);
-      if (showResult.ok) {
-        catalogShow = showResult.value;
-        feedUrl = feedUrl ?? showResult.value.feedUrl;
+    if (showId) {
+      const found = await this.catalog.getShowById(showId);
+      if (found.ok) {
+        catalogShow = found.value;
+        feedUrl = feedUrl ?? found.value.feedUrl;
       }
     }
 
-    if (!feedUrl) {
+    if (!feedUrl && !showId) {
       return fail(
         AppError.notFound('feedUrl veya showId sağlanmalı (GetShowEpisodes).'),
       );
     }
+    // Sunucu şovu kimlikle sorgular, RSS kaynağı adresle. Biri eksikse
+    // diğerinden türetilir; ikisi de yoksa yukarıda çıkılmıştır.
+    showId = showId ?? slugFromFeedUrl(feedUrl ?? '');
 
-    const feedResult = await this.feedRepo.getFeed(feedUrl);
-    if (!feedResult.ok) {
-      return feedResult;
+    const result = await this.episodes.getPage({
+      showId,
+      feedUrl: feedUrl ?? '',
+      limit: params.limit ?? DEFAULT_LIMIT,
+      cursor: params.cursor,
+      search: params.search,
+      sort: params.sort ?? 'newest',
+    });
+    if (!result.ok) {
+      return result;
     }
 
-    const show = mergeShow(feedResult.value.show, catalogShow);
+    // Kaynak meta veri biliyorsa (RSS) o önceliklidir — feed her zaman en
+    // günceldir; bilmiyorsa katalog tek başına yeterlidir.
+    const show = result.value.show
+      ? mergeShow(result.value.show, catalogShow)
+      : catalogShow;
 
-    // Sırayla: arama → sıralama → sayfalama.
-    let episodes: readonly Episode[] = feedResult.value.episodes;
-    if (params.search) {
-      episodes = searchEpisodes(episodes, params.search);
+    if (!show) {
+      return fail(AppError.notFound('Şov bulunamadı'));
     }
-    episodes = sortEpisodes(episodes, params.sort ?? 'newest');
 
-    const page = paginate(episodes, params.limit ?? DEFAULT_LIMIT, params.offset ?? 0);
-    return ok({ show, episodes: page });
+    return ok({ show, episodes: result.value.page });
   }
 }
+
+/**
+ * Feed adresinden şov kimliği türetir.
+ *
+ * Kural SUNUCUDAKİYLE birebir aynıdır; ayrışsalardı istemcinin sorduğu şov
+ * sunucudakiyle eşleşmezdi.
+ */
+const slugFromFeedUrl = (feedUrl: string): string => {
+  const withoutQuery = feedUrl.split('?')[0].replace(/\/+$/, '');
+  return withoutQuery.slice(withoutQuery.lastIndexOf('/') + 1);
+};

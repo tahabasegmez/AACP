@@ -35,6 +35,25 @@ CORS_ORIGINS = ""
 binding = "USER_STATE"
 id = "e685c980b738415d9d85373dbbb9c447"
 
+# --- Kuyruk -------------------------------------------------------------------
+# Feed taraması şov başına bir iş olarak kuyruğa verilir; böylece tarama süresi
+# şov sayısıyla lineer büyümez ve bir şovun hatası diğerlerini etkilemez.
+# Kuyruğu bir kez oluşturun:
+#   npx wrangler queues create aacp-feed-scan
+# Bağlanmazsa tarama sınırlı sayıda şov için satır içi çalışır (servis düşmez).
+[[queues.producers]]
+queue = "aacp-feed-scan"
+binding = "FEED_SCAN"
+
+[[queues.consumers]]
+queue = "aacp-feed-scan"
+# Parti büyüklüğü ölçülü tutulur: her mesaj bir feed indirmesi ve birkaç
+# veritabanı yazması demek; çok büyük parti tek çağrının süresini şişirir.
+max_batch_size = 10
+max_batch_timeout = 30
+# Geçici ağ hatalarına tolerans; kalıcı hata sonunda mesaj düşer.
+max_retries = 3
+
 # --- Zamanlanmış görevler -----------------------------------------------------
 # Takip edilen şovlarda yeni bölüm taraması (30 dakikada bir).
 [triggers]

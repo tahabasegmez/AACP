@@ -44,8 +44,11 @@ import {
   ToggleSavedEpisode,
 } from '@domain/usecases';
 import {
+  ApiEpisodePageRepository,
   ApiSyncTransport,
   DownloadRepositoryImpl,
+  FallbackEpisodePageRepository,
+  FeedEpisodePageRepository,
   FeedSource,
   FollowRepositoryImpl,
   FollowsSyncAdapter,
@@ -159,6 +162,15 @@ export const composeDependencies = (): AppDependencies => {
   // listesini sunucudan sunmak) gerekirse tek bağlama noktası olarak durur.
   const feedSource: FeedSource = new RssFeedSource(new RssFeedDataSource(http, xmlParser));
   const feedRepo = new PodcastFeedRepositoryImpl(feedSource, feedCache, logger);
+  // Bölüm sayfaları ÖNCE sunucudan istenir: her şov açılışında tek şovda 4 MB'a
+  // varan RSS indirmek, kullanıcı sayısıyla çarpıldığında sürdürülebilir değil.
+  // Sunucu kapalı/erişilemez olduğunda RSS yedeği devreye girer ve uygulama
+  // çalışmaya devam eder.
+  const episodePages = new FallbackEpisodePageRepository(
+    new ApiEpisodePageRepository(api),
+    new FeedEpisodePageRepository(feedRepo),
+    logger,
+  );
   // Katalog sunucudaki `shows` tablosundan gelir; uygulamaya gömülü liste YOK.
   // Adres yoksa (backend kapalı) katalog boş kalır — bu bilinçli: iki ayrı
   // kaynak tutmak, ikisinin sessizce ayrışması demekti.
@@ -183,7 +195,7 @@ export const composeDependencies = (): AppDependencies => {
   // domain use case'leri — kataloglar
   const getShowCatalog = new GetShowCatalog(catalogRepo);
   const getPodcastFeed = new GetPodcastFeed(feedRepo, catalogRepo);
-  const getShowEpisodes = new GetShowEpisodes(feedRepo, catalogRepo);
+  const getShowEpisodes = new GetShowEpisodes(episodePages, catalogRepo);
   const getLatestEpisodes = new GetLatestEpisodes(feedRepo);
 
   // domain use case'leri — takip (follow)

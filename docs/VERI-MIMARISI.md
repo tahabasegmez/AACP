@@ -30,14 +30,37 @@ kullanılır. "Hızlı olsun" tek başına gerekçe değildir.
 | `push_registrations` | Cihaz jetonları | Kullanıcıya bağlı, silinmesi gerekir |
 | `analytics_events` | Telemetri | Toplu sorgu ve raporlama |
 
-### NoSQL (Cloudflare KV)
+### NoSQL (Redis → KV → Postgres)
 
 | Koleksiyon | İçerik | Neden anahtar-değer |
 |---|---|---|
 | `progress` | Kaldığın yer / dinlendi | **En yüksek yazma hacmi**: bir bölüm dinlenirken konum sürekli güncellenir. İlişkisiz, anahtarla erişilir, join gerektirmez |
 | `preferences` | Kullanıcı tercihleri | Küçük bayraklar; sorgulanmaz, kullanıcı başına okunur |
 
-Anahtar düzeni: `<koleksiyon>:<kullanıcıId>:<kayıtAnahtarı>`.
+Bu iki koleksiyon için üç kademeli bir yerleşim vardır ve sırayla denenir:
+
+| Kademe | Koşul | Delta okuma maliyeti |
+|---|---|---|
+| **Redis** | `REDIS_URL` + `REDIS_TOKEN` | **Değişen** kayıt sayısıyla orantılı |
+| Cloudflare KV | `USER_STATE` bağlı | **Toplam** kayıt sayısıyla orantılı |
+| Postgres | hiçbiri yok | İndeksli sorgu |
+
+**Neden Redis öne geçti.** Delta senkron "şu andan sonra değişenleri ver"
+sorusudur. KV bu soruyu cevaplayamaz: tüm anahtarlar listelenir, her biri
+ayrı ayrı okunur ve filtre bellekte uygulanır. 2.000 bölüm dinlemiş bir
+kullanıcıda 3 kayıt değişmiş olsa bile **2.000 okuma** yapılır — her senkronda,
+her cihazda. Ücretsiz katmandaki 100.000 günlük okuma bu kullanıcının ~50
+senkronuna yeter.
+
+Redis'te dizin bir **sıralı kümedir**: skor `updatedAt`, üye kayıt anahtarı.
+`ZRANGEBYSCORE` yalnızca değişenleri sıralı biçimde döner.
+
+```
+<koleksiyon>:<kullanıcıId>:z   → sıralı dizin (skor = updatedAt)
+<koleksiyon>:<kullanıcıId>:h   → gövdeler (alan = kayıt anahtarı)
+```
+
+KV anahtar düzeni: `<koleksiyon>:<kullanıcıId>:<kayıtAnahtarı>`.
 
 > **Tutarlılık:** KV nihai tutarlıdır (yazma diğer bölgelere saniyeler içinde
 > yayılır). "Kaldığın yer" bilgisinin bir cihazdan diğerine birkaç saniyede
@@ -49,6 +72,7 @@ Anahtar düzeni: `<koleksiyon>:<kullanıcıId>:<kayıtAnahtarı>`.
 /v1/sync/:collection
    └─ resolveStore(env, collection)     ← TEK karar noktası
         ├─ PostgresSyncStore            ← sync_records + RLS
+        ├─ RedisSyncStore               ← sıralı küme + hash
         └─ KvSyncStore                  ← Cloudflare KV
 ```
 
@@ -65,6 +89,7 @@ servisi düşürmez; yalnızca yerleşim değişir ve `/v1/health` bunu bildirir
 | Taraf | Nasıl |
 |---|---|
 | Postgres | `trg_sync_keep_newest` tetikleyicisi — karşılaştırma ATOMİKTİR |
+| Redis | Lua script — karşılaştırma ve yazma tek parça çalışır, ATOMİKTİR |
 | KV | Oku-karşılaştır-yaz. KV atomik karşılaştırma sunmaz; aynı anahtara eşzamanlı yazma tek kullanıcının tek bölümü için gerçekleşir ve kaybedilen yazma sonraki turda düzelir |
 
 ## 4. Katalog artık veritabanında
@@ -132,7 +157,7 @@ görünmez.
 > kuralla birebir aynıdır**. İki taraf ayrışsaydı dinleme kayıtları şovla
 > eşleşmezdi; bu yüzden testle sabitlenmiştir.
 
-### 4.2 Bölüm arşivi
+### 4.2 Bölüm arşivi ve tarama
 
 Arşivler büyüktür: tek bir şovda 1900'ü aşkın bölüm, ~4 MB feed. Bu yüzden iş
 ikiye ayrılmıştır:
@@ -143,8 +168,53 @@ ikiye ayrılmıştır:
 | `npm run episodes:backfill` | **Tüm arşivi** işler | Yeni şov eklendiğinde, bir kez |
 
 Rutin turun tek sorusu "yeni bölüm çıktı mı" olduğu için en yeniler yeter.
-Tavanı kaldırmak, yarım saatte bir hiç değişmemiş binlerce satırı yeniden
-yazmak olurdu.
+
+**Değişmemiş feed hiç indirilmez.** Yayıncının verdiği `ETag`/`Last-Modified`
+şov satırında saklanır ve bir sonraki turda koşullu istekle geri gönderilir;
+sunucu 304 dönerse indirme, ayrıştırma ve yazma adımlarının tamamı atlanır.
+Feed'lerin ezici çoğunluğu iki tur arasında değişmediği için kazanç şov
+sayısıyla doğru orantılıdır.
+
+**Tarama şov başına bir kuyruk işidir.** "Hepsini tek cron turunda sırayla
+tara" yaklaşımı şov sayısı büyüdükçe çöker — 5.000 şov × ~1 sn hiçbir
+çalıştırma penceresine sığmaz. Cron artık yalnızca işleri
+[Cloudflare Queues](https://developers.cloudflare.com/queues/)'a dağıtır;
+tüketiciler paralel çalışır, başarısız iş kendi başına yeniden denenir ve bir
+şovun hatası diğerlerini etkilemez.
+
+> Kuyruk bağlı değilse tarama sınırlı sayıda şov için satır içi çalışır. Eksik
+> yapılandırma servisi düşürmez; yalnızca ölçek özelliği devre dışı kalır.
+> Hangi kipin çalıştığı yanıttaki `mode` alanında görünür.
+
+### 4.3 Bölüm listesi istemciye nereden gider
+
+İstemci artık şov açılışında RSS'i KENDİSİ İNDİRMEZ; bölümleri
+`GET /v1/catalog/shows/:slug/episodes` ucundan sayfa sayfa alır.
+
+Sayfalama **imleçlidir** (keyset), offset değil:
+
+- `offset 10000` veritabanına her seferinde ilk 10.000 satırı saydırır; imleç
+  indekste doğrudan yerini bulur ve 50. sayfa 1. sayfa kadar ucuzdur,
+- offset, araya yeni bölüm girdiğinde sayfa sınırlarını kaydırır ve kullanıcı
+  aynı bölümü iki kez görür.
+
+Sıralama `(published_sort, guid)` çiftidir. `published_sort` üretilmiş bir
+sütundur (`coalesce(published_at, created_at)`) çünkü imleç sayfalaması
+sıralanan sütunun **boş olmamasını** gerektirir — NULL karşılaştırması daima
+yanlış döner ve tarihi çözülemeyen bölümler sayfalar arasında kaybolurdu.
+
+İstemci tarafında kaynak seçimi tek yerdedir:
+
+```
+EpisodePageRepository (port)
+   ├─ ApiEpisodePageRepository    ← sunucu, gerçek keyset
+   ├─ FeedEpisodePageRepository   ← RSS + bellekte sayfalama
+   └─ FallbackEpisodePageRepository  ← önce sunucu, İLK SAYFADA olmazsa RSS
+```
+
+Yedeğe düşme yalnızca ilk sayfada olur: sayfalar arasında kaynak değiştirmek,
+imlecin karşı tarafta anlamsız olması ve kullanıcının listenin başına
+dönmesi demekti.
 
 > **Bölüm kapağı boşsa şov kapağına düşülür** — ve bu YAZARKEN değil, okurken
 > yapılır. Yayıncıların çoğu `<item>` içine `itunes:image` koymaz; yedek okuma
@@ -176,11 +246,22 @@ kaynak tutmak, ikisinin sessizce ayrışması demekti — tek kaynak sunucudur.
 worker/supabase/schema.sql
 worker/supabase/schema-02-catalog-and-billing.sql
 worker/supabase/schema-03-avatars.sql
+worker/supabase/schema-04-episode-paging.sql
+worker/supabase/schema-05-feed-scan.sql
 
 # 2. NoSQL namespace'i
 cd worker
 npx wrangler kv namespace create USER_STATE
 # çıkan id'yi wrangler.toml içindeki [[kv_namespaces]] bloğuna yazıp yorumu kaldırın
+
+# 2b. Tarama kuyruğu
+# Ücretsiz planda saklama süresi 24 saate SABİTTİR; açıkça verilmezse
+# wrangler paid varsayılanını (4 gün) ister ve istek reddedilir.
+npx wrangler queues create aacp-feed-scan --message-retention-period-secs 86400
+
+# 2c. (opsiyonel) Redis — kaldığın yer ve tercihler için
+npx wrangler secret put REDIS_URL
+npx wrangler secret put REDIS_TOKEN
 
 # 3. Yayınla
 npx wrangler deploy
@@ -204,9 +285,14 @@ boş görür — gömülü liste artık yoktur.
 - **Ödeme sağlayıcısı entegrasyonu.** Tablolar hazır (`subscriptions`,
   `payments`) ama webhook ucu yok. Abonelik durumunu YALNIZCA sunucu
   değiştirebilmeli — RLS'te yazma politikası bilinçli olarak tanımlanmadı.
-- **Bölüm listesini sunucudan sunmak.** `episodes` tablosu doluyor ve ucu
-  hazır; istemci hâlâ RSS'i kendisi çekiyor. Geçiş, `FeedSource` portuna ikinci
-  bir implementasyon eklemektir (RSS / kendi API'miz) — istemcinin geri kalanı
-  değişmez.
+- **Katalog sırası hâlâ istekte hesaplanıyor.** `GET /v1/catalog`, şov başına
+  gömülü bir alt sorguyla en son bölüm tarihini çekiyor ve sayfalaması yok;
+  şov sayısı büyüdükçe lineer büyür. Doğru hâli `shows` üzerinde denormalize
+  bir `last_published_at` sütunu + indeks + imleçli sayfalama.
+- **`analytics_events` sınırsız büyüyor.** Supabase'in 500 MB'ını ilk
+  dolduracak tablo bu; zaman serisi verisi OLTP tablosunda durmamalı.
+- **Hesap silme / veri dışa aktarma yok (KVKK).** Postgres tarafı
+  `on delete cascade` ile bağlı ama Redis/KV'deki kayıtlar cascade'e tabi
+  değil; hesap silinse orada öksüz veri kalır.
 - **Liste ve "sonra dinle" izdüşümü.** Takipler için yapıldı (`show_follows`);
   aynı desen listelere de uygulanabilir.

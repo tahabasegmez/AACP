@@ -1,7 +1,9 @@
 import type { Env } from '../env';
 import type { SyncCollection } from '../routes/sync';
+import { HttpRedisClient } from './HttpRedisClient';
 import { KvSyncStore } from './KvSyncStore';
 import { PostgresSyncStore } from './PostgresSyncStore';
+import { RedisSyncStore } from './RedisSyncStore';
 import type { SyncStore } from './SyncStore';
 
 /**
@@ -27,26 +29,46 @@ const PLACEMENT: Record<SyncCollection, 'nosql' | 'postgres'> = {
 };
 
 /**
- * Koleksiyonun deposunu çözer.
+ * NoSQL koleksiyonlarının deposu — sırayla denenir.
  *
- * KV bağlanmamışsa NoSQL koleksiyonları Postgres'e düşer: eksik yapılandırma
- * servisi düşürmemeli, veri yine güvenli bir yerde durmalıdır. Protokol her
- * iki tarafta aynı olduğu için istemci farkı görmez.
+ *  1. **Redis** (yapılandırılmışsa): delta okuma sıralı kümeyle yapılır ve
+ *     maliyet DEĞİŞEN kayıt sayısıyla orantılıdır. Ölçekte doğru seçim budur.
+ *  2. **Cloudflare KV**: delta okumayı desteklemez; tüm anahtarlar listelenip
+ *     tek tek okunur. Küçük hacimde sorunsuz, kullanıcı başına kayıt
+ *     biriktikçe pahalı.
+ *  3. **Postgres**: hiçbiri bağlı değilse. Eksik yapılandırma servisi
+ *     düşürmemeli, veri güvenli bir yerde durmalıdır.
+ *
+ * Protokol üçünde de aynı olduğu için istemci farkı görmez.
  */
-export const resolveStore = (env: Env, collection: SyncCollection): SyncStore => {
-  if (PLACEMENT[collection] === 'nosql' && env.USER_STATE) {
+const nosqlStore = (env: Env): SyncStore | null => {
+  if (env.REDIS_URL && env.REDIS_TOKEN) {
+    return new RedisSyncStore(new HttpRedisClient(env.REDIS_URL, env.REDIS_TOKEN));
+  }
+  if (env.USER_STATE) {
     return new KvSyncStore(env.USER_STATE);
   }
-  return new PostgresSyncStore(env);
+  return null;
 };
+
+/** Koleksiyonun deposunu çözer. */
+export const resolveStore = (env: Env, collection: SyncCollection): SyncStore =>
+  (PLACEMENT[collection] === 'nosql' ? nosqlStore(env) : null) ??
+  new PostgresSyncStore(env);
 
 /** Yerleşim tablosu — teşhis ucunda gösterilir. */
 export const storagePlacement = (env: Env): Record<string, string> =>
   Object.fromEntries(
     (Object.keys(PLACEMENT) as SyncCollection[]).map(collection => [
       collection,
-      PLACEMENT[collection] === 'nosql' && !env.USER_STATE
-        ? 'postgres (KV bağlı değil)'
-        : PLACEMENT[collection],
+      PLACEMENT[collection] === 'postgres' ? 'postgres' : nosqlName(env),
     ]),
   );
+
+/** Hangi NoSQL deposunun devrede olduğunu okunur biçimde bildirir. */
+const nosqlName = (env: Env): string => {
+  if (env.REDIS_URL && env.REDIS_TOKEN) {
+    return 'redis';
+  }
+  return env.USER_STATE ? 'kv' : 'postgres (NoSQL bağlı değil)';
+};

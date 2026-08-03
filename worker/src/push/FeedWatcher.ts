@@ -1,290 +1,156 @@
 import type { Env } from '../env';
-import type { CatalogEntry } from '../routes/catalog';
 import { Supabase, type SupabaseScope } from '../supabase';
-import { readAttribute, readTag } from '../xml';
-import { ApnsSender, type PushMessage } from './ApnsSender';
+import { ShowScanner, type ScanOutcome, type ScannableShow } from './ShowScanner';
 
-/** Bir şovun en son görülen bölümünün saklandığı ayar anahtarı. */
-const lastSeenKey = (slug: string): string => `push.lastSeen.${slug}`;
-/** Feed çekme zaman aşımı — cron penceresini kilitlemesin. */
-const FETCH_TIMEOUT_MS = 10_000;
+/** Kuyruğa konan tek iş. */
+export interface FeedScanJob {
+  readonly show: ScannableShow;
+  readonly backfill: boolean;
+}
+
+export interface ScanSummary {
+  readonly checked: number;
+  readonly unchanged: number;
+  readonly ingested: number;
+  readonly notified: number;
+  readonly failed: number;
+  /** İşler kuyruğa mı verildi, burada mı çalıştırıldı? */
+  readonly mode: 'queued' | 'inline';
+}
 
 /**
- * Rutin taramada işlenecek en fazla bölüm.
+ * Tek turda sırayla taranacak en fazla şov.
  *
- * Arşivler büyüktür (tek bir şovda 1900+ bölüm, ~4 MB feed). Bunu yarım saatte
- * bir baştan işlemek, hiç değişmemiş binlerce satırı boşuna yeniden yazmaktı.
- * Rutin turun tek sorusu "yeni bölüm çıktı mı" olduğu için en yeniler yeter;
- * arşivin tamamı `runOnce(true)` ile BİR KEZ doldurulur.
+ * Kuyruk bağlı değilken geçerlidir ve cron penceresini korur. Kuyruk varken
+ * böyle bir sınır gerekmez: işler paralel tüketicilere dağılır.
  */
-const SCAN_LIMIT = 100;
-
-/** Tek upsert isteğinde taşınacak en fazla satır — gövde sınırına dayanmasın. */
-const UPSERT_CHUNK = 500;
+const INLINE_LIMIT = 50;
 
 /**
- * FeedWatcher — takip edilen şovlarda yeni bölüm çıkınca bildirim gönderir.
+ * FeedWatcher — taramayı DAĞITIR, kendisi tarama yapmaz.
  *
- * Akış (şov başına):
- *   1. RSS feed'ini çek, EN SON bölümün kimliğini oku,
- *   2. daha önce görülenle karşılaştır — değişmemişse hiçbir şey yapma,
- *   3. yeni ise o şovu TAKİP EDEN kullanıcıların push jetonlarını bul,
- *   4. bildirimleri gönder ve yeni kimliği "görüldü" olarak kaydet.
+ * Şov sayısı büyüdükçe "hepsini tek cron turunda sırayla tara" yaklaşımı
+ * çöker: 5.000 şov × ~1 sn, hiçbir çalıştırma penceresine sığmaz. Bu yüzden
+ * her şov KUYRUĞA ayrı bir iş olarak konur; Cloudflare tüketicileri paralel
+ * çalıştırır, başarısız iş kendi başına yeniden denenir ve bir şovun hatası
+ * diğerlerini etkilemez.
  *
- * İlk çalıştırmada bildirim GÖNDERİLMEZ; yalnızca mevcut durum kaydedilir.
- * Aksi halde servis ilk açılışta tüm katalog için bildirim yağdırırdı.
- *
- * Cloudflare Cron Trigger tarafından çağrılır (bkz. wrangler.toml `[triggers]`).
+ * Kuyruk bağlı değilse (yerel geliştirme, eksik yapılandırma) işler sınırlı
+ * sayıda ve sırayla burada çalıştırılır. Eksik yapılandırma servisi
+ * düşürmemeli; yalnızca ölçek özelliği devre dışı kalmalıdır.
  */
 export class FeedWatcher {
-  private readonly apns: ApnsSender;
+  private readonly scanner: ShowScanner;
 
   constructor(private readonly env: Env) {
-    this.apns = new ApnsSender(env);
+    this.scanner = new ShowScanner(env);
   }
 
   /**
-   * @param backfill Tüm arşivi işle (bkz. `SCAN_LIMIT`). Rutin cron turunda
-   *   KULLANILMAZ; elle tetiklenen bir kerelik doldurma içindir.
+   * @param backfill Tüm arşivi işle (yeni şov eklendiğinde bir kez).
    */
-  async runOnce(backfill = false): Promise<{ checked: number; ingested: number; notified: number }> {
-    const supabase = Supabase.from(this.env);
-    // Tarama kullanıcıya ait olmayan bir yönetim işidir → servis kimliği.
-    const scope = supabase.asService();
-
+  async runOnce(backfill = false): Promise<ScanSummary> {
+    const scope = Supabase.from(this.env).asService();
     const shows = await this.loadCatalog(scope);
-    const limit = backfill ? Number.POSITIVE_INFINITY : SCAN_LIMIT;
-    let notified = 0;
-    let ingested = 0;
 
-    for (const show of shows) {
-      try {
-        const result = await this.checkShow(scope, show, limit);
-        notified += result.notified;
-        ingested += result.ingested;
-      } catch {
-        // Bir şovdaki hata diğerlerini etkilemez.
-      }
+    if (this.env.FEED_SCAN) {
+      await this.enqueue(shows, backfill);
+      return {
+        checked: shows.length,
+        unchanged: 0,
+        ingested: 0,
+        notified: 0,
+        failed: 0,
+        mode: 'queued',
+      };
     }
-    return { checked: shows.length, ingested, notified };
+
+    return summarize(
+      await this.scanInline(shows.slice(0, INLINE_LIMIT), backfill),
+      'inline',
+    );
   }
 
-  /** Yayındaki şovlar — katalog artık kendi tablosunda. */
-  private async loadCatalog(scope: SupabaseScope): Promise<CatalogEntry[]> {
-    const rows = await scope.select<{ slug: string; feed_url: string; title: string }>(
-      'shows',
-      'select=slug,feed_url,title&active=is.true',
-    );
+  /** Kuyruktan gelen tek işi çalıştırır. */
+  async runJob(job: FeedScanJob): Promise<ScanOutcome> {
+    return this.scanner.scan(job.show, job.backfill);
+  }
+
+  /**
+   * İşleri kuyruğa verir.
+   *
+   * Toplu gönderim kullanılır: her şov için ayrı istek atmak, üretici tarafını
+   * yeniden lineer yapardı.
+   */
+  private async enqueue(shows: readonly ScannableShow[], backfill: boolean): Promise<void> {
+    const queue = this.env.FEED_SCAN;
+    if (!queue) {
+      return;
+    }
+    const messages = shows.map(show => ({ body: { show, backfill } }));
+
+    for (let start = 0; start < messages.length; start += QUEUE_BATCH) {
+      await queue.sendBatch(messages.slice(start, start + QUEUE_BATCH));
+    }
+  }
+
+  /** Kuyruk yokken: sınırlı sayıda şovu sırayla tarar. */
+  private async scanInline(
+    shows: readonly ScannableShow[],
+    backfill: boolean,
+  ): Promise<ScanOutcome[]> {
+    const outcomes: ScanOutcome[] = [];
+    for (const show of shows) {
+      try {
+        outcomes.push(await this.scanner.scan(show, backfill));
+      } catch (error) {
+        // Bir şovdaki hata diğerlerini etkilemez.
+        outcomes.push({
+          slug: show.slug,
+          unchanged: false,
+          ingested: 0,
+          notified: 0,
+          failed: error instanceof Error ? error.message : 'bilinmeyen hata',
+        });
+      }
+    }
+    return outcomes;
+  }
+
+  /** Yayındaki şovlar ve saklanan doğrulayıcıları. */
+  private async loadCatalog(scope: SupabaseScope): Promise<ScannableShow[]> {
+    const rows = await scope.select<{
+      slug: string;
+      feed_url: string;
+      title: string;
+      feed_etag: string | null;
+      feed_modified: string | null;
+    }>('shows', 'select=slug,feed_url,title,feed_etag,feed_modified&active=is.true');
+
     return rows.map(row => ({
       slug: row.slug,
       feedUrl: row.feed_url,
       title: row.title,
+      validators: {
+        etag: row.feed_etag ?? undefined,
+        lastModified: row.feed_modified ?? undefined,
+      },
     }));
   }
-
-  /** Tek bir şovu kontrol eder; işlenen bölüm ve gönderilen bildirim sayısını döner. */
-  private async checkShow(
-    scope: SupabaseScope,
-    show: CatalogEntry,
-    limit: number,
-  ): Promise<{ ingested: number; notified: number }> {
-    const episodes = await this.fetchEpisodes(show.feedUrl, limit);
-    const latest = episodes[0];
-    if (!latest) {
-      return { ingested: 0, notified: 0 };
-    }
-
-    // Bölümler her taramada veritabanına işlenir: feed zaten indirildi,
-    // ikinci bir iş çalıştırmak gereksiz. Böylece bölüm listesi sunucuda da
-    // bulunur (arama, "yeni bölümler", ileride istemciye sunma).
-    await this.ingestEpisodes(scope, show.slug, episodes).catch(() => undefined);
-
-    const key = lastSeenKey(show.slug);
-    const rows = await scope.select<{ value: string }>(
-      'settings',
-      `select=value&key=eq.${encodeURIComponent(key)}`,
-    );
-    const seen = rows[0]?.value;
-
-    if (seen === latest.id) {
-      return { ingested: episodes.length, notified: 0 }; // değişiklik yok
-    }
-
-    // İlk kez görülüyor: durumu kaydet ama bildirim gönderme.
-    if (seen === undefined) {
-      await scope.upsert('settings', [{ key, value: latest.id }], 'key');
-      return { ingested: episodes.length, notified: 0 };
-    }
-
-    const targets = await this.followersOf(scope, show.slug);
-    if (targets.length > 0 && this.apns.enabled) {
-      const messages: PushMessage[] = targets.map(token => ({
-        token,
-        title: show.title,
-        body: `Yeni bölüm: ${latest.title}`,
-        data: { showId: show.slug, episodeId: latest.id },
-      }));
-      const result = await this.apns.send(messages);
-
-      // Geçersiz jetonların kaydı düşürülür.
-      for (const token of result.invalidTokens) {
-        await scope
-          .remove('push_registrations', `token=eq.${encodeURIComponent(token)}`)
-          .catch(() => undefined);
-      }
-    }
-
-    await scope.upsert('settings', [{ key, value: latest.id }], 'key');
-    return { ingested: episodes.length, notified: targets.length };
-  }
-
-  /**
-   * Şovu takip eden kullanıcıların push jetonları.
-   *
-   * Takipler `show_follows` tablosundan okunur: senkron kayıtları oraya
-   * izdüşürülür (bkz. schema-02) ve böylece "bu şovu kimler takip ediyor"
-   * sorusu tombstone filtrelemeden, indeksli bir sorguyla yanıtlanır.
-   */
-  private async followersOf(scope: SupabaseScope, showId: string): Promise<string[]> {
-    const follows = await scope.select<{ user_id: string }>(
-      'show_follows',
-      `select=user_id&show_slug=eq.${encodeURIComponent(showId)}`,
-    );
-    if (follows.length === 0) {
-      return [];
-    }
-
-    const userIds = [...new Set(follows.map(f => f.user_id))];
-    const registrations = await scope.select<{ token: string }>(
-      'push_registrations',
-      `select=token&user_id=in.(${userIds.map(id => `"${id}"`).join(',')})`,
-    );
-    return registrations.map(r => r.token);
-  }
-
-  /**
-   * Feed'in bölümlerini çözer (en yeniden eskiye, feed sırasıyla).
-   *
-   * Tam bir XML ayrıştırıcı yerine hedefli okuma yapılır: Worker bundle'ına
-   * XML bağımlılığı eklememek için `<item>` blokları düz metin olarak taranır.
-   * İhtiyacımız olan alan kümesi dar ve RSS'te bu alanların biçimi sabittir.
-   */
-  private async fetchEpisodes(feedUrl: string, limit: number): Promise<FeedEpisode[]> {
-    const response = await fetch(feedUrl, {
-      headers: { Accept: 'application/rss+xml, application/xml, text/xml' },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    if (!response.ok) {
-      return [];
-    }
-    return parseEpisodes(await response.text(), limit);
-  }
-
-  /**
-   * Bölümleri veritabanına yazar (aynı guid tekrar gelirse günceller).
-   *
-   * Parçalar hâlinde gönderilir: bir arşiv doldurmasında tek istek binlerce
-   * satır taşıyabilir ve gövde sınırına dayanabilirdi.
-   */
-  private async ingestEpisodes(
-    scope: SupabaseScope,
-    slug: string,
-    episodes: readonly FeedEpisode[],
-  ): Promise<void> {
-    for (let start = 0; start < episodes.length; start += UPSERT_CHUNK) {
-      await scope.upsert(
-        'episodes',
-        episodes.slice(start, start + UPSERT_CHUNK).map(episode => ({
-          show_slug: slug,
-          guid: episode.id,
-          title: episode.title,
-          description: episode.description ?? null,
-          audio_url: episode.audioUrl,
-          image_url: episode.imageUrl ?? null,
-          duration_sec: episode.durationSec ?? null,
-          published_at: episode.publishedAt ?? null,
-        })),
-        'show_slug,guid',
-      );
-    }
-  }
 }
 
-/** Feed'den okunan tek bölüm. */
-interface FeedEpisode {
-  readonly id: string;
-  readonly title: string;
-  readonly description?: string;
-  readonly audioUrl: string;
-  readonly imageUrl?: string;
-  readonly durationSec?: number;
-  readonly publishedAt?: string;
-}
+/** Cloudflare'in tek `sendBatch` çağrısında kabul ettiği en fazla mesaj. */
+const QUEUE_BATCH = 100;
 
-/**
- * RSS gövdesinden bölümleri okur (saf fonksiyon — ayrı test edilir).
- *
- * Ses dosyası (`enclosure`) olmayan öğeler ATLANIR: çalınamayan bir kayıt
- * bölüm listesinde yer tutmamalı.
- *
- * @param limit En fazla kaç bölüm okunacağı. Feed'ler en yeniden eskiye
- *   sıralıdır, dolayısıyla sınır her zaman EN YENİLERİ tutar.
- */
-export const parseEpisodes = (xml: string, limit = SCAN_LIMIT): FeedEpisode[] => {
-  const episodes: FeedEpisode[] = [];
-  let cursor = 0;
-
-  while (episodes.length < limit) {
-    const start = xml.indexOf('<item', cursor);
-    if (start === -1) {
-      break;
-    }
-    const end = xml.indexOf('</item>', start);
-    const item = xml.slice(start, end === -1 ? undefined : end);
-    cursor = end === -1 ? xml.length : end + 7;
-
-    const audioUrl = readAttribute(item, 'enclosure', 'url');
-    if (!audioUrl) {
-      continue;
-    }
-    const id = readTag(item, 'guid') ?? audioUrl;
-
-    episodes.push({
-      id,
-      title: readTag(item, 'title') ?? 'İsimsiz bölüm',
-      description: readTag(item, 'description'),
-      audioUrl,
-      imageUrl: readAttribute(item, 'itunes:image', 'href'),
-      durationSec: parseDuration(readTag(item, 'itunes:duration')),
-      publishedAt: parseDate(readTag(item, 'pubDate')),
-    });
-
-    if (end === -1) {
-      break;
-    }
-  }
-
-  return episodes;
-};
-
-/** `HH:MM:SS`, `MM:SS` ya da saniye — saniyeye çevirir. */
-const parseDuration = (value: string | undefined): number | undefined => {
-  if (!value) {
-    return undefined;
-  }
-  const parts = value.split(':').map(Number);
-  if (parts.some(Number.isNaN)) {
-    return undefined;
-  }
-  return parts.reduce((total, part) => total * 60 + part, 0);
-};
-
-/** RFC 822 tarihini ISO'ya çevirir; çözülemezse alan boş bırakılır. */
-const parseDate = (value: string | undefined): string | undefined => {
-  if (!value) {
-    return undefined;
-  }
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? undefined : new Date(time).toISOString();
-};
-
+/** Tekil sonuçları tek özete indirir. */
+export const summarize = (
+  outcomes: readonly ScanOutcome[],
+  mode: ScanSummary['mode'],
+): ScanSummary => ({
+  checked: outcomes.length,
+  unchanged: outcomes.filter(o => o.unchanged).length,
+  ingested: outcomes.reduce((total, o) => total + o.ingested, 0),
+  notified: outcomes.reduce((total, o) => total + o.notified, 0),
+  failed: outcomes.filter(o => o.failed).length,
+  mode,
+});

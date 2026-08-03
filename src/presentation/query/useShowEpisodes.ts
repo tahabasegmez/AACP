@@ -14,9 +14,13 @@ export interface UseShowEpisodesOptions {
 /**
  * useShowEpisodes — bir şovun bölümlerini sayfalı (sonsuz kaydırma) getirir.
  *
- * `GetShowEpisodes` use case'ini sararak arama/sıralama/sayfalama uygular.
- * `fetchNextPage()` ile bir sonraki sayfa gelir; feed cache'lendiği için sonraki
- * sayfalar ağa çıkmaz. Şov meta verisi her sayfada döner (ilk sayfadan okunur).
+ * Sayfalama İMLEÇLİDİR: bir sonraki sayfa "kaçıncı öğeden" değil "nerede
+ * kalındığı" ile istenir. İmlecin içeriği burada YORUMLANMAZ — kaynak ne
+ * verdiyse aynen geri gönderilir; sunucu ve RSS kaynakları farklı biçimler
+ * kullanır ve bu fark buraya sızmamalıdır.
+ *
+ * Arama ve sıralama sorgu anahtarının parçasıdır: değiştiklerinde liste
+ * baştan, ilk sayfadan kurulur.
  */
 export const useShowEpisodes = (
   feedUrl: string | undefined,
@@ -29,20 +33,17 @@ export const useShowEpisodes = (
   return useInfiniteQuery({
     queryKey: queryKeys.showEpisodes(feedUrl ?? '', search, sort),
     enabled: Boolean(feedUrl),
-    initialPageParam: 0,
+    initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) =>
       unwrap(
         await getShowEpisodes.execute({
           feedUrl,
           limit: PAGE_SIZE,
-          offset: pageParam,
+          cursor: pageParam,
           search,
           sort,
         }),
       ),
-    getNextPageParam: lastPage =>
-      lastPage.episodes.hasMore
-        ? lastPage.episodes.offset + lastPage.episodes.limit
-        : undefined,
+    getNextPageParam: lastPage => lastPage.episodes.nextCursor,
   });
 };

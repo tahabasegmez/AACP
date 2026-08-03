@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseEpisodes } from '../push/FeedWatcher';
+import { parseEpisodes } from '../push/feedEpisodes';
 
 const feed = (items: string): string =>
   `<?xml version="1.0"?><rss><channel><title>Şov</title>${items}</channel></rss>`;

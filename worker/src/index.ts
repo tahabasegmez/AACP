@@ -1,7 +1,7 @@
 import { requireAdmin } from './auth';
 import { CatalogImportService } from './catalog/CatalogImportService';
 import type { Env } from './env';
-import { FeedWatcher } from './push/FeedWatcher';
+import { FeedWatcher, type FeedScanJob } from './push/FeedWatcher';
 import { Router, ok } from './router';
 import { registerAuthRoutes } from './routes/auth';
 import { registerCatalogRoutes } from './routes/catalog';
@@ -76,4 +76,42 @@ export default {
         .catch(error => console.error('feed taraması başarısız', error)),
     );
   },
+
+  /**
+   * Kuyruk tüketicisi — her mesaj TEK bir şovun taramasıdır.
+   *
+   * Mesajlar tek tek onaylanır/reddedilir: bir şovun feed'i çöktüğünde tüm
+   * partiyi yeniden denemek, sağlam şovları da baştan taratırdı. Reddedilen
+   * mesajı Cloudflare kendi geri çekilme (backoff) kuralıyla yeniden dener.
+   */
+  async queue(
+    batch: { messages: QueueMessage<FeedScanJob>[] },
+    env: Env,
+  ): Promise<void> {
+    const watcher = new FeedWatcher(env);
+
+    await Promise.all(
+      batch.messages.map(async message => {
+        try {
+          const outcome = await watcher.runJob(message.body);
+          if (outcome.failed) {
+            // Feed geçici olarak erişilemez olabilir; yeniden denenmeli.
+            message.retry();
+            return;
+          }
+          message.ack();
+        } catch (error) {
+          console.error('tarama işi başarısız', message.body.show.slug, error);
+          message.retry();
+        }
+      }),
+    );
+  },
 };
+
+/** Kuyruk mesajının kullandığımız yüzeyi. */
+interface QueueMessage<T> {
+  readonly body: T;
+  ack(): void;
+  retry(): void;
+}
