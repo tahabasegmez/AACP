@@ -69,8 +69,9 @@ yarn-error.log
 # uygulama build değişkenleri — gizli değerler depoya girmez (.env.example yeterli)
 .env
 
-# Kişisel öğrenme notu — depoya girmez, üstüne serbestçe yazılabilir
+# Kişisel notlar ve henüz karara bağlanmamış planlar — depoya girmez
 teach.md
+podcast-index.md
 
 # API (worker/) — Cloudflare Workers
 worker/.dev.vars
