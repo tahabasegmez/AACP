@@ -1,9 +1,16 @@
 {
   "name": "AACP",
   "displayName": "AACP",
-  "extra": {
-    "eas": {
-      "projectId": "56b60d73-bc36-494b-9f90-7d3c67c805f7"
+  "expo": {
+    "name": "AACP",
+    "slug": "aacp",
+    "ios": {
+      "bundleIdentifier": "com.aa.podcast"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "56b60d73-bc36-494b-9f90-7d3c67c805f7"
+      }
     }
   }
 }
