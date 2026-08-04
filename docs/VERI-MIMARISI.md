@@ -84,6 +84,16 @@ yerleşim tablosunda tek satır değiştirmektir; rota kodu ve istemci etkilenme
 **KV bağlanmamışsa** NoSQL koleksiyonları Postgres'e düşer. Eksik yapılandırma
 servisi düşürmez; yalnızca yerleşim değişir ve `/v1/health` bunu bildirir.
 
+### Kayıt gövdesi JSON'dur
+
+`sync_records.value` alanı, listenin (ya da ilerlemenin) serileştirilmiş
+hâlini taşır. Bu yüzden bir listeye yeni bir alan eklemek — ör. kullanıcının
+yazdığı açıklama — **şema göçü gerektirmez**: alan gövdeyle birlikte gider,
+eski istemciler onu görmezden gelir.
+
+Bedeli: gövde SQL ile sorgulanamaz. Bir alanı sorgulamak gerektiğinde
+(`show_follows` örneğindeki gibi) ilişkisel bir izdüşüm eklenir.
+
 ### Son-yazan-kazanır iki tarafta da korunur
 
 | Taraf | Nasıl |

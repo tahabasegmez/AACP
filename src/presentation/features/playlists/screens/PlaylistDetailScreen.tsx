@@ -2,19 +2,21 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FlashList } from '@shopify/flash-list';
 import React, { useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
-import { Episode, playlistDurationSec } from '@domain/entities';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Episode, playlistCoverUri, playlistDurationSec } from '@domain/entities';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
 import {
-  Collapsible,
+  CoverGradient,
   FilterMenu,
   FilterOption,
   FilterSection,
   Icon,
-  ImmersiveHeader,
   SearchField,
   Text,
+  TextSheet,
   scrimScrollHandler,
+  useHeroCoverSize,
 } from '../../../ui';
 import { PlaylistCover } from '../components/PlaylistCover';
 import { EmptyState } from '../../../shared/components';
@@ -35,25 +37,32 @@ import { PlaylistEditorSheet } from '../components/PlaylistEditorSheet';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
+/** Liste içi aramanın görüneceği en küçük liste boyu. */
+const SEARCH_THRESHOLD = 5;
+
 /**
  * PlaylistDetailScreen — bir listenin içeriği.
  *
- * Şov detayıyla aynı düzeni kullanır (hero kapak + bölüm listesi) ve bölümleri
- * uygulamanın ortak `EpisodeRow` bileşeniyle gösterir; böylece listeler ve
- * şovlar aynı dilde görünür.
+ * Şov detayıyla AYNI düzeni kullanır: kapaktan türeyen tam ekran degrade,
+ * ortalanmış kapak, başlık, açıklama ve yalnızca simgeli yuvarlak çal düğmesi.
+ * İki ekranın aynı dili konuşması, kullanıcının ikisinde de nerede ne
+ * bulacağını bilmesini sağlar.
  */
 export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useAppNavigation();
   const play = usePlayEpisode();
   const openSheet = useEpisodeSheetStore(s => s.open);
   const shows = useShowsQuery();
+  const coverSize = useHeroCoverSize();
 
   const { playlistId } = route.params;
   const { data: playlist } = usePlaylist(playlistId);
   const removeEpisode = useRemoveEpisodeFromPlaylist();
   const deletePlaylist = useDeletePlaylist();
   const [editorOpen, setEditorOpen] = useState(false);
+  const [descOpen, setDescOpen] = useState(false);
   const [query, setQuery] = useState('');
   const { value: hideCompleted, set: setHideCompleted } = usePreference('hideCompletedEpisodes');
   const { data: progressIndex } = useProgressIndex();
@@ -61,13 +70,37 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
   const showTitleOf = (showId: string): string =>
     (shows.data ?? []).find(s => s.id === showId)?.title ?? '';
 
+  const BackButton = (
+    <Pressable
+      onPress={() => navigation.goBack()}
+      hitSlop={16}
+      accessibilityRole="button"
+      accessibilityLabel="Geri"
+      style={{
+        position: 'absolute',
+        top: insets.top + 6,
+        left: theme.spacing(1.5),
+        zIndex: 10,
+      }}>
+      <Icon name="chevron-back" size={28} color="#FFFFFF" />
+    </Pressable>
+  );
+
+  /** Şov detayıyla aynı kabuk: full-bleed degrade + geri düğmesi. */
+  const wrap = (body: React.ReactNode, coverUri?: string) => (
+    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      <CoverGradient
+        uri={coverUri}
+        locations={[0, 0.4, 0.62]}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+      />
+      {body}
+      {BackButton}
+    </View>
+  );
+
   if (!playlist) {
-    return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-        <ImmersiveHeader title="Liste" onBack={() => navigation.goBack()} />
-        <EmptyState title="Liste bulunamadı" description="Bu liste silinmiş olabilir." />
-      </View>
-    );
+    return wrap(<EmptyState title="Liste bulunamadı" description="Bu liste silinmiş olabilir." />);
   }
 
   const totalSec = playlistDurationSec(playlist);
@@ -87,10 +120,6 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
     ? searched.filter(e => !progressIndex?.get(e.id)?.completed)
     : searched;
 
-  // Aramaya başlanınca tanıtım yukarı kayıp kaybolur; sonuçlar ekranın
-  // tepesinden başlar.
-  const searching = query.trim().length > 0;
-
   const confirmDelete = (): void => {
     Alert.alert('Listeyi sil', `"${playlist.name}" listesi silinecek. Bölümler silinmez.`, [
       { text: 'Vazgeç', style: 'cancel' },
@@ -98,9 +127,7 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
         text: 'Sil',
         style: 'destructive',
         onPress: () => {
-          deletePlaylist.mutate(playlist.id, {
-            onSuccess: () => navigation.goBack(),
-          });
+          deletePlaylist.mutate(playlist.id, { onSuccess: () => navigation.goBack() });
         },
       },
     ]);
@@ -112,87 +139,107 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
       {
         text: 'Çıkar',
         style: 'destructive',
-        onPress: () =>
-          removeEpisode.mutate({
-            playlistId: playlist.id,
-            episodeId: episode.id,
-          }),
+        onPress: () => removeEpisode.mutate({ playlistId: playlist.id, episodeId: episode.id }),
       },
     ]);
   };
 
   const Header = (
-    <View style={{ paddingBottom: theme.spacing(2) }}>
-      <Collapsible collapsed={searching}>
-        <View style={{ paddingHorizontal: theme.spacing(2) }}>
-          <View style={{ alignItems: 'center' }}>
-            <PlaylistCover playlist={playlist} size={180} />
-          </View>
+    <View>
+      <View
+        style={{
+          paddingTop: insets.top + theme.spacing(6),
+          paddingBottom: theme.spacing(2),
+          alignItems: 'center',
+        }}>
+        <PlaylistCover playlist={playlist} size={coverSize} />
 
-          <Text variant="title" numberOfLines={2} style={{ marginTop: theme.spacing(2) }}>
-            {playlist.name}
-          </Text>
-          <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 4 }}>
-            {episodes.length} bölüm
-            {totalSec > 0 ? ` · ${formatDuration(totalSec)}` : ''}
-          </Text>
+        <Text
+          variant="title"
+          numberOfLines={2}
+          style={{
+            marginTop: theme.spacing(2),
+            textAlign: 'center',
+            paddingHorizontal: theme.spacing(2),
+          }}>
+          {playlist.name}
+        </Text>
+        <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 4 }}>
+          {playlist.episodes.length} bölüm
+          {totalSec > 0 ? ` · ${formatDuration(totalSec)}` : ''}
+        </Text>
 
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: theme.spacing(2),
-              marginTop: theme.spacing(2),
-            }}>
+        {/* Açıklama — şovunkiyle aynı davranış: üç satır, devamı panelde. */}
+        {!!playlist.description && (
+          <Pressable
+            onPress={() => setDescOpen(true)}
+            style={{ paddingHorizontal: theme.spacing(2.5) }}>
+            <Text
+              variant="caption"
+              color={theme.colors.textMuted}
+              numberOfLines={3}
+              style={{ textAlign: 'center', marginTop: theme.spacing(1.25) }}>
+              {playlist.description}
+            </Text>
+            <Text
+              variant="caption"
+              color={theme.colors.text}
+              style={{ textAlign: 'center', marginTop: 4 }}>
+              devamını oku…
+            </Text>
+          </Pressable>
+        )}
+
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.spacing(2.5),
+            marginTop: theme.spacing(2),
+          }}>
+          {/* Sistem listesi düzenlenemez/silinemez. */}
+          {!playlist.system && (
             <Pressable
-              onPress={() =>
-                episodes[0] && play(episodes[0], { episodes: [...episodes], index: 0 })
-              }
-              disabled={episodes.length === 0}
+              onPress={() => setEditorOpen(true)}
+              hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel="Listeyi çal"
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                paddingVertical: theme.spacing(1.25),
-                paddingHorizontal: theme.spacing(2.5),
-                borderRadius: theme.radius.pill,
-                backgroundColor: theme.colors.accent,
-                opacity: episodes.length === 0 ? 0.4 : 1,
-              }}>
-              <Icon name="play" size={18} color={theme.colors.onAccent} />
-              <Text variant="bodyStrong" color={theme.colors.onAccent}>
-                Çal
-              </Text>
+              accessibilityLabel="Listeyi düzenle">
+              <Icon name="settings" size={24} color={theme.colors.textMuted} />
             </Pressable>
+          )}
 
-            {/* Sistem listesi düzenlenemez/silinemez. */}
-            {!playlist.system && (
-              <>
-                <Pressable
-                  onPress={() => setEditorOpen(true)}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel="Listeyi düzenle">
-                  <Icon name="settings" size={22} color={theme.colors.textMuted} />
-                </Pressable>
-                <Pressable
-                  onPress={confirmDelete}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel="Listeyi sil">
-                  <Icon name="close" size={22} color={theme.colors.textMuted} />
-                </Pressable>
-              </>
-            )}
-          </View>
+          <Pressable
+            onPress={() => episodes[0] && play(episodes[0], { episodes: [...episodes], index: 0 })}
+            disabled={episodes.length === 0}
+            accessibilityRole="button"
+            accessibilityLabel="Listeyi çal"
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: theme.colors.accent,
+              opacity: episodes.length === 0 ? 0.4 : 1,
+            }}>
+            <Icon name="play" size={24} color={theme.colors.onAccent} />
+          </Pressable>
+
+          {!playlist.system && (
+            <Pressable
+              onPress={confirmDelete}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Listeyi sil">
+              <Icon name="close" size={24} color={theme.colors.textMuted} />
+            </Pressable>
+          )}
         </View>
-      </Collapsible>
+      </View>
 
       {/* Liste içi arama — yalnızca birkaç bölümlük listelerde gereksiz yer
           kaplamasın diye eşik uygulanır. Filtreler sağdaki panelde toplanır. */}
-      {playlist.episodes.length > 5 && (
+      {playlist.episodes.length > SEARCH_THRESHOLD && (
         <SearchField
           value={query}
           onChangeText={setQuery}
@@ -212,10 +259,8 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
     </View>
   );
 
-  return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-      <ImmersiveHeader title={playlist.name} onBack={() => navigation.goBack()} />
-
+  return wrap(
+    <>
       <FlashList
         data={episodes}
         keyExtractor={item => item.id}
@@ -225,10 +270,12 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
         // yeniden kurardı: klavye kapanır, kaydırma başa dönerdi.
         ListEmptyComponent={
           <EmptyState
-            title={query ? 'Sonuç yok' : 'Liste boş'}
+            title={query ? 'Sonuç yok' : hideCompleted ? 'Hepsi dinlendi' : 'Liste boş'}
             description={
               query
                 ? `"${query}" için bu listede bölüm bulunamadı.`
+                : hideCompleted
+                ? 'Bu listedeki tüm bölümleri dinledin. Filtreyi kapatarak hepsini görebilirsin.'
                 : 'Bir bölümün ayrıntı panelinden bu listeye ekleyebilirsin.'
             }
           />
@@ -259,6 +306,14 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
         playlist={playlist}
         onClose={() => setEditorOpen(false)}
       />
-    </View>
+
+      <TextSheet
+        visible={descOpen}
+        title={playlist.name}
+        text={playlist.description ?? ''}
+        onClose={() => setDescOpen(false)}
+      />
+    </>,
+    playlistCoverUri(playlist),
   );
 };

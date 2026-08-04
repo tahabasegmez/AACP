@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Episode, EpisodeSortOrder } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import {
-  Collapsible,
   CoverGradient,
   CoverImage,
   FilterDivider,
@@ -122,103 +121,89 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
     return wrap(<ErrorView error={error} onRetry={refetch} />);
   }
 
-  // Aramaya başlanınca tanıtım yukarı kayıp kaybolur: sonuçlar ekranın
-  // tepesinden başlar ve kullanıcı listeyi görmek için kaydırmak zorunda
-  // kalmaz. Arama temizlenince geri gelir.
-  const searching = query.trim().length > 0;
-
   const Header = (
     <View>
-      <Collapsible collapsed={searching}>
+      <View
+        style={{
+          paddingTop: insets.top + theme.spacing(6),
+          paddingBottom: theme.spacing(2),
+          alignItems: 'center',
+        }}>
+        <CoverImage uri={show?.imageUrl} size={coverSize} radius={theme.radius.md} />
+        <Text
+          variant="title"
+          style={{
+            marginTop: theme.spacing(2),
+            textAlign: 'center',
+            paddingHorizontal: theme.spacing(2),
+          }}>
+          {show?.title ?? route.params.title ?? ''}
+        </Text>
+        <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 4 }}>
+          {show?.author}
+          {show?.categories?.length ? ` · ${show.categories[0]}` : ''}
+        </Text>
+        {!!show?.description && (
+          <Pressable
+            onPress={() => setDescOpen(true)}
+            style={{ paddingHorizontal: theme.spacing(2.5) }}>
+            <Text
+              variant="caption"
+              color={theme.colors.textMuted}
+              numberOfLines={3}
+              style={{ textAlign: 'center', marginTop: theme.spacing(1.25) }}>
+              {show.description}
+            </Text>
+            <Text
+              variant="caption"
+              color={theme.colors.text}
+              style={{ textAlign: 'center', marginTop: 4 }}>
+              devamını oku…
+            </Text>
+          </Pressable>
+        )}
+
         <View
           style={{
-            paddingTop: insets.top + theme.spacing(6),
-            paddingBottom: theme.spacing(2),
+            flexDirection: 'row',
             alignItems: 'center',
+            gap: theme.spacing(2.5),
+            marginTop: theme.spacing(2),
           }}>
-          <CoverImage uri={show?.imageUrl} size={coverSize} radius={theme.radius.md} />
-          <Text
-            variant="title"
+          <Pressable
+            onPress={() => toggleFollow.mutate(showId)}
+            accessibilityRole="button"
+            accessibilityLabel={followed.data ? 'Takibi bırak' : 'Takip et'}
             style={{
-              marginTop: theme.spacing(2),
-              textAlign: 'center',
-              paddingHorizontal: theme.spacing(2),
+              borderWidth: 1.5,
+              borderColor: followed.data ? theme.colors.accent : theme.colors.textMuted,
+              borderRadius: theme.radius.pill,
+              paddingVertical: theme.spacing(1),
+              paddingHorizontal: theme.spacing(2.25),
             }}>
-            {show?.title ?? route.params.title ?? ''}
-          </Text>
-          <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 4 }}>
-            {show?.author}
-            {show?.categories?.length ? ` · ${show.categories[0]}` : ''}
-          </Text>
-          {!!show?.description && (
-            <Pressable
-              onPress={() => setDescOpen(true)}
-              style={{ paddingHorizontal: theme.spacing(2.5) }}>
-              <Text
-                variant="caption"
-                color={theme.colors.textMuted}
-                numberOfLines={3}
-                style={{ textAlign: 'center', marginTop: theme.spacing(1.25) }}>
-                {show.description}
-              </Text>
-              <Text
-                variant="caption"
-                color={theme.colors.text}
-                style={{ textAlign: 'center', marginTop: 4 }}>
-                devamını oku…
-              </Text>
-            </Pressable>
-          )}
+            <Text
+              variant="subtitle"
+              color={followed.data ? theme.colors.accent : theme.colors.text}>
+              {followed.data ? '✓ Takip ediliyor' : 'Takip et'}
+            </Text>
+          </Pressable>
 
-          <View
+          <Pressable
+            onPress={() => episodes[0] && play(episodes[0], { episodes, index: 0 })}
+            accessibilityRole="button"
+            accessibilityLabel="En yeni bölümü çal"
             style={{
-              flexDirection: 'row',
+              width: 52,
+              height: 52,
+              borderRadius: 26,
               alignItems: 'center',
-              gap: theme.spacing(2.5),
-              marginTop: theme.spacing(2),
+              justifyContent: 'center',
+              backgroundColor: theme.colors.accent,
             }}>
-            <Pressable
-              onPress={() => toggleFollow.mutate(showId)}
-              accessibilityRole="button"
-              accessibilityLabel={followed.data ? 'Takibi bırak' : 'Takip et'}
-              style={{
-                borderWidth: 1.5,
-                borderColor: followed.data ? theme.colors.accent : theme.colors.textMuted,
-                borderRadius: theme.radius.pill,
-                paddingVertical: theme.spacing(1),
-                paddingHorizontal: theme.spacing(2.25),
-              }}>
-              <Text
-                variant="subtitle"
-                color={followed.data ? theme.colors.accent : theme.colors.text}>
-                {followed.data ? '✓ Takip ediliyor' : 'Takip et'}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => episodes[0] && play(episodes[0], { episodes, index: 0 })}
-              accessibilityRole="button"
-              accessibilityLabel="En yeni bölümü çal"
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 26,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: theme.colors.accent,
-              }}>
-              <Icon name="play" size={24} color={theme.colors.onAccent} />
-            </Pressable>
-          </View>
+            <Icon name="play" size={24} color={theme.colors.onAccent} />
+          </Pressable>
         </View>
-      </Collapsible>
-
-      {/* Tanıtım kapanınca arama kutusu durum çubuğunun ve geri düğmesinin
-          altına sıkışırdı. Boşluk, tanıtımın TERSİ yönde açılır; iki geçiş
-          birlikte yürüdüğü için kutu yerine yumuşakça oturur. */}
-      <Collapsible collapsed={!searching}>
-        <View style={{ height: insets.top + theme.spacing(5.5) }} />
-      </Collapsible>
+      </View>
 
       {/* Bölüm listesinin hemen üstünde arama — uzun şovlarda gezinmeyi
           kolaylaştırır. Sorgu tüm bölümlerde çalışır, yalnızca yüklenmiş

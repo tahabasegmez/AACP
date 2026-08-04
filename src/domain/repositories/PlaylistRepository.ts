@@ -4,12 +4,19 @@ import { Episode, Playlist } from '../entities';
 /** Yeni liste oluştururken verilen alanlar. */
 export interface CreatePlaylistInput {
   readonly name: string;
+  readonly description?: string;
   readonly coverUri?: string;
 }
 
-/** Liste güncellemesi — verilmeyen alanlar değişmez. */
+/**
+ * Liste güncellemesi — verilmeyen alanlar değişmez.
+ *
+ * Bir alanı TEMİZLEMEK için boş metin gönderilir; `undefined` "dokunma"
+ * anlamına gelir. İkisini ayırmadan, açıklamayı silmek imkânsız olurdu.
+ */
 export interface UpdatePlaylistInput {
   readonly name?: string;
+  readonly description?: string;
   readonly coverUri?: string;
 }
 

@@ -43,6 +43,69 @@ describe('PlaylistRepositoryImpl', () => {
     expect(result.ok).toBe(false);
   });
 
+  it('açıklamayla liste oluşturur', async () => {
+    const { repo } = make();
+    const created = await repo.create({ name: 'Sabah', description: '  Yolda dinlediklerim  ' });
+
+    expect(created.ok && created.value.description).toBe('Yolda dinlediklerim');
+  });
+
+  it('boş açıklama alanı HİÇ yazmaz', async () => {
+    // Boş bir metin saklamak, "açıklama var ama boş" gibi anlamsız bir durum
+    // yaratır ve arayüzde boş bir blok çizdirirdi.
+    const { repo } = make();
+    const created = await repo.create({ name: 'Sabah', description: '   ' });
+
+    expect(created.ok && created.value.description).toBeUndefined();
+  });
+
+  it('açıklama üst sınırda kırpılır', async () => {
+    const { repo } = make();
+    const created = await repo.create({ name: 'Sabah', description: 'a'.repeat(500) });
+
+    expect(created.ok && created.value.description).toHaveLength(300);
+  });
+
+  it('açıklama güncellenir', async () => {
+    const { repo } = make();
+    const created = await repo.create({ name: 'Sabah', description: 'eski' });
+    if (!created.ok) throw new Error('beklenmedik hata');
+
+    const updated = await repo.update(created.value.id, { description: 'yeni' });
+    expect(updated.ok && updated.value.description).toBe('yeni');
+  });
+
+  it('BOŞ açıklama gönderilince alan temizlenir', async () => {
+    const { repo } = make();
+    const created = await repo.create({ name: 'Sabah', description: 'silinecek' });
+    if (!created.ok) throw new Error('beklenmedik hata');
+
+    const updated = await repo.update(created.value.id, { description: '' });
+    expect(updated.ok && updated.value.description).toBeUndefined();
+  });
+
+  it('açıklama GÖNDERİLMEZSE dokunulmaz', async () => {
+    // `undefined` "dokunma" demektir; yoksa yalnızca adı değiştiren bir çağrı
+    // açıklamayı sessizce silerdi.
+    const { repo } = make();
+    const created = await repo.create({ name: 'Sabah', description: 'kalmalı' });
+    if (!created.ok) throw new Error('beklenmedik hata');
+
+    const updated = await repo.update(created.value.id, { name: 'Akşam' });
+    expect(updated.ok && updated.value.description).toBe('kalmalı');
+  });
+
+  it('sistem listesine açıklama yazılabilir (adı yine sabit)', async () => {
+    const { repo } = make();
+    const updated = await repo.update(SAVED_PLAYLIST_ID, {
+      name: 'Başka ad',
+      description: 'Sonraya bıraktıklarım',
+    });
+
+    expect(updated.ok && updated.value.name).toBe('Sonra dinle');
+    expect(updated.ok && updated.value.description).toBe('Sonraya bıraktıklarım');
+  });
+
   it('bölüm ekler ve çıkarır', async () => {
     const { repo } = make();
     const created = await repo.create({ name: 'Liste' });

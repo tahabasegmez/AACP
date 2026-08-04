@@ -2,16 +2,15 @@ import { AppError, Result, fail, ok } from '@core/error';
 import { KeyValueStorage } from '@core/ports';
 import {
   Episode,
+  PLAYLIST_DESCRIPTION_MAX,
+  PLAYLIST_NAME_MAX,
   Playlist,
   SAVED_PLAYLIST_ID,
   addEpisodeToPlaylist,
+  normalizePlaylistText,
   removeEpisodeFromPlaylist,
 } from '@domain/entities';
-import {
-  CreatePlaylistInput,
-  PlaylistRepository,
-  UpdatePlaylistInput,
-} from '@domain/repositories';
+import { CreatePlaylistInput, PlaylistRepository, UpdatePlaylistInput } from '@domain/repositories';
 
 const STORAGE_KEY = 'playlists_v1';
 /** "Sonra dinle"nin eski (liste öncesi) deposu — bir kereliğine taşınır. */
@@ -75,7 +74,8 @@ export class PlaylistRepositoryImpl implements PlaylistRepository {
       const playlist: Playlist = {
         // Kimlik yerel olarak üretilir; sunucu senkronu geldiğinde de kararlı kalır.
         id: `pl_${nowMs.toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-        name,
+        name: name.slice(0, PLAYLIST_NAME_MAX),
+        description: normalizePlaylistText(input.description, PLAYLIST_DESCRIPTION_MAX),
         coverUri: input.coverUri,
         episodes: [],
         createdAt: nowMs,
@@ -90,17 +90,24 @@ export class PlaylistRepositoryImpl implements PlaylistRepository {
 
   async update(playlistId: string, input: UpdatePlaylistInput): Promise<Result<Playlist>> {
     return this.mutate(playlistId, playlist => {
-      if (playlist.system && input.name !== undefined) {
-        // Sistem listesinin adı sabittir; kapak değiştirilebilir.
-        return { ...playlist, coverUri: input.coverUri ?? playlist.coverUri, updatedAt: this.now() };
-      }
-      const name = input.name?.trim();
-      return {
+      // Açıklama ve kapak, verildiyse yazılır; `undefined` "dokunma" demektir.
+      // Boş metin gönderilmesi alanı TEMİZLER.
+      const patched = {
         ...playlist,
-        name: name && name.length > 0 ? name : playlist.name,
+        description:
+          input.description === undefined
+            ? playlist.description
+            : normalizePlaylistText(input.description, PLAYLIST_DESCRIPTION_MAX),
         coverUri: input.coverUri !== undefined ? input.coverUri : playlist.coverUri,
         updatedAt: this.now(),
       };
+
+      // Sistem listesinin adı sabittir; diğer alanları değiştirilebilir.
+      if (playlist.system) {
+        return patched;
+      }
+      const name = input.name?.trim().slice(0, PLAYLIST_NAME_MAX);
+      return { ...patched, name: name && name.length > 0 ? name : playlist.name };
     });
   }
 
@@ -124,9 +131,7 @@ export class PlaylistRepositoryImpl implements PlaylistRepository {
   }
 
   async addEpisode(playlistId: string, episode: Episode): Promise<Result<Playlist>> {
-    return this.mutate(playlistId, playlist =>
-      addEpisodeToPlaylist(playlist, episode, this.now()),
-    );
+    return this.mutate(playlistId, playlist => addEpisodeToPlaylist(playlist, episode, this.now()));
   }
 
   async removeEpisode(playlistId: string, episodeId: string): Promise<Result<Playlist>> {

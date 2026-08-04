@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
-import { Playlist } from '@domain/entities';
+import { PLAYLIST_DESCRIPTION_MAX, PLAYLIST_NAME_MAX, Playlist } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { BottomSheet, CoverImage, Icon, Text } from '../../../ui';
 import { useDependencies } from '../../../di';
@@ -31,12 +31,14 @@ export const PlaylistEditorSheet: React.FC<{
 
   const editing = !!playlist;
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [coverUri, setCoverUri] = useState<string | undefined>();
 
   // Panel her açılışta düzenlenen listenin güncel değerleriyle başlar.
   useEffect(() => {
     if (visible) {
       setName(playlist?.name ?? '');
+      setDescription(playlist?.description ?? '');
       setCoverUri(playlist?.coverUri);
     }
   }, [visible, playlist]);
@@ -56,9 +58,16 @@ export const PlaylistEditorSheet: React.FC<{
       return;
     }
     if (editing && playlist) {
-      await updatePlaylist.mutateAsync({ playlistId: playlist.id, name, coverUri });
+      // Açıklama DAİMA gönderilir: boş metin alanı temizler, gönderilmemesi
+      // "dokunma" anlamına gelirdi ve kullanıcı açıklamayı silemezdi.
+      await updatePlaylist.mutateAsync({
+        playlistId: playlist.id,
+        name,
+        description,
+        coverUri,
+      });
     } else {
-      const created = await createPlaylist.mutateAsync({ name, coverUri });
+      const created = await createPlaylist.mutateAsync({ name, description, coverUri });
       onCreated?.(created);
     }
     onClose();
@@ -109,7 +118,7 @@ export const PlaylistEditorSheet: React.FC<{
               placeholder="Ör. Sabah dinlediklerim"
               placeholderTextColor={theme.colors.textDim}
               autoFocus
-              maxLength={60}
+              maxLength={PLAYLIST_NAME_MAX}
               returnKeyType="done"
               onSubmitEditing={save}
               style={{
@@ -130,6 +139,39 @@ export const PlaylistEditorSheet: React.FC<{
           </View>
         </View>
 
+        {/* Açıklama — kapak/ad satırının ALTINDA tam genişlik: çok satırlı
+            metin dar bir sütuna sıkışmamalı. */}
+        <View style={{ marginTop: theme.spacing(2) }}>
+          <Text variant="label" color={theme.colors.textMuted} uppercase>
+            Açıklama (isteğe bağlı)
+          </Text>
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Bu liste neyle ilgili?"
+            placeholderTextColor={theme.colors.textDim}
+            maxLength={PLAYLIST_DESCRIPTION_MAX}
+            multiline
+            style={{
+              marginTop: theme.spacing(0.5),
+              minHeight: 76,
+              textAlignVertical: 'top',
+              paddingVertical: theme.spacing(1),
+              paddingHorizontal: theme.spacing(1.25),
+              borderRadius: theme.radius.md,
+              backgroundColor: theme.colors.surface,
+              color: theme.colors.text,
+              fontSize: theme.typography.body.fontSize,
+            }}
+          />
+          <Text
+            variant="caption"
+            color={theme.colors.textDim}
+            style={{ marginTop: 4, textAlign: 'right' }}>
+            {description.length}/{PLAYLIST_DESCRIPTION_MAX}
+          </Text>
+        </View>
+
         <Pressable
           onPress={save}
           disabled={!canSave || busy}
@@ -143,9 +185,7 @@ export const PlaylistEditorSheet: React.FC<{
             backgroundColor: canSave ? theme.colors.accent : theme.colors.surface,
             opacity: busy ? 0.6 : 1,
           }}>
-          <Text
-            variant="bodyStrong"
-            color={canSave ? theme.colors.onAccent : theme.colors.textDim}>
+          <Text variant="bodyStrong" color={canSave ? theme.colors.onAccent : theme.colors.textDim}>
             {editing ? 'Kaydet' : 'Oluştur'}
           </Text>
         </Pressable>

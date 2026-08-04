@@ -38,7 +38,7 @@ export const useCreatePlaylist = () => {
   const { createPlaylist } = useDependencies();
   const invalidate = useInvalidatePlaylists();
   return useMutation({
-    mutationFn: async (input: { name: string; coverUri?: string }) =>
+    mutationFn: async (input: { name: string; description?: string; coverUri?: string }) =>
       unwrap(await createPlaylist.execute(input)),
     onSuccess: invalidate,
   });
@@ -48,8 +48,12 @@ export const useUpdatePlaylist = () => {
   const { updatePlaylist } = useDependencies();
   const invalidate = useInvalidatePlaylists();
   return useMutation({
-    mutationFn: async (params: { playlistId: string; name?: string; coverUri?: string }) =>
-      unwrap(await updatePlaylist.execute(params)),
+    mutationFn: async (params: {
+      playlistId: string;
+      name?: string;
+      description?: string;
+      coverUri?: string;
+    }) => unwrap(await updatePlaylist.execute(params)),
     onSuccess: invalidate,
   });
 };
@@ -58,8 +62,7 @@ export const useDeletePlaylist = () => {
   const { deletePlaylist } = useDependencies();
   const invalidate = useInvalidatePlaylists();
   return useMutation({
-    mutationFn: async (playlistId: string) =>
-      unwrap(await deletePlaylist.execute({ playlistId })),
+    mutationFn: async (playlistId: string) => unwrap(await deletePlaylist.execute({ playlistId })),
     onSuccess: invalidate,
   });
 };

@@ -18,10 +18,8 @@ const make = () => {
   return { storage, adapter: new PlaylistSyncAdapter(storage) };
 };
 
-const writePlaylists = (
-  storage: InMemoryKeyValueStorage,
-  playlists: readonly Playlist[],
-): void => storage.set(PLAYLISTS_KEY, JSON.stringify(playlists));
+const writePlaylists = (storage: InMemoryKeyValueStorage, playlists: readonly Playlist[]): void =>
+  storage.set(PLAYLISTS_KEY, JSON.stringify(playlists));
 
 const readPlaylists = (storage: InMemoryKeyValueStorage): Playlist[] =>
   JSON.parse(storage.getString(PLAYLISTS_KEY) ?? '[]') as Playlist[];
@@ -35,14 +33,30 @@ describe('PlaylistSyncAdapter', () => {
     expect(changes.map(c => c.key)).toEqual(['b']);
   });
 
+  it('açıklamayı gidiş dönüş taşır', async () => {
+    // Listeler sunucuda JSON olarak durur (`sync_records`); yeni bir alan
+    // eklemek şema göçü GEREKTİRMEZ ama taşındığının sabitlenmesi gerekir.
+    const { storage, adapter } = make();
+    const local = playlist('a', 100, { description: 'Yolda dinlediklerim' });
+    writePlaylists(storage, [local]);
+
+    const [change] = await adapter.localChanges(0);
+    expect(JSON.parse(change.value).description).toBe('Yolda dinlediklerim');
+
+    const other = make();
+    await other.adapter.applyRemote([
+      { key: 'a', value: change.value, updatedAt: 100, deleted: false },
+    ]);
+
+    expect(readPlaylists(other.storage)[0].description).toBe('Yolda dinlediklerim');
+  });
+
   it('silinen listeyi tombstone olarak bildirir', async () => {
     const { adapter } = make();
     adapter.markDeleted('silinen', 500);
 
     const changes = await adapter.localChanges(100);
-    expect(changes).toEqual([
-      { key: 'silinen', value: '', updatedAt: 500, deleted: true },
-    ]);
+    expect(changes).toEqual([{ key: 'silinen', value: '', updatedAt: 500, deleted: true }]);
   });
 
   it('uzaktan gelen yeni listeyi uygular', async () => {
@@ -110,9 +124,7 @@ describe('PlaylistSyncAdapter', () => {
 
   it('bozuk uzak veriyi atlar', async () => {
     const { storage, adapter } = make();
-    await adapter.applyRemote([
-      { key: 'bozuk', value: '{kirik', updatedAt: 900, deleted: false },
-    ]);
+    await adapter.applyRemote([{ key: 'bozuk', value: '{kirik', updatedAt: 900, deleted: false }]);
     expect(readPlaylists(storage)).toHaveLength(0);
   });
 });
