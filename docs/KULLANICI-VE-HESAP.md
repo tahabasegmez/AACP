@@ -32,7 +32,7 @@ kullanıcı anonimse YENİ kullanıcı yaratılmaz, mevcut kayıt yükseltilir.
 | data | [UserRepositoryImpl.ts](../src/data/repositories/UserRepositoryImpl.ts) | API çağrıları + yerel profil önbelleği |
 | presentation | [useAccount.ts](../src/presentation/query/useAccount.ts) | Query/mutation hook'ları |
 | presentation | [AccountButton.tsx](../src/presentation/features/account/AccountButton.tsx) | Başlıktaki avatar düğmesi — hesabın TEK giriş noktası |
-| presentation | [AccountPanel.tsx](../src/presentation/features/account/AccountPanel.tsx) | Panel içeriği: ad, fotoğraf, giriş/çıkış |
+| presentation | [AccountPanel.tsx](../src/presentation/features/account/AccountPanel.tsx) | Panel içeriği: fotoğraf, giriş/çıkış |
 | presentation | [AuthSheet.tsx](../src/presentation/features/account/AuthSheet.tsx) | Giriş/kayıt paneli |
 | worker | [routes/auth.ts](../worker/src/routes/auth.ts) | Supabase Auth proxy'si |
 | worker | [avatarImage.ts](../worker/src/avatarImage.ts) | Profil fotoğrafı çözümleme (saf) |
@@ -126,7 +126,7 @@ Bu, kurulumun güvenli varsayılanıdır.
 | `POST /v1/auth/login` | E-posta + şifre ile giriş |
 | `POST /v1/auth/refresh` | Erişim jetonunu yeniler |
 | `GET /v1/auth/me` | Oturumdaki kullanıcının profili |
-| `POST /v1/auth/profile` | Görünen adı güncelle |
+| `POST /v1/auth/profile` | Görünen adı güncelle — **uygulama şu an çağırmıyor** |
 | `POST /v1/auth/avatar` | Profil fotoğrafı yükle (base64 → genel kova) |
 | `POST /v1/auth/reset-password` | Şifre sıfırlama e-postası |
 
@@ -165,6 +165,16 @@ misafire dönerdi.
 - Profil `auth.users.user_metadata` içinde yaşar (ad ve avatar adresi).
   `profiles` tablosu şemada var ama uygulama onu OKUMUYOR; ilişkisel bir profil
   sorgusu gerektiğinde (ör. "kim ne kadar dinledi" raporu) oraya geçilmelidir.
+- **Görünen ad düzenlenemiyor.** Uç sunucuda duruyor ama arayüzü kaldırıldı;
+  ad şimdilik e-postanın yerel kısmından türüyor. Geri geldiğinde giriş noktası
+  hesap paneli olmalı.
+
+> **Profil fotoğrafının türü İSTEMCİDEN alınmaz.** Sunucu görselin biçimini
+> baytların imzasından okur ([avatarImage.ts](../worker/src/avatarImage.ts)).
+> İki sebeple: seçici iOS'ta özgün fotoğrafın türünü (`image/heic`) bildirip
+> gövdeyi JPEG'e çevirebiliyor — beyana güvenmek geçerli bir görseli
+> reddetmekti; ayrıca kova genel okumaya açık olduğu için istemcinin "bu bir
+> JPEG" demesiyle yetinmek oraya başka bir dosya koyabilmesi demekti.
 
 > Şifre sıfırlama artık **var** (Supabase Auth e-posta gönderir); uygulamada
 > arayüzü henüz bağlanmadı — uç hazır.

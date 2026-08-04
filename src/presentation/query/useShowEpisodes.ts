@@ -1,6 +1,6 @@
 import { unwrap } from '@core/error';
 import { EpisodeSortOrder } from '@domain/entities';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useDependencies } from '../di';
 import { queryKeys } from './queryKeys';
 
@@ -33,6 +33,11 @@ export const useShowEpisodes = (
   return useInfiniteQuery({
     queryKey: queryKeys.showEpisodes(feedUrl ?? '', search, sort),
     enabled: Boolean(feedUrl),
+    // Arama/sıralama değişince sorgu anahtarı da değişir ve liste normalde
+    // "ilk yükleme" durumuna düşerdi: kullanıcı her harfte içeriğin yerine
+    // yükleme göstergesi görürdü. Önceki sonuçlar yenisi gelene kadar ekranda
+    // KALIR; böylece yazarken liste yerinde durur, sessizce tazelenir.
+    placeholderData: keepPreviousData,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) =>
       unwrap(

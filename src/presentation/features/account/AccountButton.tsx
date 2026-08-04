@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { isAnonymous, userDisplayName, userInitial } from '@domain/entities';
-import { Avatar, Popover, useAnchor } from '../../ui';
+import { Avatar, Popover, headerMetrics, useAnchor } from '../../ui';
 import { useCurrentUser } from '../../query';
 import { AccountPanel } from './AccountPanel';
 import { AuthSheet } from './AuthSheet';
 
-/** Başlıktaki avatarın çapı. */
-const SIZE = 32;
+/**
+ * Başlıktaki avatarın çapı — Kütüphane'deki ayarlar simgesiyle AYNI kaynak.
+ *
+ * İki sekmede aynı hizada duran iki düğmenin farklı boyutta olması, sekme
+ * değiştirirken göz için zıplama yaratıyordu.
+ */
+const SIZE = headerMetrics.actionSize;
 
 /**
  * AccountButton — başlıktaki yuvarlak hesap düğmesi ve paneli.

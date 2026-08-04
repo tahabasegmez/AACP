@@ -16,4 +16,11 @@ export const headerMetrics = {
   paddingBottom: spacing(1),
   /** Yatay kenar boşluğu. */
   paddingHorizontal: spacing(2),
+  /**
+   * Başlığın SAĞINDAKİ eylemin kare ölçüsü (ayarlar simgesi, hesap avatarı).
+   *
+   * Tek kaynak olması şart: iki sekmede farklı boyutta duran aynı hizadaki iki
+   * düğme, sekme değiştirirken göz için zıplama yaratır.
+   */
+  actionSize: 28,
 } as const;

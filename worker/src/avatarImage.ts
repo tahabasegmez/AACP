@@ -9,12 +9,48 @@ import { HttpError } from './errors';
  * paylaşmaya devam eder.
  */
 
-/** Kabul edilen türler — tarayıcı/iOS'un çözebildiği yaygın biçimler. */
-const EXTENSIONS: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-};
+/**
+ * Tanınan biçimler ve imzaları (magic bytes).
+ *
+ * Tür, istemcinin BEYANINDAN değil dosyanın kendisinden okunur. İki sebeple:
+ *
+ *  - **Doğruluk:** görsel seçici bazen özgün fotoğrafın türünü bildirir
+ *    (ör. iOS'ta `image/heic`) ama küçültme sırasında gövdeyi JPEG'e çevirir.
+ *    Beyana güvenmek, geçerli bir JPEG'i reddetmek olurdu.
+ *  - **Güvenlik:** kova genel okumaya açık. İstemcinin "bu bir JPEG" demesiyle
+ *    yetinmek, oraya başka bir dosya koyabilmesi demekti.
+ */
+const SIGNATURES: readonly {
+  readonly contentType: string;
+  readonly extension: string;
+  readonly matches: (bytes: Uint8Array) => boolean;
+}[] = [
+  {
+    contentType: 'image/jpeg',
+    extension: 'jpg',
+    matches: b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  },
+  {
+    contentType: 'image/png',
+    extension: 'png',
+    matches: b =>
+      b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
+  },
+  {
+    contentType: 'image/webp',
+    extension: 'webp',
+    // "RIFF" + 4 bayt uzunluk + "WEBP"
+    matches: b =>
+      b[0] === 0x52 &&
+      b[1] === 0x49 &&
+      b[2] === 0x46 &&
+      b[3] === 0x46 &&
+      b[8] === 0x57 &&
+      b[9] === 0x45 &&
+      b[10] === 0x42 &&
+      b[11] === 0x50,
+  },
+];
 
 /**
  * Çözülmüş görselin en fazla boyutu.
@@ -33,15 +69,7 @@ export interface DecodedAvatar {
 
 /** İstek gövdesini doğrular ve ikili veriye çevirir. */
 export const decodeAvatar = (body: unknown): DecodedAvatar => {
-  const input = (body ?? {}) as { base64?: unknown; contentType?: unknown };
-
-  const contentType = typeof input.contentType === 'string' ? input.contentType : '';
-  const extension = EXTENSIONS[contentType];
-  if (!extension) {
-    throw HttpError.badRequest(
-      `Desteklenmeyen görsel türü: ${contentType || 'belirtilmedi'}`,
-    );
-  }
+  const input = (body ?? {}) as { base64?: unknown };
 
   if (typeof input.base64 !== 'string' || input.base64.length === 0) {
     throw HttpError.badRequest('base64 gerekli');
@@ -65,7 +93,19 @@ export const decodeAvatar = (body: unknown): DecodedAvatar => {
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
-  return { bytes: bytes.buffer, contentType, extension };
+
+  const format = SIGNATURES.find(signature => signature.matches(bytes));
+  if (!format) {
+    throw HttpError.badRequest(
+      'Desteklenmeyen görsel biçimi. JPEG, PNG ya da WebP kullanın.',
+    );
+  }
+
+  return {
+    bytes: bytes.buffer,
+    contentType: format.contentType,
+    extension: format.extension,
+  };
 };
 
 /**

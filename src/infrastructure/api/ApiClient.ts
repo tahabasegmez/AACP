@@ -79,7 +79,10 @@ export class ApiClient {
       });
     } catch (error) {
       if (error instanceof AppError && error.code === 'UNAUTHORIZED') {
-        this.clearToken();
+        // YALNIZCA erişim jetonu düşürülür. Yenileme jetonu da silinseydi
+        // `ensureSession` tazeleyemez ve doğrudan ANONİM oturuma düşerdi:
+        // kullanıcı, jetonunun süresi dolduğu anda sessizce misafire dönerdi.
+        this.clearAccessToken();
         const refreshed = await this.ensureSession();
         if (refreshed) {
           return this.http.postJson<T>(this.url(path), body, {
@@ -216,10 +219,20 @@ export class ApiClient {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
-  private clearToken(): void {
+  /**
+   * Süresi dolmuş erişim jetonunu düşürür; YENİLEME jetonu korunur.
+   *
+   * Kimlik hâlâ geçerlidir, yalnızca kısa ömürlü jeton eskimiştir.
+   */
+  private clearAccessToken(): void {
     this.token = undefined;
-    this.refreshToken = undefined;
     this.storage.delete(TOKEN_KEY);
+  }
+
+  /** Oturumu tümüyle kapatır (çıkış). Bir sonraki istekte anonim oturum açılır. */
+  private clearToken(): void {
+    this.clearAccessToken();
+    this.refreshToken = undefined;
     this.storage.delete(REFRESH_TOKEN_KEY);
   }
 

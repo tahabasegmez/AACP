@@ -117,23 +117,6 @@ export class UserRepositoryImpl implements UserRepository {
     return ok(undefined);
   }
 
-  async updateProfile(input: { displayName?: string }): Promise<Result<User>> {
-    if (!this.api.enabled) {
-      return fail(AppError.validation('Sunucu yapılandırılmadığı için profil güncellenemez'));
-    }
-    try {
-      const dto = await this.api.post<PublicUserDto>('/v1/auth/profile', input);
-      if (!dto?.id) {
-        return fail(AppError.network('Profil güncellenemedi'));
-      }
-      const user = toUser(dto);
-      this.writeCache(user);
-      return ok(user);
-    } catch (error) {
-      return fail(AppError.from(error, 'NETWORK'));
-    }
-  }
-
   async uploadAvatar(input: AvatarUpload): Promise<Result<User>> {
     if (!this.api.enabled) {
       return fail(AppError.validation('Sunucu yapılandırılmadığı için fotoğraf yüklenemez'));

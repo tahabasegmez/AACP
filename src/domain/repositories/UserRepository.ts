@@ -35,9 +35,6 @@ export interface UserRepository {
   /** Oturumu kapatır; cihazda anonim kullanıma geri dönülür. */
   signOut(): Promise<Result<void>>;
 
-  /** Profil bilgisini günceller. */
-  updateProfile(input: { displayName?: string }): Promise<Result<User>>;
-
   /**
    * Profil fotoğrafını yükler ve güncellenmiş kullanıcıyı döner.
    *
@@ -47,10 +44,14 @@ export interface UserRepository {
   uploadAvatar(input: AvatarUpload): Promise<Result<User>>;
 }
 
-/** Yüklenecek profil fotoğrafı. */
+/**
+ * Yüklenecek profil fotoğrafı.
+ *
+ * Yalnızca gövde taşınır: görselin TÜRÜ sunucuda içerikten okunur. İstemcinin
+ * bildirdiği türe güvenmek hem yanlış (seçici bazen özgün fotoğrafın türünü
+ * bildirip gövdeyi çevirir) hem de güvensizdi.
+ */
 export interface AvatarUpload {
   /** Görselin base64 gövdesi (veri öneki OLMADAN). */
   readonly base64: string;
-  /** MIME türü, ör. `image/jpeg`. */
-  readonly contentType: string;
 }

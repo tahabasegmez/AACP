@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Alert, Pressable, TextInput, View } from 'react-native';
+import React from 'react';
+import { Alert, Pressable, View } from 'react-native';
 import { isAnonymous, userDisplayName, userInitial } from '@domain/entities';
 import { useTheme } from '../../theme';
 import { Avatar, Icon, IconName, Text } from '../../ui';
@@ -8,13 +8,10 @@ import {
   useChangeAvatar,
   useCurrentUser,
   useSignOut,
-  useUpdateProfile,
 } from '../../query';
 
 /** Panelde gösterilen büyük avatarın çapı. */
 const AVATAR_SIZE = 56;
-/** Görünen ad için üst sınır — sunucudaki kuralla aynı. */
-const MAX_NAME_LENGTH = 60;
 
 /**
  * AccountPanel — hesap düğmesine bağlı panelin içeriği.
@@ -34,30 +31,20 @@ export const AccountPanel: React.FC<{
   const accountsAvailable = useAccountsAvailable();
   const { data: user } = useCurrentUser();
   const signOut = useSignOut();
-  const updateProfile = useUpdateProfile();
   const avatar = useChangeAvatar();
-
-  const [editingName, setEditingName] = useState(false);
-  const [name, setName] = useState('');
 
   const signedIn = !!user && !isAnonymous(user);
 
   const changePhoto = (): void => {
     // Panel açık kalır: seçici kapandığında kullanıcı sonucu burada görür.
-    void avatar.run().catch(() => Alert.alert('Fotoğraf yüklenemedi'));
-  };
-
-  const startEditingName = (): void => {
-    setName(user?.displayName ?? '');
-    setEditingName(true);
-  };
-
-  const saveName = (): void => {
-    const trimmed = name.trim().slice(0, MAX_NAME_LENGTH);
-    setEditingName(false);
-    if (trimmed && trimmed !== user?.displayName) {
-      updateProfile.mutate({ displayName: trimmed });
-    }
+    // Hatanın SEBEBİ gösterilir; "yüklenemedi" demek, kullanıcıya da bize de
+    // sorunun ağ mı, biçim mi, yetki mi olduğunu söylemezdi.
+    void avatar.run().catch((error: unknown) =>
+      Alert.alert(
+        'Fotoğraf yüklenemedi',
+        error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu.',
+      ),
+    );
   };
 
   const confirmSignOut = (): void => {
@@ -105,32 +92,6 @@ export const AccountPanel: React.FC<{
         </Text>
       ) : signedIn ? (
         <>
-          {editingName ? (
-            <View style={{ padding: theme.spacing(1.5) }}>
-              <TextInput
-                value={name}
-                onChangeText={setName}
-                onSubmitEditing={saveName}
-                onBlur={saveName}
-                placeholder="Görünen adın"
-                placeholderTextColor={theme.colors.textDim}
-                maxLength={MAX_NAME_LENGTH}
-                autoFocus
-                returnKeyType="done"
-                style={{
-                  paddingVertical: theme.spacing(1),
-                  paddingHorizontal: theme.spacing(1.25),
-                  borderRadius: theme.radius.md,
-                  backgroundColor: theme.colors.elevated,
-                  color: theme.colors.text,
-                  fontSize: theme.typography.body.fontSize,
-                }}
-              />
-            </View>
-          ) : (
-            <PanelRow icon="pencil" label="Adı düzenle" onPress={startEditingName} />
-          )}
-
           <PanelRow
             icon="camera"
             label={avatar.busy ? 'Yükleniyor…' : 'Fotoğrafı değiştir'}

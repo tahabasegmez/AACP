@@ -5,14 +5,21 @@ import { Text } from './Text';
 
 /**
  * ScreenHeader — tüm sekmelerde AYNI hizada duran ortak başlık.
- * Sol başlık + opsiyonel sağ aksiyon (ör. ayarlar). Ölçüler `headerMetrics`ten
- * gelir; ana sayfanın logolu başlığı da aynı kaynağı kullanır, bu sayede
- * sekmeler arası geçişte başlığın alt hizası kaymaz.
+ *
+ * Sol tarafta başlık metni ya da özel bir içerik (ör. ana sayfanın logosu),
+ * sağ tarafta opsiyonel bir eylem bulunur. Ölçüler `headerMetrics`ten gelir;
+ * ana sayfanın logolu başlığı da bu bileşeni kullanır, bu sayede sekmeler
+ * arası geçişte hem başlığın alt hizası hem sağdaki eylemin yeri ve boyutu
+ * birebir aynı kalır.
  */
 export const ScreenHeader: React.FC<{
-  title: string;
+  /** Sol taraftaki başlık metni. `left` verilmişse yok sayılır. */
+  title?: string;
+  /** Başlık metni yerine gösterilecek içerik (logo gibi). */
+  left?: React.ReactNode;
+  /** Sağdaki eylem — ölçüsü `headerMetrics.actionSize` olmalıdır. */
   right?: React.ReactNode;
-}> = ({ title, right }) => {
+}> = ({ title, left, right }) => {
   return (
     <View
       style={{
@@ -24,7 +31,7 @@ export const ScreenHeader: React.FC<{
         paddingTop: headerMetrics.paddingTop,
         paddingBottom: headerMetrics.paddingBottom,
       }}>
-      <Text variant="title">{title}</Text>
+      {left ?? <Text variant="title">{title}</Text>}
       {right ?? null}
     </View>
   );

@@ -123,16 +123,6 @@ export const useSignOut = () => {
   });
 };
 
-export const useUpdateProfile = () => {
-  const { userRepository } = useDependencies();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: { displayName?: string }) =>
-      unwrap(await userRepository.updateProfile(input)),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.currentUser }),
-  });
-};
-
 /**
  * Profil fotoğrafının uzun kenarı için üst sınır (px).
  *
@@ -160,13 +150,8 @@ export const useChangeAvatar = () => {
       if (!picked?.base64) {
         return null; // iptal edildi ya da seçici yok
       }
-      return unwrap(
-        await userRepository.uploadAvatar({
-          base64: picked.base64,
-          // Seçici tür bildirmezse JPEG varsayılır; küçültülmüş çıktı JPEG'tir.
-          contentType: picked.contentType ?? 'image/jpeg',
-        }),
-      );
+      // Tür gönderilmez: sunucu görselin türünü içerikten okur.
+      return unwrap(await userRepository.uploadAvatar({ base64: picked.base64 }));
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.currentUser }),
   });

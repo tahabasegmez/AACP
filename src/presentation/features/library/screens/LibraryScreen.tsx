@@ -3,7 +3,15 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { DownloadItem, Episode, Show } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { EmptyState } from '../../../shared/components';
-import { Icon, Screen, ScreenHeader, SearchField, Text, scrimScrollHandler } from '../../../ui';
+import {
+  Icon,
+  Screen,
+  ScreenHeader,
+  SearchField,
+  Text,
+  headerMetrics,
+  scrimScrollHandler,
+} from '../../../ui';
 import {
   useFollowedShows,
   usePlaylists,
@@ -112,7 +120,12 @@ export const LibraryScreen: React.FC = () => {
             hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel="Ayarlar">
-            <Icon name="settings" size={24} color={theme.colors.text} />
+            {/* Ölçü ana sayfadaki hesap avatarıyla ORTAK kaynaktan gelir. */}
+            <Icon
+              name="settings"
+              size={headerMetrics.actionSize}
+              color={theme.colors.text}
+            />
           </Pressable>
         }
       />

@@ -50,8 +50,6 @@ export type IconName =
   | 'person'
   /** Fotoğraf seç/değiştir. */
   | 'camera'
-  /** Düzenle (ad değiştirme). */
-  | 'pencil'
   | 'sign-in'
   | 'sign-out';
 
@@ -94,7 +92,6 @@ const GLYPHS: Record<IconName, string> = {
   'playlist-remove': 'remove-circle-outline',
   person: 'person',
   camera: 'camera-outline',
-  pencil: 'create-outline',
   'sign-in': 'log-in-outline',
   'sign-out': 'log-out-outline',
 };
