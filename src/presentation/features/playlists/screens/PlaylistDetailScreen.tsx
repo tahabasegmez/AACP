@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { FlashList } from '@shopify/flash-list';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import React, { useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import {
   TextSheet,
   scrimScrollHandler,
   useHeroCoverSize,
+  useScrollToTopOnChange,
 } from '../../../ui';
 import { PlaylistCover } from '../components/PlaylistCover';
 import { EmptyState } from '../../../shared/components';
@@ -64,6 +65,8 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
   const [editorOpen, setEditorOpen] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
   const [query, setQuery] = useState('');
+  // Arama değişince liste başka bir listeye dönüşür; başa sar.
+  const listRef = useScrollToTopOnChange<FlashListRef<Episode>>(query);
   const { value: hideCompleted, set: setHideCompleted } = usePreference('hideCompletedEpisodes');
   const { data: progressIndex } = useProgressIndex();
 
@@ -262,9 +265,15 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
   return wrap(
     <>
       <FlashList
+        ref={listRef}
         data={episodes}
         keyExtractor={item => item.id}
         ListHeaderComponent={Header}
+        // Görünür öğeyi sabitleme KAPALI: sohbet akışı değil, arama sonucunda
+        // baştan sona değişen bir liste. Açık kaldığında, arama temizlenince
+        // ekrandaki bölüm tam listedeki yerinde aranıyor ve liste oraya
+        // sıçrıyordu.
+        maintainVisibleContentPosition={{ disabled: true }}
         // Boş durum listenin İÇİNDE gösterilir. Ayrı bir dal döndürmek,
         // sonuçsuz her aramada listeyi ve başlıktaki arama kutusunu söküp
         // yeniden kurardı: klavye kapanır, kaydırma başa dönerdi.

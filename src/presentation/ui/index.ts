@@ -12,6 +12,7 @@ export * from './headerMetrics';
 export * from './ImmersiveHeader';
 export * from './SearchField';
 export * from './FilterMenu';
+export * from './useScrollToTopOnChange';
 export * from './BottomSheet';
 export * from './Popover';
 export * from './Avatar';
