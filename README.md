@@ -27,6 +27,7 @@ npm run ci     # typecheck + lint + test
 | Belge | İçerik |
 |-------|--------|
 | [docs/IOS_SETUP.md](docs/IOS_SETUP.md) | **macOS'ta çalıştırma**: kurulum, imzalama, CarPlay, sorun giderme |
+| [docs/ANDROID.md](docs/ANDROID.md) | **Android**: kurulum, izinler, imzalama, kütüphane yaması, eksikler |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Clean Architecture katmanları, bağımlılık kuralı, yeni özellik ekleme |
 | [src/README.md](src/README.md) | Klasör haritası (hızlı bakış) |
 | [docs/VERI-MIMARISI.md](docs/VERI-MIMARISI.md) | Hangi veri nerede yaşar (PostgreSQL / NoSQL), şov kataloğu otomasyonu |

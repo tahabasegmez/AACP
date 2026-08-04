@@ -7,11 +7,36 @@ import TrackPlayer, {
   IOSCategory,
   IOSCategoryMode,
 } from 'react-native-track-player';
+import { PermissionsAndroid, Platform } from 'react-native';
 import {
   episodeToNowPlaying,
   episodeToTrack,
   mapTrackPlayerState,
 } from './playbackMapping';
+
+/**
+ * Android 13+ bildirim izni.
+ *
+ * Oynatma kartı (kilit ekranı ve bildirim gölgesi kontrolleri) bir BİLDİRİM
+ * olarak çizilir; izin verilmezse oynatma çalışır ama kullanıcı onu hiçbir
+ * yerden kontrol edemez. Manifestte bildirmek yetmez, çalışma zamanında da
+ * sorulmalıdır.
+ *
+ * Reddedilirse akış DEVAM EDER: izin oynatmanın ön koşulu değil, kontrol
+ * yüzeyinin koşuludur.
+ */
+const requestNotificationPermission = async (): Promise<void> => {
+  if (Platform.OS !== 'android' || Platform.Version < 33) {
+    return;
+  }
+  try {
+    await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+    );
+  } catch {
+    // İzin diyaloğu açılamadıysa oynatma yine kurulmalı.
+  }
+};
 
 /**
  * TrackPlayerAudioService — AudioPlayerService portunun react-native-track-player
@@ -35,6 +60,7 @@ export class TrackPlayerAudioService implements AudioPlayerService {
     if (this.isSetup) {
       return;
     }
+    await requestNotificationPermission();
     // iOS: Playback kategorisi + SpokenAudio modu → arka plan sesi VE Now Playing
     // (kilit ekranı + Dynamic Island medya kartı). Podcast için doğru profil.
     await TrackPlayer.setupPlayer({

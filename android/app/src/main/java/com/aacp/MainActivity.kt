@@ -1,5 +1,6 @@
 package com.aacp
 
+import android.os.Bundle
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -19,4 +20,17 @@ class MainActivity : ReactActivity() {
    */
   override fun createReactActivityDelegate(): ReactActivityDelegate =
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
+
+  /**
+   * react-native-screens gereksinimi.
+   *
+   * Android, Activity yeniden başlatıldığında (ör. tema/dil değişimi, düşük
+   * bellek sonrası geri dönüş) View durumunu tutarlı biçimde geri yükleyemez;
+   * bu, ekran yığınında ÇÖKMEYE yol açar. `null` verilerek kaydedilmiş durum
+   * bilinçli olarak atılır ve gezinme durumu JavaScript tarafından yeniden
+   * kurulur.
+   */
+  override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(null)
+  }
 }

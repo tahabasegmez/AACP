@@ -2,6 +2,17 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+// react-native-config: kökteki `.env` değerlerini derlemeye gömer.
+// BU SATIR OLMADAN `Config.APP_API_BASE_URL` Android'de tanımsız kalır ve
+// uygulama sunucusuz (yalnızca yerel) çalışır — katalog boş gelir, senkron ve
+// hesap sessizce kapanır. iOS tarafında aynı işi CocoaPods yapıyor.
+apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
+
+// react-native-vector-icons: font dosyalarını APK'ya kopyalar.
+// Olmadığında tüm ikonlar boş kutu olarak çizilir. iOS'ta karşılığı
+// Info.plist'teki UIAppFonts girdisidir.
+apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -77,9 +88,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
+    // `namespace` Kotlin paket adıdır (kaynak ağacıyla eşleşmeli).
+    // `applicationId` mağazadaki kimliktir ve iOS bundle kimliğiyle AYNI
+    // tutulur; iki platformun farklı kimlik taşıması, push ve derin bağlantı
+    // yapılandırmasını gereksizce ikiye bölerdi.
     namespace "com.aacp"
     defaultConfig {
-        applicationId "com.aacp"
+        applicationId "com.aa.podcast"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -92,15 +107,31 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            // Gerçek imza bilgileri DEPOYA GİRMEZ; `~/.gradle/gradle.properties`
+            // ya da CI gizli değişkenlerinden okunur (bkz. docs/ANDROID.md).
+            // Tanımlı değilse blok boş kalır ve aşağıdaki release yapılandırması
+            // hata ÜRETMEK yerine hata ayıklama anahtarına düşer.
+            if (project.hasProperty('AACP_RELEASE_STORE_FILE')) {
+                storeFile file(AACP_RELEASE_STORE_FILE)
+                storePassword AACP_RELEASE_STORE_PASSWORD
+                keyAlias AACP_RELEASE_KEY_ALIAS
+                keyPassword AACP_RELEASE_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Sürüm anahtarı yoksa yerel derleme yine çalışsın diye hata
+            // ayıklama anahtarına düşülür. MAĞAZAYA bu APK YÜKLENEMEZ —
+            // Play Console debug imzalı paketi reddeder, yani yanlışlıkla
+            // yayınlamak mümkün değildir.
+            signingConfig project.hasProperty('AACP_RELEASE_STORE_FILE')
+                ? signingConfigs.release
+                : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
