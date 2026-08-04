@@ -165,9 +165,14 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <ImmersiveHeader title={playlist.name} onBack={() => navigation.goBack()} />
 
-      {episodes.length === 0 ? (
-        <>
-          {Header}
+      <FlashList
+        data={episodes}
+        keyExtractor={item => item.id}
+        ListHeaderComponent={Header}
+        // Boş durum listenin İÇİNDE gösterilir. Ayrı bir dal döndürmek,
+        // sonuçsuz her aramada listeyi ve başlıktaki arama kutusunu söküp
+        // yeniden kurardı: klavye kapanır, kaydırma başa dönerdi.
+        ListEmptyComponent={
           <EmptyState
             title={query ? 'Sonuç yok' : 'Liste boş'}
             description={
@@ -176,31 +181,27 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
                 : 'Bir bölümün ayrıntı panelinden bu listeye ekleyebilirsin.'
             }
           />
-        </>
-      ) : (
-        <FlashList
-          data={episodes}
-          keyExtractor={item => item.id}
-          ListHeaderComponent={Header}
-          contentInsetAdjustmentBehavior="never"
-          onScroll={scrimScrollHandler}
-          scrollEventThrottle={16}
-          contentContainerStyle={{ paddingBottom: theme.spacing(14) }}
-          renderItem={({ item, index }) => (
-            <SwipeableEpisodeRow
-              episode={item}
-              // Bağlam verildiği için sola kaydırma "listeye ekle" değil
-              // "listeden çıkar" olur.
-              context={{ playlistId: playlist.id }}
-              // Listelerde "kaldığın yer" yerine bölümün ait olduğu ŞOV yazar.
-              subtitle={showTitleOf(item.showId)}
-              onPress={() => openSheet(item)}
-              onPlay={() => play(item, { episodes: [...episodes], index })}
-              onLongPress={() => confirmRemoveEpisode(item)}
-            />
-          )}
-        />
-      )}
+        }
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="none"
+        contentInsetAdjustmentBehavior="never"
+        onScroll={scrimScrollHandler}
+        scrollEventThrottle={16}
+        contentContainerStyle={{ paddingBottom: theme.spacing(14) }}
+        renderItem={({ item, index }) => (
+          <SwipeableEpisodeRow
+            episode={item}
+            // Bağlam verildiği için sola kaydırma "listeye ekle" değil
+            // "listeden çıkar" olur.
+            context={{ playlistId: playlist.id }}
+            // Listelerde "kaldığın yer" yerine bölümün ait olduğu ŞOV yazar.
+            subtitle={showTitleOf(item.showId)}
+            onPress={() => openSheet(item)}
+            onPlay={() => play(item, { episodes: [...episodes], index })}
+            onLongPress={() => confirmRemoveEpisode(item)}
+          />
+        )}
+      />
 
       <PlaylistEditorSheet
         visible={editorOpen}

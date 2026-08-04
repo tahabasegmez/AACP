@@ -49,30 +49,26 @@ export class GetShowEpisodes
   async execute(
     params: GetShowEpisodesParams,
   ): Promise<Result<ShowEpisodesResult>> {
-    let catalogShow: Show | undefined;
-    let feedUrl = params.feedUrl;
-    let showId = params.showId;
-
-    if (showId) {
-      const found = await this.catalog.getShowById(showId);
-      if (found.ok) {
-        catalogShow = found.value;
-        feedUrl = feedUrl ?? found.value.feedUrl;
-      }
-    }
-
-    if (!feedUrl && !showId) {
+    if (!params.feedUrl && !params.showId) {
       return fail(
         AppError.notFound('feedUrl veya showId sağlanmalı (GetShowEpisodes).'),
       );
     }
-    // Sunucu şovu kimlikle sorgular, RSS kaynağı adresle. Biri eksikse
-    // diğerinden türetilir; ikisi de yoksa yukarıda çıkılmıştır.
-    showId = showId ?? slugFromFeedUrl(feedUrl ?? '');
+
+    // Sunucu şovu KİMLİKLE sorgular, RSS kaynağı ADRESLE. Çağıran taraf
+    // genellikle yalnızca birini bilir; eksik olan diğerinden türetilir.
+    const showId = params.showId ?? slugFromFeedUrl(params.feedUrl ?? '');
+
+    // Katalog HER DURUMDA sorgulanır. Yalnızca `showId` verildiğinde sormak,
+    // sunucu kaynağı kullanıldığında şovun adının/kapağının hiç çözülememesi
+    // demekti: sunucu yalnızca bölüm döner, meta veri katalogdan gelir.
+    const found = await this.catalog.getShowById(showId);
+    const catalogShow: Show | undefined = found.ok ? found.value : undefined;
+    const feedUrl = params.feedUrl ?? catalogShow?.feedUrl ?? '';
 
     const result = await this.episodes.getPage({
       showId,
-      feedUrl: feedUrl ?? '',
+      feedUrl,
       limit: params.limit ?? DEFAULT_LIMIT,
       cursor: params.cursor,
       search: params.search,

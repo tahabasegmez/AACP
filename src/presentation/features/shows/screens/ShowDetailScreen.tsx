@@ -110,7 +110,10 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
   if (isLoading) {
     return wrap(<LoadingView />);
   }
-  if (isError) {
+  // Elimizde içerik varken hata ekranına geçilmez: sonraki bir sayfanın ya da
+  // arama isteğinin başarısız olması, okunan listeyi silip yerine hata
+  // koymamalı.
+  if (isError && !data) {
     return wrap(<ErrorView error={error} onRetry={refetch} />);
   }
 
@@ -217,29 +220,32 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
     </View>
   );
 
-  if (episodes.length === 0) {
-    return wrap(
-      <>
-        {Header}
-        <EmptyState
-          title={search ? 'Sonuç yok' : hideCompleted ? 'Hepsi dinlendi' : 'Bölüm yok'}
-          description={
-            search
-              ? `"${search}" için bu şovda bölüm bulunamadı.`
-              : hideCompleted
-                ? 'Bu şovdaki tüm bölümleri dinledin. Filtreyi kapatarak hepsini görebilirsin.'
-                : 'Bu şovda henüz yayınlanmış bölüm bulunmuyor.'
-          }
-        />
-      </>,
-    );
-  }
+  // Boş durum, listeyi DEĞİŞTİRMEZ; onun içinde gösterilir. Ayrı bir dal
+  // döndürmek FlashList'i (ve başlıktaki arama kutusunu) her sonuçsuz aramada
+  // söküp yeniden kurardı: ekran yeniden yükleniyormuş gibi görünür, kaydırma
+  // başa döner ve klavye kapanırdı.
+  const Empty = (
+    <EmptyState
+      title={search ? 'Sonuç yok' : hideCompleted ? 'Hepsi dinlendi' : 'Bölüm yok'}
+      description={
+        search
+          ? `"${search}" için bu şovda bölüm bulunamadı.`
+          : hideCompleted
+            ? 'Bu şovdaki tüm bölümleri dinledin. Filtreyi kapatarak hepsini görebilirsin.'
+            : 'Bu şovda henüz yayınlanmış bölüm bulunmuyor.'
+      }
+    />
+  );
 
   return wrap(
     <FlashList
       data={episodes}
       keyExtractor={item => item.id}
       ListHeaderComponent={Header}
+      ListEmptyComponent={Empty}
+      // Arama sonucu gelirken klavye kapanmasın; kullanıcı yazmaya devam eder.
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="none"
       contentInsetAdjustmentBehavior="never"
       onScroll={scrimScrollHandler}
       scrollEventThrottle={16}

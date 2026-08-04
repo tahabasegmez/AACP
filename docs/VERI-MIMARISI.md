@@ -212,9 +212,15 @@ EpisodePageRepository (port)
    └─ FallbackEpisodePageRepository  ← önce sunucu, İLK SAYFADA olmazsa RSS
 ```
 
-Yedeğe düşme yalnızca ilk sayfada olur: sayfalar arasında kaynak değiştirmek,
-imlecin karşı tarafta anlamsız olması ve kullanıcının listenin başına
-dönmesi demekti.
+**Bir liste başladığı kaynakta devam eder.** İmleç, kendisini üreten kaynağın
+etiketini taşır (`p:` sunucu, `f:` yedek) ve sonraki sayfa o etikete bakarak
+yönlendirilir. Etiket olmasaydı, ilk sayfası RSS'ten gelen bir listenin ikinci
+sayfası sunucuya sorulur, imleç orada çözülemez ve "daha fazla yükle"
+kırılırdı.
+
+> Yedeğe düşüldüğünde SEBEP loglanır. Aksi halde yedek, bir yapılandırma
+> eksikliğini (ör. şema göçünün yapılmamış olması) sessizce gizler ve sunucu
+> yolu haftalarca ölü kalabilir.
 
 > **Bölüm kapağı boşsa şov kapağına düşülür** — ve bu YAZARKEN değil, okurken
 > yapılır. Yayıncıların çoğu `<item>` içine `itunes:image` koymaz; yedek okuma

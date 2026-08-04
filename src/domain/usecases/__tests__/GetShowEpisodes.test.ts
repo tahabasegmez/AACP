@@ -113,6 +113,26 @@ describe('GetShowEpisodes', () => {
     expect(res.value.show.title).toBe('Katalog Şov');
   });
 
+  it('YALNIZCA feedUrl verilse bile katalogdan şovu çözer', async () => {
+    // Ekran genellikle yalnızca adresi bilir. Katalog sorgusu `showId` şartına
+    // bağlı kalsaydı, sunucu kaynağı kullanıldığında (ki o yalnızca bölüm
+    // döner) şov hiç çözülemez ve liste "şov bulunamadı" ile düşerdi.
+    const sut = new GetShowEpisodes(new FakePages(pageOf()), new FakeCatalog());
+    const res = await sut.execute({ feedUrl: 'https://feeds.transistor.fm/show1' });
+
+    if (!res.ok) throw new Error('beklenmedik hata');
+    expect(res.value.show.title).toBe('Katalog Şov');
+  });
+
+  it('yalnızca showId verildiğinde feed adresi katalogdan gelir', async () => {
+    const pages = new FakePages(pageOf());
+    const sut = new GetShowEpisodes(pages, new FakeCatalog());
+
+    await sut.execute({ showId: 'show1' });
+
+    expect(pages.calls[0].feedUrl).toBe('https://feeds/show1');
+  });
+
   it('ne kaynak ne katalog şovu biliyorsa NOT_FOUND döner', async () => {
     const sut = new GetShowEpisodes(new FakePages(pageOf()), new FakeCatalog(false));
     const res = await sut.execute({ showId: 'yok' });

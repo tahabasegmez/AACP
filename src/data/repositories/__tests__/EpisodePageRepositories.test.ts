@@ -200,37 +200,112 @@ describe('ApiEpisodePageRepository', () => {
 // ---------------------------------------------------------------------------
 
 describe('FallbackEpisodePageRepository', () => {
-  const source = (result: Result<EpisodePageResult>): EpisodePageRepository => ({
-    getPage: async () => result,
-  });
+  /** Çağrıldığını ve hangi imleci aldığını kaydeden sahte kaynak. */
+  const source = (
+    result: Result<EpisodePageResult>,
+  ): EpisodePageRepository & { cursors: (string | undefined)[] } => {
+    const cursors: (string | undefined)[] = [];
+    return {
+      cursors,
+      getPage: async (q: EpisodePageQuery) => {
+        cursors.push(q.cursor);
+        return result;
+      },
+    };
+  };
 
-  const good = source(ok({ page: { items: [ep('a', 'A', '')] } }));
-  const bad = source(fail(AppError.network('yok')));
+  const page = (nextCursor?: string): Result<EpisodePageResult> =>
+    ok({ page: { items: [ep('a', 'A', '')], nextCursor } });
+  const broken = fail(AppError.network('şema göçü yapılmamış'));
 
   it('sunucu çalışıyorsa yedeğe hiç gitmez', async () => {
-    const fallback = { getPage: jest.fn() };
-    const sut = new FallbackEpisodePageRepository(
-      good,
-      fallback as unknown as EpisodePageRepository,
-      logger,
-    );
+    const fallback = source(page());
+    const sut = new FallbackEpisodePageRepository(source(page()), fallback, logger);
 
     await sut.getPage(query());
-    expect(fallback.getPage).not.toHaveBeenCalled();
+    expect(fallback.cursors).toHaveLength(0);
   });
 
-  it('ilk sayfa başarısızsa yedeğe düşer', async () => {
-    const sut = new FallbackEpisodePageRepository(bad, good, logger);
+  it('ilk sayfa başarısızsa yedeğe düşer ve SEBEBİ loglar', async () => {
+    // Yedek, yapılandırma eksikliğini sessizce gizlerdi.
+    const sut = new FallbackEpisodePageRepository(source(broken), source(page()), logger);
     const res = await sut.getPage(query());
 
     expect(res.ok).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ reason: 'şema göçü yapılmamış' }),
+    );
+  });
+
+  it('imleci kaynak etiketiyle döner', async () => {
+    const sut = new FallbackEpisodePageRepository(source(page('abc')), source(page()), logger);
+    const res = await sut.getPage(query());
+
+    if (!res.ok) throw new Error('beklenmedik hata');
+    expect(res.value.page.nextCursor).toBe('p:abc');
+  });
+
+  it('yedekten gelen sayfanın imleci YEDEK etiketi taşır', async () => {
+    const sut = new FallbackEpisodePageRepository(
+      source(broken),
+      source(page('20')),
+      logger,
+    );
+    const res = await sut.getPage(query());
+
+    if (!res.ok) throw new Error('beklenmedik hata');
+    expect(res.value.page.nextCursor).toBe('f:20');
+  });
+
+  it('liste BAŞLADIĞI kaynakta devam eder', async () => {
+    // İlk sayfa yedekten geldiyse ikinci sayfa da yedekten gelmeli; imleç
+    // sunucuya gönderilseydi orada anlamsız olur ve liste kırılırdı.
+    const primary = source(page('x'));
+    const fallback = source(page('40'));
+    const sut = new FallbackEpisodePageRepository(primary, fallback, logger);
+
+    const res = await sut.getPage(query({ cursor: 'f:20' }));
+
+    expect(primary.cursors).toHaveLength(0);
+    expect(fallback.cursors).toEqual(['20']); // etiket SOYULMUŞ olarak gider
+    if (!res.ok) throw new Error('beklenmedik hata');
+    expect(res.value.page.nextCursor).toBe('f:40');
+  });
+
+  it('sunucuda başlayan liste sunucuda devam eder', async () => {
+    const primary = source(page('y'));
+    const fallback = source(page());
+    const sut = new FallbackEpisodePageRepository(primary, fallback, logger);
+
+    await sut.getPage(query({ cursor: 'p:abc' }));
+
+    expect(primary.cursors).toEqual(['abc']);
+    expect(fallback.cursors).toHaveLength(0);
   });
 
   it('SONRAKİ sayfalarda yedeğe DÜŞMEZ', async () => {
-    // İmleç karşı kaynakta anlamsızdır; düşmek kullanıcıyı listenin başına atardı.
-    const sut = new FallbackEpisodePageRepository(bad, good, logger);
-    const res = await sut.getPage(query({ cursor: 'c1' }));
+    const sut = new FallbackEpisodePageRepository(source(broken), source(page()), logger);
+    const res = await sut.getPage(query({ cursor: 'p:abc' }));
 
     expect(res.ok).toBe(false);
+  });
+
+  it('tanınmayan imleç listeyi baştan başlatır', async () => {
+    // Uydurma bir imleci kaynağa geçirmek çözülemeyen bir hataya dönüşürdü.
+    const primary = source(page('z'));
+    const sut = new FallbackEpisodePageRepository(primary, source(page()), logger);
+
+    await sut.getPage(query({ cursor: 'saçmalık' }));
+
+    expect(primary.cursors).toEqual([undefined]);
+  });
+
+  it('son sayfada imleç üretmez', async () => {
+    const sut = new FallbackEpisodePageRepository(source(page()), source(page()), logger);
+    const res = await sut.getPage(query());
+
+    if (!res.ok) throw new Error('beklenmedik hata');
+    expect(res.value.page.nextCursor).toBeUndefined();
   });
 });
