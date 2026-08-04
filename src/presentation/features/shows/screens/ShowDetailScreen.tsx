@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { FlashList, type FlashListRef } from '@shopify/flash-list';
+import { FlashList } from '@shopify/flash-list';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +19,6 @@ import {
   scrimScrollHandler,
   useDebounced,
   useHeroCoverSize,
-  useScrollToTopOnChange,
 } from '../../../ui';
 import { usePreference, useShowEpisodes } from '../../../query';
 import { useIsFollowed, useToggleFollow } from '../../../query';
@@ -51,8 +50,6 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
   const [query, setQuery] = useState('');
   const search = useDebounced(query, 300);
   const [sort, setSort] = useState<EpisodeSortOrder>('newest');
-  // Arama ya da sıralama değişince liste başka bir listeye dönüşür; başa sar.
-  const listRef = useScrollToTopOnChange<FlashListRef<Episode>>(`${search}|${sort}`);
 
   const {
     data,
@@ -261,15 +258,14 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
 
   return wrap(
     <FlashList
-      ref={listRef}
       data={episodes}
       keyExtractor={item => item.id}
       ListHeaderComponent={Header}
       ListEmptyComponent={Empty}
-      // Görünür öğeyi sabitleme KAPALI: sohbet akışı değil, arama sonucunda
-      // baştan sona değişen bir liste. Açık kaldığında, arama temizlenince
-      // ekrandaki bölüm tam listedeki yerinde aranıyor ve liste oraya
-      // sıçrıyordu.
+      // Görünür öğeyi sabitleme KAPALI. Bu özellik sohbet akışları içindir:
+      // içerik değişince ekrandaki öğeyi görünür tutmaya çalışır. Arama
+      // listeyi baştan sona değiştirdiği için, ekrandaki bölümü yeni listede
+      // arayıp oraya sıçrıyordu. Kapalıyken kaydırma OLDUĞU YERDE kalır.
       maintainVisibleContentPosition={{ disabled: true }}
       // Arama sonucu gelirken klavye kapanmasın; kullanıcı yazmaya devam eder.
       keyboardShouldPersistTaps="handled"
