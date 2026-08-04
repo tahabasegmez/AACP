@@ -5,15 +5,27 @@ import { Alert, Pressable, View } from 'react-native';
 import { Episode, playlistDurationSec } from '@domain/entities';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
-import { Icon, ImmersiveHeader, SearchField, Text, scrimScrollHandler } from '../../../ui';
+import {
+  Collapsible,
+  FilterMenu,
+  FilterOption,
+  FilterSection,
+  Icon,
+  ImmersiveHeader,
+  SearchField,
+  Text,
+  scrimScrollHandler,
+} from '../../../ui';
 import { PlaylistCover } from '../components/PlaylistCover';
 import { EmptyState } from '../../../shared/components';
 import {
   useDeletePlaylist,
   usePlaylist,
+  usePreference,
   useRemoveEpisodeFromPlaylist,
   useShowsQuery,
 } from '../../../query';
+import { useProgressIndex } from '../../player/useEpisodeStatus';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
 import type { RootStackParamList } from '../../../navigation/types';
 import { usePlayEpisode } from '../../player/usePlayEpisode';
@@ -43,6 +55,8 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
   const deletePlaylist = useDeletePlaylist();
   const [editorOpen, setEditorOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const { value: hideCompleted, set: setHideCompleted } = usePreference('hideCompletedEpisodes');
+  const { data: progressIndex } = useProgressIndex();
 
   const showTitleOf = (showId: string): string =>
     (shows.data ?? []).find(s => s.id === showId)?.title ?? '';
@@ -59,7 +73,7 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
   const totalSec = playlistDurationSec(playlist);
   // Liste içi arama — kayıtlar zaten bellekte olduğu için yerelde süzülür.
   const needle = query.trim().toLocaleLowerCase('tr-TR');
-  const episodes = needle
+  const searched = needle
     ? playlist.episodes.filter(
         e =>
           e.title.toLocaleLowerCase('tr-TR').includes(needle) ||
@@ -67,21 +81,29 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
       )
     : playlist.episodes;
 
+  // Dinlenmişleri gizleme tercihi KULLANICIYA aittir, ekrana değil: şov
+  // detayında açıldığında listelerde de geçerli olur.
+  const episodes = hideCompleted
+    ? searched.filter(e => !progressIndex?.get(e.id)?.completed)
+    : searched;
+
+  // Aramaya başlanınca tanıtım yukarı kayıp kaybolur; sonuçlar ekranın
+  // tepesinden başlar.
+  const searching = query.trim().length > 0;
+
   const confirmDelete = (): void => {
-    Alert.alert(
-      'Listeyi sil',
-      `"${playlist.name}" listesi silinecek. Bölümler silinmez.`,
-      [
-        { text: 'Vazgeç', style: 'cancel' },
-        {
-          text: 'Sil',
-          style: 'destructive',
-          onPress: () => {
-            deletePlaylist.mutate(playlist.id, { onSuccess: () => navigation.goBack() });
-          },
+    Alert.alert('Listeyi sil', `"${playlist.name}" listesi silinecek. Bölümler silinmez.`, [
+      { text: 'Vazgeç', style: 'cancel' },
+      {
+        text: 'Sil',
+        style: 'destructive',
+        onPress: () => {
+          deletePlaylist.mutate(playlist.id, {
+            onSuccess: () => navigation.goBack(),
+          });
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const confirmRemoveEpisode = (episode: Episode): void => {
@@ -91,72 +113,101 @@ export const PlaylistDetailScreen: React.FC<Props> = ({ route }) => {
         text: 'Çıkar',
         style: 'destructive',
         onPress: () =>
-          removeEpisode.mutate({ playlistId: playlist.id, episodeId: episode.id }),
+          removeEpisode.mutate({
+            playlistId: playlist.id,
+            episodeId: episode.id,
+          }),
       },
     ]);
   };
 
   const Header = (
-    <View style={{ paddingHorizontal: theme.spacing(2), paddingBottom: theme.spacing(2) }}>
-      <View style={{ alignItems: 'center' }}>
-        <PlaylistCover playlist={playlist} size={180} />
-      </View>
+    <View style={{ paddingBottom: theme.spacing(2) }}>
+      <Collapsible collapsed={searching}>
+        <View style={{ paddingHorizontal: theme.spacing(2) }}>
+          <View style={{ alignItems: 'center' }}>
+            <PlaylistCover playlist={playlist} size={180} />
+          </View>
 
-      <Text variant="title" numberOfLines={2} style={{ marginTop: theme.spacing(2) }}>
-        {playlist.name}
-      </Text>
-      <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 4 }}>
-        {episodes.length} bölüm
-        {totalSec > 0 ? ` · ${formatDuration(totalSec)}` : ''}
-      </Text>
-
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing(2), marginTop: theme.spacing(2) }}>
-        <Pressable
-          onPress={() => episodes[0] && play(episodes[0], { episodes: [...episodes], index: 0 })}
-          disabled={episodes.length === 0}
-          accessibilityRole="button"
-          accessibilityLabel="Listeyi çal"
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-            paddingVertical: theme.spacing(1.25),
-            paddingHorizontal: theme.spacing(2.5),
-            borderRadius: theme.radius.pill,
-            backgroundColor: theme.colors.accent,
-            opacity: episodes.length === 0 ? 0.4 : 1,
-          }}>
-          <Icon name="play" size={18} color={theme.colors.onAccent} />
-          <Text variant="bodyStrong" color={theme.colors.onAccent}>
-            Çal
+          <Text variant="title" numberOfLines={2} style={{ marginTop: theme.spacing(2) }}>
+            {playlist.name}
           </Text>
-        </Pressable>
+          <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 4 }}>
+            {episodes.length} bölüm
+            {totalSec > 0 ? ` · ${formatDuration(totalSec)}` : ''}
+          </Text>
 
-        {/* Sistem listesi düzenlenemez/silinemez. */}
-        {!playlist.system && (
-          <>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: theme.spacing(2),
+              marginTop: theme.spacing(2),
+            }}>
             <Pressable
-              onPress={() => setEditorOpen(true)}
-              hitSlop={10}
+              onPress={() =>
+                episodes[0] && play(episodes[0], { episodes: [...episodes], index: 0 })
+              }
+              disabled={episodes.length === 0}
               accessibilityRole="button"
-              accessibilityLabel="Listeyi düzenle">
-              <Icon name="settings" size={22} color={theme.colors.textMuted} />
+              accessibilityLabel="Listeyi çal"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                paddingVertical: theme.spacing(1.25),
+                paddingHorizontal: theme.spacing(2.5),
+                borderRadius: theme.radius.pill,
+                backgroundColor: theme.colors.accent,
+                opacity: episodes.length === 0 ? 0.4 : 1,
+              }}>
+              <Icon name="play" size={18} color={theme.colors.onAccent} />
+              <Text variant="bodyStrong" color={theme.colors.onAccent}>
+                Çal
+              </Text>
             </Pressable>
-            <Pressable
-              onPress={confirmDelete}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Listeyi sil">
-              <Icon name="close" size={22} color={theme.colors.textMuted} />
-            </Pressable>
-          </>
-        )}
-      </View>
+
+            {/* Sistem listesi düzenlenemez/silinemez. */}
+            {!playlist.system && (
+              <>
+                <Pressable
+                  onPress={() => setEditorOpen(true)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Listeyi düzenle">
+                  <Icon name="settings" size={22} color={theme.colors.textMuted} />
+                </Pressable>
+                <Pressable
+                  onPress={confirmDelete}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Listeyi sil">
+                  <Icon name="close" size={22} color={theme.colors.textMuted} />
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Collapsible>
 
       {/* Liste içi arama — yalnızca birkaç bölümlük listelerde gereksiz yer
-          kaplamasın diye eşik uygulanır. */}
+          kaplamasın diye eşik uygulanır. Filtreler sağdaki panelde toplanır. */}
       {playlist.episodes.length > 5 && (
-        <SearchField value={query} onChangeText={setQuery} placeholder="Bu listede ara" />
+        <SearchField
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Bu listede ara"
+          action={
+            <FilterMenu active={hideCompleted}>
+              <FilterSection title="Süzme" />
+              <FilterOption
+                label="Dinlenmişleri gizle"
+                selected={hideCompleted}
+                onPress={() => setHideCompleted(!hideCompleted)}
+              />
+            </FilterMenu>
+          }
+        />
       )}
     </View>
   );

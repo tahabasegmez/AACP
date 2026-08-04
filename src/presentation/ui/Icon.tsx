@@ -50,6 +50,8 @@ export type IconName =
   | 'person'
   /** Fotoğraf seç/değiştir. */
   | 'camera'
+  /** Liste filtreleri paneli. */
+  | 'filter'
   | 'sign-in'
   | 'sign-out';
 
@@ -92,6 +94,9 @@ const GLYPHS: Record<IconName, string> = {
   'playlist-remove': 'remove-circle-outline',
   person: 'person',
   camera: 'camera-outline',
+  // Huni değil "seçenekler" simgesi: panel yalnızca süzme değil sıralama da
+  // içeriyor, huni yanlış beklenti kurardı.
+  filter: 'options-outline',
   'sign-in': 'log-in-outline',
   'sign-out': 'log-out-outline',
 };

@@ -3,11 +3,16 @@ import { FlashList } from '@shopify/flash-list';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Episode } from '@domain/entities';
+import { Episode, EpisodeSortOrder } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import {
+  Collapsible,
   CoverGradient,
   CoverImage,
+  FilterDivider,
+  FilterMenu,
+  FilterOption,
+  FilterSection,
   Icon,
   SearchField,
   Text,
@@ -45,6 +50,7 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
   // sayfalar arasında çalışır (yalnızca yüklenmiş sayfalarda değil).
   const [query, setQuery] = useState('');
   const search = useDebounced(query, 300);
+  const [sort, setSort] = useState<EpisodeSortOrder>('newest');
 
   const {
     data,
@@ -55,25 +61,19 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useShowEpisodes(feedUrl, { search });
+  } = useShowEpisodes(feedUrl, { search, sort });
   const followed = useIsFollowed(showId);
   const toggleFollow = useToggleFollow();
   // Filtre tercihi cihazlar arası hatırlanır (misafirde de).
-  const { value: hideCompleted, set: setHideCompleted } =
-    usePreference('hideCompletedEpisodes');
+  const { value: hideCompleted, set: setHideCompleted } = usePreference('hideCompletedEpisodes');
   const { data: progressIndex } = useProgressIndex();
 
-  const allEpisodes = useMemo(
-    () => data?.pages.flatMap(p => p.episodes.items) ?? [],
-    [data],
-  );
+  const allEpisodes = useMemo(() => data?.pages.flatMap(p => p.episodes.items) ?? [], [data]);
   const show = data?.pages[0]?.show;
 
   const episodes = useMemo(
     () =>
-      hideCompleted
-        ? allEpisodes.filter(e => !progressIndex?.get(e.id)?.completed)
-        : allEpisodes,
+      hideCompleted ? allEpisodes.filter(e => !progressIndex?.get(e.id)?.completed) : allEpisodes,
     [allEpisodes, hideCompleted, progressIndex],
   );
 
@@ -83,7 +83,12 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
       hitSlop={16}
       accessibilityRole="button"
       accessibilityLabel="Geri"
-      style={{ position: 'absolute', top: insets.top + 6, left: theme.spacing(1.5), zIndex: 10 }}>
+      style={{
+        position: 'absolute',
+        top: insets.top + 6,
+        left: theme.spacing(1.5),
+        zIndex: 10,
+      }}>
       <Icon name="chevron-back" size={28} color="#FFFFFF" />
     </Pressable>
   );
@@ -117,106 +122,135 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
     return wrap(<ErrorView error={error} onRetry={refetch} />);
   }
 
+  // Aramaya başlanınca tanıtım yukarı kayıp kaybolur: sonuçlar ekranın
+  // tepesinden başlar ve kullanıcı listeyi görmek için kaydırmak zorunda
+  // kalmaz. Arama temizlenince geri gelir.
+  const searching = query.trim().length > 0;
+
   const Header = (
     <View>
-      <View
-        style={{
-          paddingTop: insets.top + theme.spacing(6),
-          paddingBottom: theme.spacing(2),
-          alignItems: 'center',
-        }}>
-        <CoverImage uri={show?.imageUrl} size={coverSize} radius={theme.radius.md} />
-        <Text variant="title" style={{ marginTop: theme.spacing(2), textAlign: 'center', paddingHorizontal: theme.spacing(2) }}>
-          {show?.title ?? route.params.title ?? ''}
-        </Text>
-        <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 4 }}>
-          {show?.author}
-          {show?.categories?.length ? ` · ${show.categories[0]}` : ''}
-        </Text>
-        {!!show?.description && (
-          <Pressable onPress={() => setDescOpen(true)} style={{ paddingHorizontal: theme.spacing(2.5) }}>
-            <Text
-              variant="caption"
-              color={theme.colors.textMuted}
-              numberOfLines={3}
-              style={{ textAlign: 'center', marginTop: theme.spacing(1.25) }}>
-              {show.description}
-            </Text>
-            <Text variant="caption" color={theme.colors.text} style={{ textAlign: 'center', marginTop: 4 }}>
-              devamını oku…
-            </Text>
-          </Pressable>
-        )}
-
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing(2.5), marginTop: theme.spacing(2) }}>
-          <Pressable
-            onPress={() => toggleFollow.mutate(showId)}
-            accessibilityRole="button"
-            accessibilityLabel={followed.data ? 'Takibi bırak' : 'Takip et'}
+      <Collapsible collapsed={searching}>
+        <View
+          style={{
+            paddingTop: insets.top + theme.spacing(6),
+            paddingBottom: theme.spacing(2),
+            alignItems: 'center',
+          }}>
+          <CoverImage uri={show?.imageUrl} size={coverSize} radius={theme.radius.md} />
+          <Text
+            variant="title"
             style={{
-              borderWidth: 1.5,
-              borderColor: followed.data ? theme.colors.accent : theme.colors.textMuted,
-              borderRadius: theme.radius.pill,
-              paddingVertical: theme.spacing(1),
-              paddingHorizontal: theme.spacing(2.25),
+              marginTop: theme.spacing(2),
+              textAlign: 'center',
+              paddingHorizontal: theme.spacing(2),
             }}>
-            <Text variant="subtitle" color={followed.data ? theme.colors.accent : theme.colors.text}>
-              {followed.data ? '✓ Takip ediliyor' : 'Takip et'}
-            </Text>
-          </Pressable>
+            {show?.title ?? route.params.title ?? ''}
+          </Text>
+          <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 4 }}>
+            {show?.author}
+            {show?.categories?.length ? ` · ${show.categories[0]}` : ''}
+          </Text>
+          {!!show?.description && (
+            <Pressable
+              onPress={() => setDescOpen(true)}
+              style={{ paddingHorizontal: theme.spacing(2.5) }}>
+              <Text
+                variant="caption"
+                color={theme.colors.textMuted}
+                numberOfLines={3}
+                style={{ textAlign: 'center', marginTop: theme.spacing(1.25) }}>
+                {show.description}
+              </Text>
+              <Text
+                variant="caption"
+                color={theme.colors.text}
+                style={{ textAlign: 'center', marginTop: 4 }}>
+                devamını oku…
+              </Text>
+            </Pressable>
+          )}
 
-          <Pressable
-            onPress={() => episodes[0] && play(episodes[0], { episodes, index: 0 })}
-            accessibilityRole="button"
-            accessibilityLabel="En yeni bölümü çal"
+          <View
             style={{
-              width: 52,
-              height: 52,
-              borderRadius: 26,
+              flexDirection: 'row',
               alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: theme.colors.accent,
+              gap: theme.spacing(2.5),
+              marginTop: theme.spacing(2),
             }}>
-            <Icon name="play" size={24} color={theme.colors.onAccent} />
-          </Pressable>
+            <Pressable
+              onPress={() => toggleFollow.mutate(showId)}
+              accessibilityRole="button"
+              accessibilityLabel={followed.data ? 'Takibi bırak' : 'Takip et'}
+              style={{
+                borderWidth: 1.5,
+                borderColor: followed.data ? theme.colors.accent : theme.colors.textMuted,
+                borderRadius: theme.radius.pill,
+                paddingVertical: theme.spacing(1),
+                paddingHorizontal: theme.spacing(2.25),
+              }}>
+              <Text
+                variant="subtitle"
+                color={followed.data ? theme.colors.accent : theme.colors.text}>
+                {followed.data ? '✓ Takip ediliyor' : 'Takip et'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => episodes[0] && play(episodes[0], { episodes, index: 0 })}
+              accessibilityRole="button"
+              accessibilityLabel="En yeni bölümü çal"
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 26,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: theme.colors.accent,
+              }}>
+              <Icon name="play" size={24} color={theme.colors.onAccent} />
+            </Pressable>
+          </View>
         </View>
-      </View>
+      </Collapsible>
+
+      {/* Tanıtım kapanınca arama kutusu durum çubuğunun ve geri düğmesinin
+          altına sıkışırdı. Boşluk, tanıtımın TERSİ yönde açılır; iki geçiş
+          birlikte yürüdüğü için kutu yerine yumuşakça oturur. */}
+      <Collapsible collapsed={!searching}>
+        <View style={{ height: insets.top + theme.spacing(5.5) }} />
+      </Collapsible>
 
       {/* Bölüm listesinin hemen üstünde arama — uzun şovlarda gezinmeyi
           kolaylaştırır. Sorgu tüm bölümlerde çalışır, yalnızca yüklenmiş
-          sayfalarda değil. */}
-      <SearchField value={query} onChangeText={setQuery} placeholder="Bu şovda ara" />
-
-      {/* Dinlenmişleri gizleme — seçim hatırlanır (cihazlar arası). */}
-      <Pressable
-        onPress={() => setHideCompleted(!hideCompleted)}
-        accessibilityRole="switch"
-        accessibilityState={{ checked: hideCompleted }}
-        accessibilityLabel="Dinlenmiş bölümleri gizle"
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          alignSelf: 'flex-start',
-          gap: theme.spacing(0.75),
-          marginTop: theme.spacing(1),
-          paddingVertical: theme.spacing(0.75),
-          paddingHorizontal: theme.spacing(1.25),
-          borderRadius: theme.radius.md,
-          borderWidth: 1,
-          borderColor: hideCompleted ? theme.colors.accent : theme.colors.border,
-          backgroundColor: hideCompleted ? theme.colors.accent : 'transparent',
-        }}>
-        <Icon
-          name="checkmark"
-          size={14}
-          color={hideCompleted ? theme.colors.onAccent : theme.colors.textMuted}
-        />
-        <Text
-          variant="caption"
-          color={hideCompleted ? theme.colors.onAccent : theme.colors.textMuted}>
-          Dinlenmişleri gizle
-        </Text>
-      </Pressable>
+          sayfalarda değil. Filtreler sağdaki panelde toplanır. */}
+      <SearchField
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Bu şovda ara"
+        action={
+          <FilterMenu active={hideCompleted || sort !== 'newest'}>
+            <FilterSection title="Sıralama" />
+            <FilterOption
+              label="Önce en yeni"
+              selected={sort === 'newest'}
+              onPress={() => setSort('newest')}
+            />
+            <FilterOption
+              label="Önce en eski"
+              selected={sort === 'oldest'}
+              onPress={() => setSort('oldest')}
+            />
+            <FilterDivider />
+            <FilterSection title="Süzme" />
+            {/* Seçim cihazlar arası hatırlanır (misafirde de). */}
+            <FilterOption
+              label="Dinlenmişleri gizle"
+              selected={hideCompleted}
+              onPress={() => setHideCompleted(!hideCompleted)}
+            />
+          </FilterMenu>
+        }
+      />
     </View>
   );
 
@@ -231,8 +265,8 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
         search
           ? `"${search}" için bu şovda bölüm bulunamadı.`
           : hideCompleted
-            ? 'Bu şovdaki tüm bölümleri dinledin. Filtreyi kapatarak hepsini görebilirsin.'
-            : 'Bu şovda henüz yayınlanmış bölüm bulunmuyor.'
+          ? 'Bu şovdaki tüm bölümleri dinledin. Filtreyi kapatarak hepsini görebilirsin.'
+          : 'Bu şovda henüz yayınlanmış bölüm bulunmuyor.'
       }
     />
   );
@@ -255,7 +289,10 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
           episode={item}
           onPress={() => openSheet(item)}
           onPlay={() =>
-            play(item, { episodes, index: episodes.findIndex(e => e.id === item.id) })
+            play(item, {
+              episodes,
+              index: episodes.findIndex(e => e.id === item.id),
+            })
           }
         />
       )}

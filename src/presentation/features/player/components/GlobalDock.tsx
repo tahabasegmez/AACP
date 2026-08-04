@@ -14,8 +14,18 @@ const MINI_H = 66;
 
 /** Tüm dock'un gizleneceği ekranlar. */
 const HIDDEN_ROUTES = ['Player', 'Settings'];
-/** Tab çubuğunun görüneceği (sekmeli) ekranlar. */
-const TAB_ROUTES = ['Home', 'Search', 'Library'];
+
+/**
+ * Tab çubuğunun GİZLENECEĞİ ekranlar.
+ *
+ * Kural bilinçli olarak "şunlarda gizle" biçimindedir, "şunların dışında
+ * gizle" değil. Rota adı geçiş sırasında bir an ara navigator'ın adı olarak
+ * (`Tabs`) okunabiliyor; beyaz liste kullanıldığında bu ad listede olmadığı
+ * için çubuk gizleniyor ve bir daha durum olayı gelmezse GİZLİ KALIYORDU.
+ * Bilinmeyen ad artık "görünür" sayılır — eksik bir çubuk, bir an fazladan
+ * görünen çubuktan çok daha kötüdür.
+ */
+const DETAIL_ROUTES = ['ShowDetail', 'PlaylistDetail', 'SeeAll', 'Downloads', ...HIDDEN_ROUTES];
 
 /**
  * GlobalDock — mini player + çevrimdışı şeridi + animasyonlu tab bar; hepsi
@@ -28,7 +38,7 @@ export const GlobalDock: React.FC = () => {
   const routeName = useRouteStore(s => s.routeName);
   const anim = useRef(new Animated.Value(0)).current; // 0: tab görünür, 1: gizli
 
-  const tabsHidden = !!routeName && !TAB_ROUTES.includes(routeName);
+  const tabsHidden = !!routeName && DETAIL_ROUTES.includes(routeName);
 
   useEffect(() => {
     Animated.timing(anim, {
@@ -43,10 +53,19 @@ export const GlobalDock: React.FC = () => {
   }
 
   const tabTotal = insets.bottom + TAB_CONTENT_H;
-  const tabTranslate = anim.interpolate({ inputRange: [0, 1], outputRange: [0, tabTotal + 8] });
-  const tabOpacity = anim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  const tabTranslate = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, tabTotal + 8],
+  });
+  const tabOpacity = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
   // Tab gizlenince mini player aşağı insin (tab içeriği kadar).
-  const miniTranslate = anim.interpolate({ inputRange: [0, 1], outputRange: [0, TAB_CONTENT_H] });
+  const miniTranslate = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, TAB_CONTENT_H],
+  });
 
   return (
     <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
