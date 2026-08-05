@@ -14,3 +14,4 @@ export * from './Ad';
 export * from './adPolicy';
 export * from './ShareLink';
 export * from './PlaybackDevice';
+export * from './PlaybackCommand';

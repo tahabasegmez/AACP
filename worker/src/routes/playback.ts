@@ -12,6 +12,17 @@ interface DeviceRow {
   readonly last_seen_at: string;
 }
 
+/** `claim_playback` dönüşü — liste + devralınan cihazın çaldığı bölüm. */
+interface ClaimResult {
+  readonly devices?: readonly DeviceRow[];
+  readonly now_playing?: unknown;
+}
+
+/** `poll_playback` dönüşü — liste + bekleyen komut + aktif cihazın çaldığı. */
+interface PollResult extends ClaimResult {
+  readonly command?: unknown;
+}
+
 /** Cihaz adı için üst sınır — liste satırını taşırmasın. */
 const MAX_NAME = 60;
 
@@ -50,9 +61,9 @@ export const registerPlaybackRoutes = (router: {
       throw HttpError.badRequest('deviceId gerekli');
     }
 
-    const rows = await Supabase.from(ctx.env)
+    const result = await Supabase.from(ctx.env)
       .asUser(session.accessToken)
-      .rpc<DeviceRow[]>('claim_playback', {
+      .rpc<ClaimResult>('claim_playback', {
         p_device_id: deviceId,
         p_name: (body.name?.trim() || 'Cihaz').slice(0, MAX_NAME),
         p_platform: body.platform === 'ios' || body.platform === 'android'
@@ -60,7 +71,11 @@ export const registerPlaybackRoutes = (router: {
           : 'unknown',
       });
 
-    return ok({ devices: (rows ?? []).map(toDevice) });
+    return ok({
+      devices: (result?.devices ?? []).map(toDevice),
+      // Devralınan cihazın çaldığı bölüm — devralan cihaz oradan devam eder.
+      nowPlaying: result?.now_playing ?? null,
+    });
   });
 
   /** Oturumu bırakır (duraklatma/çıkış). Cihaz kaydı korunur. */
@@ -76,6 +91,67 @@ export const registerPlaybackRoutes = (router: {
       .rpc<null>('release_playback', { p_device_id: deviceId });
 
     return ok({ released: true });
+  });
+
+  /**
+   * Oynatmayı BAŞKA bir cihaza aktar.
+   *
+   * Hedef cihaz aktif yapılır ve ona ne çalacağını söyleyen bir komut bırakılır.
+   * Kaynak cihaza ayrıca "dur" gönderilmez: kendi turunda oturumu kaybettiğini
+   * görüp duraklar — durdurma kuralı tek yerde kalır.
+   */
+  router.post('/v1/playback/transfer', async ctx => {
+    const session = await requireSession(ctx);
+    const body = (ctx.body ?? {}) as { toDeviceId?: string; command?: unknown };
+
+    const toDeviceId = body.toDeviceId?.trim();
+    if (!toDeviceId) {
+      throw HttpError.badRequest('toDeviceId gerekli');
+    }
+    if (!body.command || typeof body.command !== 'object') {
+      throw HttpError.badRequest('command gerekli');
+    }
+
+    const rows = await Supabase.from(ctx.env)
+      .asUser(session.accessToken)
+      .rpc<DeviceRow[]>('transfer_playback', {
+        p_to_device_id: toDeviceId,
+        p_command: body.command,
+      });
+
+    return ok({ devices: (rows ?? []).map(toDevice) });
+  });
+
+  /**
+   * Cihazın turu — tazele, gelen kutusunu boşalt, listeyi al.
+   *
+   * Üçü tek çağrıda yapılır: her turda üçü de gerekir, ayrı uçlara bölmek
+   * istek sayısını üçe katlardı. Komut OKUNDUĞUNDA SİLİNİR (gelen kutusu
+   * mantığı), bu yüzden uç POST'tur.
+   */
+  router.post('/v1/playback/poll', async ctx => {
+    const session = await requireSession(ctx);
+    const deviceId = ((ctx.body ?? {}) as { deviceId?: string }).deviceId?.trim();
+    if (!deviceId) {
+      throw HttpError.badRequest('deviceId gerekli');
+    }
+
+    // Aktif cihaz her turda ne çaldığını YAYINLAR; başka bir cihaz oynatmayı
+    // devraldığında bölümü ve saniyeyi buradan öğrenir.
+    const nowPlaying = (ctx.body as { nowPlaying?: unknown } | undefined)?.nowPlaying;
+
+    const result = await Supabase.from(ctx.env)
+      .asUser(session.accessToken)
+      .rpc<PollResult>('poll_playback', {
+        p_device_id: deviceId,
+        p_now_playing: nowPlaying && typeof nowPlaying === 'object' ? nowPlaying : null,
+      });
+
+    return ok({
+      devices: (result?.devices ?? []).map(toDevice),
+      command: result?.command ?? null,
+      nowPlaying: result?.now_playing ?? null,
+    });
   });
 
   /** Hesabın cihazları ve hangisinin çaldığı. */

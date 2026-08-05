@@ -55,6 +55,13 @@ returns table (device_id text, name text, platform text, active boolean, last_se
 language plpgsql
 security definer
 as $$
+-- Dönüş sütunlarının adları tablonunkilerle AYNIDIR (istemciye giden alan
+-- adları böyle olmalı). Bu, gövdedeki `device_id`/`name` gibi adları PL/pgSQL
+-- için belirsiz yapar ("column reference is ambiguous", 42702) — özellikle
+-- `on conflict` hedefinde, orada takma ad kullanılamaz.
+-- Yönerge, belirsiz adların DAİMA sütun olarak çözülmesini söyler; gövdede
+-- dönüş değişkenleri zaten hiç okunmuyor.
+#variable_conflict use_column
 begin
   -- Cihazı kaydet/tazele.
   insert into public.playback_devices (user_id, device_id, name, platform, last_seen_at)

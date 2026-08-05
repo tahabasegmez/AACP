@@ -1,6 +1,10 @@
 import { AppError, Result, fail, ok } from '@core/error';
-import { PlaybackDevice } from '@domain/entities';
-import { DeviceSessionRepository } from '@domain/repositories';
+import { PlaybackCommand, PlaybackDevice, parsePlaybackCommand } from '@domain/entities';
+import {
+  DeviceSessionClaim,
+  DeviceSessionRepository,
+  DeviceSessionTick,
+} from '@domain/repositories';
 
 /** Sunucudan dönen cihaz kaydı. */
 interface DeviceDto {
@@ -14,6 +18,15 @@ interface DeviceDto {
 interface DevicesDto {
   readonly devices?: readonly DeviceDto[];
 }
+
+/** Bir turun yanıtı — liste + bu cihaza bırakılmış komut. */
+interface TickDto extends DevicesDto {
+  readonly command?: unknown;
+  readonly nowPlaying?: unknown;
+}
+
+const EMPTY_CLAIM: DeviceSessionClaim = { devices: [], nowPlaying: null };
+const EMPTY_TICK: DeviceSessionTick = { ...EMPTY_CLAIM, command: null };
 
 /** Bu deponun ihtiyaç duyduğu API yüzeyi (bağımlılığı daraltır). */
 export interface DeviceSessionApi {
@@ -45,17 +58,20 @@ export class ApiDeviceSessionRepository implements DeviceSessionRepository {
     return this.api.getDeviceId();
   }
 
-  async claim(): Promise<Result<readonly PlaybackDevice[]>> {
+  async claim(): Promise<Result<DeviceSessionClaim>> {
     if (!this.api.enabled) {
-      return ok([]);
+      return ok(EMPTY_CLAIM);
     }
     try {
-      const dto = await this.api.post<DevicesDto>('/v1/playback/claim', {
+      const dto = await this.api.post<TickDto>('/v1/playback/claim', {
         deviceId: this.deviceId(),
         name: defaultName(this.platform),
         platform: this.platform,
       });
-      return ok(toDevices(dto));
+      return ok({
+        devices: toDevices(dto),
+        nowPlaying: parsePlaybackCommand(dto?.nowPlaying),
+      });
     } catch (error) {
       return fail(AppError.from(error, 'NETWORK'));
     }
@@ -68,6 +84,44 @@ export class ApiDeviceSessionRepository implements DeviceSessionRepository {
     try {
       await this.api.post('/v1/playback/release', { deviceId: this.deviceId() });
       return ok(undefined);
+    } catch (error) {
+      return fail(AppError.from(error, 'NETWORK'));
+    }
+  }
+
+  async poll(nowPlaying?: PlaybackCommand): Promise<Result<DeviceSessionTick>> {
+    if (!this.api.enabled) {
+      return ok(EMPTY_TICK);
+    }
+    try {
+      const dto = await this.api.post<TickDto>('/v1/playback/poll', {
+        deviceId: this.deviceId(),
+        // Yalnızca çalan cihaz yayınlar; alan yoksa sunucu son yayını korur.
+        nowPlaying: nowPlaying ?? null,
+      });
+      return ok({
+        devices: toDevices(dto),
+        command: parsePlaybackCommand(dto?.command),
+        nowPlaying: parsePlaybackCommand(dto?.nowPlaying),
+      });
+    } catch (error) {
+      return fail(AppError.from(error, 'NETWORK'));
+    }
+  }
+
+  async transfer(
+    toDeviceId: string,
+    command: PlaybackCommand,
+  ): Promise<Result<readonly PlaybackDevice[]>> {
+    if (!this.api.enabled) {
+      return ok([]);
+    }
+    try {
+      const dto = await this.api.post<DevicesDto>('/v1/playback/transfer', {
+        toDeviceId,
+        command,
+      });
+      return ok(toDevices(dto));
     } catch (error) {
       return fail(AppError.from(error, 'NETWORK'));
     }

@@ -1,18 +1,27 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { PlaybackDevice } from '@domain/entities';
+import { PlaybackDevice, isAnonymous } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { BottomSheet, Icon, NowPlayingBars, Text } from '../../../ui';
 import { useDependencies } from '../../../di';
-import { usePlaybackDevices, useTakeOverPlayback, useThisDeviceId } from '../useDeviceSession';
+import { usePlayerStore } from '../../../stores';
+import { useCurrentUser } from '../../../query';
+import {
+  usePlaybackDevices,
+  useTakeOverPlayback,
+  useThisDeviceId,
+  useTransferPlayback,
+} from '../useDeviceSession';
 
 /**
  * DevicesSheet — hesabın cihazları ve oynatmanın hangisinde olduğu.
  *
- * Bir hesapta aynı anda TEK cihaz çalar. Panel bunu gösterir ve gerekirse
- * oynatmayı buraya almayı sağlar. Başka bir cihaza oynatma GÖNDERİLEMEZ:
- * bunun için cihazlar arası gerçek zamanlı bir kanal gerekirdi; panel
- * yapamadığı bir şeyi vaat etmez.
+ * Bir hesapta aynı anda TEK cihaz çalar. Panel bunu gösterir ve oynatmayı iki
+ * yönde de taşır: başka cihazdaysa buraya alır, buradaysa seçilen cihaza
+ * gönderir.
+ *
+ * Aktarım ANINDA DEĞİLDİR: hedef cihaz komutu kendi turunda (birkaç saniye)
+ * alır. Cihazlar arasında kalıcı bir bağlantı yok; komut sunucuda bekler.
  */
 export const DevicesSheet: React.FC<{ visible: boolean; onClose: () => void }> = ({
   visible,
@@ -23,6 +32,10 @@ export const DevicesSheet: React.FC<{ visible: boolean; onClose: () => void }> =
   const devices = usePlaybackDevices();
   const thisDeviceId = useThisDeviceId();
   const takeOver = useTakeOverPlayback();
+  const { data: user } = useCurrentUser();
+  const guest = isAnonymous(user);
+  const episode = usePlayerStore(s => s.currentEpisode);
+  const { transfer, pendingDeviceId } = useTransferPlayback();
 
   const list = devices.data ?? [];
   const activeElsewhere = list.some(d => d.active && d.id !== thisDeviceId);
@@ -32,7 +45,7 @@ export const DevicesSheet: React.FC<{ visible: boolean; onClose: () => void }> =
       <View style={{ paddingHorizontal: theme.spacing(2.5), paddingBottom: theme.spacing(1) }}>
         <Text variant="heading">Cihazlar</Text>
         <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 4 }}>
-          Hesabında aynı anda tek cihazda dinleyebilirsin.
+          Aynı anda tek cihazda dinleyebilirsin. Oynatmayı göndermek için bir cihaz seç.
         </Text>
 
         {!deviceSession.available ? (
@@ -44,6 +57,17 @@ export const DevicesSheet: React.FC<{ visible: boolean; onClose: () => void }> =
           </Text>
         ) : devices.isLoading ? (
           <ActivityIndicator style={{ marginTop: theme.spacing(2) }} color={theme.colors.accent} />
+        ) : guest ? (
+          // Misafir kullanıcı her cihazda AYRI bir kimliktir; cihazlar ancak
+          // aynı hesaba girildiğinde birbirini görebilir. "Kayıtlı cihaz yok"
+          // demek, kullanıcıyı bozuk bir özellik olduğuna inandırırdı.
+          <Text
+            variant="caption"
+            color={theme.colors.textMuted}
+            style={{ marginTop: theme.spacing(2) }}>
+            Cihazlarını birlikte görmek için hesabına giriş yap. Misafir olarak her cihaz ayrı
+            sayılır.
+          </Text>
         ) : list.length === 0 ? (
           <Text
             variant="caption"
@@ -58,6 +82,17 @@ export const DevicesSheet: React.FC<{ visible: boolean; onClose: () => void }> =
                 key={device.id}
                 device={device}
                 isThisDevice={device.id === thisDeviceId}
+                // Aktarım ancak çalan bir bölüm varken anlamlıdır ve yalnızca
+                // BAŞKA bir cihaza yapılır.
+                canTransfer={!!episode && device.id !== thisDeviceId}
+                busy={pendingDeviceId === device.id}
+                onTransfer={() => {
+                  void transfer(device.id, device.name).then(sent => {
+                    if (sent) {
+                      onClose();
+                    }
+                  });
+                }}
               />
             ))}
           </View>
@@ -117,20 +152,34 @@ export const DevicesSheet: React.FC<{ visible: boolean; onClose: () => void }> =
   );
 };
 
-/** Tek cihaz satırı; çalan cihaz ses çubuklarıyla işaretlenir. */
-const DeviceRow: React.FC<{ device: PlaybackDevice; isThisDevice: boolean }> = ({
+interface DeviceRowProps {
+  readonly device: PlaybackDevice;
+  readonly isThisDevice: boolean;
+  /** Oynatma bu cihaza gönderilebilir mi? */
+  readonly canTransfer: boolean;
+  readonly busy: boolean;
+  readonly onTransfer: () => void;
+}
+
+/**
+ * Tek cihaz satırı; çalan cihaz ses çubuklarıyla işaretlenir.
+ *
+ * Satıra dokunmak oynatmayı O CİHAZA gönderir. Dokunulabilir olmadığı
+ * durumlarda (bu cihaz, ya da çalan bir bölüm yok) satır düz bir liste öğesi
+ * gibi davranır — basılabilir görünüp hiçbir şey yapmamak, düğmeyi bozuk
+ * göstermek olurdu.
+ */
+const DeviceRow: React.FC<DeviceRowProps> = ({
   device,
   isThisDevice,
+  canTransfer,
+  busy,
+  onTransfer,
 }) => {
   const theme = useTheme();
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: theme.spacing(1.5),
-        paddingVertical: theme.spacing(1.25),
-      }}>
+
+  const body = (
+    <>
       <Icon
         name="cast"
         size={20}
@@ -142,10 +191,38 @@ const DeviceRow: React.FC<{ device: PlaybackDevice; isThisDevice: boolean }> = (
           {isThisDevice ? ' · bu cihaz' : ''}
         </Text>
         <Text variant="caption" color={theme.colors.textMuted} style={{ marginTop: 2 }}>
-          {device.active ? 'Şu an çalıyor' : 'Boşta'}
+          {device.active ? 'Şu an çalıyor' : canTransfer ? 'Buraya gönder' : 'Boşta'}
         </Text>
       </View>
-      {device.active && <NowPlayingBars playing />}
-    </View>
+      {busy ? (
+        <ActivityIndicator color={theme.colors.accent} />
+      ) : device.active ? (
+        <NowPlayingBars playing />
+      ) : canTransfer ? (
+        <Icon name="chevron-right" size={18} color={theme.colors.textMuted} />
+      ) : null}
+    </>
+  );
+
+  const style = {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: theme.spacing(1.5),
+    paddingVertical: theme.spacing(1.25),
+  };
+
+  if (!canTransfer) {
+    return <View style={style}>{body}</View>;
+  }
+
+  return (
+    <Pressable
+      onPress={onTransfer}
+      disabled={busy}
+      accessibilityRole="button"
+      accessibilityLabel={`Oynatmayı ${device.name} cihazına gönder`}
+      style={({ pressed }) => [style, { opacity: pressed || busy ? 0.6 : 1 }]}>
+      {body}
+    </Pressable>
   );
 };
