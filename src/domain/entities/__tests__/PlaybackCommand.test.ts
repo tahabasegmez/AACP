@@ -1,5 +1,10 @@
 import { Episode } from '../Episode';
-import { commandEpisode, parsePlaybackCommand, playCommand } from '../PlaybackCommand';
+import {
+  commandEpisode,
+  commandPositionSec,
+  parsePlaybackCommand,
+  playCommand,
+} from '../PlaybackCommand';
 
 const episode: Episode = {
   id: 'ep-1',
@@ -26,6 +31,7 @@ describe('playCommand', () => {
         imageUrl: 'https://cdn/ep1.jpg',
       },
       positionSec: 42,
+      rate: 1,
     });
   });
 
@@ -68,7 +74,31 @@ describe('parsePlaybackCommand', () => {
         imageUrl: undefined,
       },
       positionSec: 0,
+      rate: 1,
     });
+  });
+});
+
+describe('commandPositionSec', () => {
+  it('yaş yoksa konumu olduğu gibi verir', () => {
+    // Aktarılan komut: kaynak cihaz zaten susmuştu, geçen süre dinlenmedi.
+    expect(commandPositionSec(playCommand(episode, 100))).toBe(100);
+  });
+
+  it('yaş kadar ilerletir', () => {
+    expect(commandPositionSec({ ...playCommand(episode, 100), ageMs: 12_000 })).toBe(112);
+  });
+
+  it('hızı hesaba katar', () => {
+    // 1.5× dinleyen birinin 10 saniyesi 15 saniyelik sestir.
+    const command = { ...playCommand(episode, 100, 1.5), ageMs: 10_000 };
+    expect(commandPositionSec(command)).toBe(115);
+  });
+
+  it('bölüm süresini aşmaz', () => {
+    // Çok yaşlanmış bir yayın, bölümün sonunu geçen bir saniye üretebilirdi.
+    const command = { ...playCommand(episode, 1790), ageMs: 60_000 };
+    expect(commandPositionSec(command)).toBe(1800);
   });
 });
 

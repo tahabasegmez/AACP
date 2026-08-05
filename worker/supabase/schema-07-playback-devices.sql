@@ -1,106 +1,100 @@
--- AACP — Şema 07: cihazlar ve tek aktif oynatma oturumu
+-- AACP — Şema 07: cihaz kaydı (oynatma oturumu için dayanıklı taban)
 --
--- `schema-06` yoksa `schema-05`ten SONRA, Supabase Studio → SQL Editor'da
--- BİR KEZ çalıştırın. Tekrar çalıştırmak güvenlidir.
+-- Supabase Studio → SQL Editor'da BİR KEZ çalıştırın. Tekrar çalıştırmak
+-- güvenlidir; bu dosya aynı zamanda daha eski bir sürümü ÇALIŞTIRMIŞ
+-- kurulumları temizler.
 --
--- KURAL: bir hesapta aynı anda YALNIZCA BİR cihaz çalabilir. İkinci cihazda
--- oynatma başlatmak oturumu devralır; devredilen cihaz duraklar.
+-- KURAL: bir hesapta aynı anda YALNIZCA BİR cihaz çalabilir.
+--
+-- Bu kuralın DURUMU Postgres'te tutulmaz. "Kim çalıyor, ne çalıyor, bekleyen
+-- komut var mı" verisi:
+--   * saniyeler içinde eskir,
+--   * hiç sorgulanmaz (yalnızca anahtarla okunur),
+--   * kaybolduğunda zararı yoktur (bir sonraki devralma yeniden kurar).
+-- Bunu her turda satır güncelleyerek Postgres'te tutmak, her yazımda WAL ve
+-- ölü satır üretirdi — yüz eşzamanlı dinleyicide saniyede onlarca yazma, sırf
+-- "hâlâ ben çalıyorum" demek için. Bu yüzden oturum durumu Redis'te (TTL ile)
+-- yaşar; bkz. docs/TEK-CIHAZ-OYNATMA.md.
+--
+-- Postgres'te KALAN tek şey, kullanıcıya gösterilen kalıcı cihaz listesidir:
+-- ilişkiseldir, hesapla birlikte silinir ve seyrek yazılır (oynatma
+-- başlarken bir kez).
 
 -- ============================================================================
--- Cihaz kaydı
+-- 0. Eski sürümün temizliği
 -- ============================================================================
--- Cihaz listesi İLİŞKİSELDİR: kullanıcıya gösterilir ("hangi cihazlarım var,
--- hangisi çalıyor"), sorgulanır ve hesapla birlikte silinir. Bu yüzden
--- anahtar-değer deposunda değil burada durur (bkz. docs/VERI-MIMARISI.md §1).
+-- Oturum mantığı plpgsql fonksiyonlarındayken atomiklik gerekiyordu. Redis'e
+-- taşındıktan sonra gerekmiyor: kural bir KİLİT değil DEVRALMADIR ve tek bir
+-- insanın iki cihazda aynı milisaniyede düğmeye basması diye bir yarış yok.
+drop function if exists public.claim_playback(text, text, text);
+drop function if exists public.release_playback(text);
+drop function if exists public.transfer_playback(text, jsonb);
+drop function if exists public.poll_playback(text);
+drop function if exists public.poll_playback(text, jsonb);
+drop index if exists public.idx_playback_devices_single_active;
+
+-- ============================================================================
+-- 1. Cihaz listesi
+-- ============================================================================
 create table if not exists public.playback_devices (
   user_id     uuid not null references auth.users (id) on delete cascade,
   -- Kurulum başına kararlı kimlik (istemcideki cihaz kimliği).
   device_id   text not null,
   name        text not null,
   platform    text not null default 'unknown',
-  -- Oynatma oturumunu ŞU AN bu cihaz mı tutuyor.
-  active      boolean not null default false,
   last_seen_at timestamptz not null default now(),
   primary key (user_id, device_id)
 );
 
--- "Bir hesapta tek aktif cihaz" kuralı VERİTABANINDA zorlanır.
--- Uygulama kodunda tutulsaydı, iki cihazın aynı anda talep etmesi durumunda
--- ikisi de kazanabilirdi.
-create unique index if not exists idx_playback_devices_single_active
-  on public.playback_devices (user_id)
-  where active;
+-- Geçici oturum alanları artık Redis'te; tabloda kalırlarsa iki kaynak olur
+-- ve hangisinin doğru olduğu belirsizleşir.
+alter table public.playback_devices
+  drop column if exists active,
+  drop column if exists pending_command,
+  drop column if exists command_at,
+  drop column if exists now_playing,
+  drop column if exists now_playing_at;
 
 alter table public.playback_devices enable row level security;
 
+-- Kullanıcı yalnızca kendi cihazlarını görür ve yazar. Fonksiyon (security
+-- definer) katmanına gerek kalmadı: yazılan tek şey cihazın adı/platformu,
+-- korunması gereken bir değişmez yok.
 drop policy if exists "devices: kendi cihazlarını görür" on public.playback_devices;
 create policy "devices: kendi cihazlarını görür"
   on public.playback_devices for select
   using (auth.uid() = user_id);
--- Yazma politikası TANIMLANMAZ: kayıtlar yalnızca aşağıdaki fonksiyon
--- üzerinden değişir, böylece "tek aktif" kuralı atlanamaz.
+
+drop policy if exists "devices: kendi cihazını kaydeder" on public.playback_devices;
+create policy "devices: kendi cihazını kaydeder"
+  on public.playback_devices for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "devices: kendi cihazını günceller" on public.playback_devices;
+create policy "devices: kendi cihazını günceller"
+  on public.playback_devices for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 -- ============================================================================
--- Oturumu devralma
+-- 2. Oturum yedeği (Redis bağlı DEĞİLSE)
 -- ============================================================================
--- Devralma ATOMİK olmak zorundadır: önce diğerlerini pasifleştirip sonra
--- kendini aktif yapmak iki ayrı istekte yapılsaydı, arada kalan pencerede
--- iki cihaz birden aktif görünebilirdi. Tek fonksiyon = tek işlem.
-create or replace function public.claim_playback(
-  p_device_id text,
-  p_name text,
-  p_platform text
-)
-returns table (device_id text, name text, platform text, active boolean, last_seen_at timestamptz)
-language plpgsql
-security definer
-as $$
--- Dönüş sütunlarının adları tablonunkilerle AYNIDIR (istemciye giden alan
--- adları böyle olmalı). Bu, gövdedeki `device_id`/`name` gibi adları PL/pgSQL
--- için belirsiz yapar ("column reference is ambiguous", 42702) — özellikle
--- `on conflict` hedefinde, orada takma ad kullanılamaz.
--- Yönerge, belirsiz adların DAİMA sütun olarak çözülmesini söyler; gövdede
--- dönüş değişkenleri zaten hiç okunmuyor.
-#variable_conflict use_column
-begin
-  -- Cihazı kaydet/tazele.
-  insert into public.playback_devices (user_id, device_id, name, platform, last_seen_at)
-  values (auth.uid(), p_device_id, p_name, p_platform, now())
-  on conflict (user_id, device_id) do update
-    set name = excluded.name,
-        platform = excluded.platform,
-        last_seen_at = now();
+-- Redis yapılandırılmamış kurulumlarda oturum burada yaşar. Cloudflare KV bu
+-- iş için KULLANILAMAZ: 60 saniyeye varan eventual consistency, "kim çalıyor"
+-- sorusunu yanlış cevaplardı.
+--
+-- Kullanıcı başına TEK satır ve yalnızca anahtarla okunur — bu tablo bir
+-- anahtar-değer deposunun Postgres'teki taklididir, bilinçli olarak.
+create table if not exists public.playback_sessions (
+  user_id    uuid primary key references auth.users (id) on delete cascade,
+  data       jsonb not null,
+  updated_at timestamptz not null default now()
+);
 
-  -- Önce TÜM cihazları pasifleştir, sonra talep edeni aktif yap.
-  update public.playback_devices d
-     set active = false
-   where d.user_id = auth.uid() and d.active;
+alter table public.playback_sessions enable row level security;
 
-  update public.playback_devices d
-     set active = true
-   where d.user_id = auth.uid() and d.device_id = p_device_id;
-
-  return query
-    select d.device_id, d.name, d.platform, d.active, d.last_seen_at
-      from public.playback_devices d
-     where d.user_id = auth.uid()
-     order by d.last_seen_at desc;
-end;
-$$;
-
--- ============================================================================
--- Oturumu bırakma
--- ============================================================================
--- Duraklatma/çıkış sırasında çağrılır. Cihaz kaydı SİLİNMEZ; yalnızca aktiflik
--- düşer — kullanıcı cihaz listesinde onu görmeye devam etmeli.
-create or replace function public.release_playback(p_device_id text)
-returns void
-language plpgsql
-security definer
-as $$
-begin
-  update public.playback_devices
-     set active = false
-   where user_id = auth.uid() and device_id = p_device_id;
-end;
-$$;
+drop policy if exists "sessions: kendi oturumu" on public.playback_sessions;
+create policy "sessions: kendi oturumu"
+  on public.playback_sessions for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);

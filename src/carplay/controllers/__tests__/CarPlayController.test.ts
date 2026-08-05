@@ -76,6 +76,7 @@ interface MockList {
     title?: string;
     sections: MockSection[];
     onItemSelect?: (e: { index: number }) => Promise<void>;
+    onDidAppear?: () => void;
   };
 }
 
@@ -117,6 +118,7 @@ const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies
       },
     },
     resolveVoiceQuery: { execute: async () => ok(null) },
+    resumePlayback: { execute: async () => ok(undefined) },
     audioPlayer: {
       getState: async () => ({ ...INITIAL_PLAYBACK_STATE, rate: 1 }),
       subscribe: () => () => undefined,
@@ -299,29 +301,75 @@ describe('CarPlayController', () => {
 
     await tabs()[2].config.onItemSelect?.({ index: 0 });
     const pushes = callsOf('pushTemplate').length;
-    const template = callsOf('pushTemplate').at(-1)?.[1];
 
     await tabs()[2].config.onItemSelect?.({ index: 0 });
 
-    // Paylaşılan şablonu (CPNowPlayingTemplate) iki kez eklemek iOS'ta çökertir;
-    // yığında olduğu için üstündekiler kaldırılıp ona dönülür.
+    // Paylaşılan şablonu (CPNowPlayingTemplate) iki kez eklemek iOS'ta
+    // uygulamayı çökertir. Zaten tepede olduğu için hiçbir gezinme yapılmaz.
     expect(callsOf('pushTemplate')).toHaveLength(pushes);
-    expect(callsOf('popToTemplate').at(-1)?.[1]).toBe(template);
+    expect(callsOf('popToTemplate')).toHaveLength(0);
   });
 
-  it('Now Playing ekrandayken tekrar açılmaya çalışılmaz', async () => {
+  it('üstüne liste itilmişse Now Playing yeniden itilmez, ona DÖNÜLÜR', async () => {
     await new CarPlayController(makeDeps(), noopLogger).onConnect();
     await tabs()[2].config.onItemSelect?.({ index: 0 });
 
-    const template = callsOf('pushTemplate').at(-1)?.[1] as {
+    const nowPlaying = callsOf('pushTemplate').at(-1)?.[1] as {
+      config: { onUpNextButtonPressed?: () => void };
+    };
+    // Oynatıcının üstüne "Sıradakiler" listesi itilir.
+    nowPlaying.config.onUpNextButtonPressed?.();
+    await flush();
+    const pushes = callsOf('pushTemplate').length;
+
+    // Listeden aynı bölüme dokunmak oynatıcıya geri götürmeli.
+    const upNext = callsOf('pushTemplate').at(-1)?.[1] as MockList;
+    await upNext.config.onItemSelect?.({ index: 0 });
+
+    expect(callsOf('pushTemplate')).toHaveLength(pushes);
+    expect(callsOf('popToTemplate').at(-1)?.[1]).toBe(nowPlaying);
+  });
+
+  it('sistem oynatıcıyı kendi açtıysa üstüne İKİNCİ KEZ itilmez', async () => {
+    // Aracın kendi "şimdi çalıyor" düğmesi paylaşılan şablonu bizden habersiz
+    // açabilir. Modeli yalnızca kendi çağrılarımızdan kurmak, bir sonraki
+    // itişi çökme sebebine çeviriyordu.
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+    const nowPlaying = callsOf('pushTemplate').at(-1)?.[1] as {
       config: { onDidAppear: () => void };
     };
-    template.config.onDidAppear();
+
+    // Kullanıcı köke döndü, sonra sistem oynatıcıyı kendi açtı.
+    tabs()[3].config.onDidAppear?.();
+    nowPlaying.config.onDidAppear();
+    const pushes = callsOf('pushTemplate').length;
 
     await tabs()[2].config.onItemSelect?.({ index: 0 });
 
-    // Zaten ekranda: ne itilir ne de yığın oynatılır.
-    expect(callsOf('popToTemplate')).toHaveLength(0);
+    expect(callsOf('pushTemplate')).toHaveLength(pushes);
+  });
+
+  it('duraklatılmış bölüme dokunmak oynatmayı SÜRDÜRÜR', async () => {
+    // Telefondan duraklatılmış olabilir; araçta dokunuşun sessiz kalması
+    // düğmeyi bozuk gösteriyordu.
+    let resumed = 0;
+    const deps = makeDeps({
+      resumePlayback: {
+        execute: async () => {
+          resumed += 1;
+          return ok(undefined);
+        },
+      },
+    } as unknown as Partial<CarPlayDependencies>);
+
+    await new CarPlayController(deps, noopLogger).onConnect();
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+    await tabs()[2].config.onItemSelect?.({ index: 0 });
+
+    expect(resumed).toBe(1);
+    // Baştan başlatmaz: dinlenen yer korunur.
+    expect(continued?.id).toBe('e-dl');
   });
 
   it('kökteyken yığından şablon çıkarmaya çalışmaz', async () => {
@@ -354,11 +402,9 @@ describe('CarPlayController', () => {
     await new CarPlayController(makeDeps(), noopLogger).onConnect();
     await tabs()[2].config.onItemSelect?.({ index: 0 });
     const nowPlaying = callsOf('pushTemplate').at(-1)?.[1] as {
-      config: { onDidAppear: () => void; onDidDisappear: () => void };
+      config: { onDidAppear: () => void };
     };
-    // Kullanıcı oynatıcıdan geri döndü: şablon yığından çıktı.
     nowPlaying.config.onDidAppear();
-    nowPlaying.config.onDidDisappear();
 
     const root = callsOf('setRootTemplate').at(-1)?.[1] as {
       config: {
@@ -366,6 +412,10 @@ describe('CarPlayController', () => {
         onTemplateSelect: (t: unknown, e: { selectedTemplateId: string }) => void;
       };
     };
+    // Kullanıcı oynatıcıdan geri döndü: kök sekme yeniden göründü, yani yığın
+    // boşaldı. Modeli düzelten tek kanal budur.
+    (root.config.templates[3] as unknown as MockList).config.onDidAppear?.();
+
     root.config.onTemplateSelect(undefined, {
       selectedTemplateId: root.config.templates[3].id,
     });

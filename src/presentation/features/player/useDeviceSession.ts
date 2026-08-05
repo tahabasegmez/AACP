@@ -6,6 +6,7 @@ import {
   PlaybackCommand,
   activeDevice,
   commandEpisode,
+  commandPositionSec,
   isAnonymous,
   playCommand,
   playbackTakenOver,
@@ -30,6 +31,15 @@ import { usePlaybackController } from './usePlaybackController';
  */
 const PLAYING_TICK_MS = 5_000;
 const IDLE_TICK_MS = 10_000;
+
+/**
+ * Konum yayınlama sıklığı — turdan AYRI ve daha seyrek.
+ *
+ * Tur bir okumadır (ucuz); yayın bir yazmadır. Konum, sunucunun ölçtüğü yaşla
+ * ilerletilebildiği için her turda yazmaya gerek yok: 15 saniyede bir yayın,
+ * saniye altı doğrulukla aynı sonucu verir ve yazma sayısını üçte bire indirir.
+ */
+const PUBLISH_MS = 15_000;
 
 /** Hesabın cihazları — cihaz panelinin kaynağı (salt okunur). */
 export const usePlaybackDevices = () => {
@@ -100,7 +110,9 @@ const playHere = async (
 ): Promise<void> => {
   const episode = commandEpisode(command);
   setPlaybackSession([episode], 0);
-  await playEpisode.execute({ episode, startPositionSec: command.positionSec });
+  // Konum, yayının yaşı kadar ilerletilir: karşı cihaz yayından bu yana
+  // çalmaya devam etti, kullanıcı o sesi zaten duydu.
+  await playEpisode.execute({ episode, startPositionSec: commandPositionSec(command) });
 };
 
 /** `playEpisode` use case'inin burada kullanılan yüzeyi. */
@@ -114,7 +126,9 @@ type AppPlayEpisode = AppDependencies['playEpisode'];
  */
 const currentCommand = (): PlaybackCommand | undefined => {
   const { currentEpisode, playback } = usePlayerStore.getState();
-  return currentEpisode ? playCommand(currentEpisode, playback.positionSec) : undefined;
+  return currentEpisode
+    ? playCommand(currentEpisode, playback.positionSec, playback.rate)
+    : undefined;
 };
 
 /**
@@ -192,6 +206,9 @@ export const usePlaybackSessionGuard = (): void => {
   const claimed = useRef(false);
   /** Arka plandayken boşta tur atmamak için. */
   const foreground = useRef(AppState.currentState !== 'background');
+  /** Son yayının zamanı ve bölümü — seyrek yayın için. */
+  const lastPublish = useRef(0);
+  const published = useRef<string | null>(null);
 
   const playing = status === 'playing';
   const enabled = deviceSession.available && !!user && !isAnonymous(user);
@@ -226,10 +243,20 @@ export const usePlaybackSessionGuard = (): void => {
     const thisDevice = deviceSession.deviceId();
 
     const tick = async (): Promise<void> => {
-      // Çalan cihaz her turda ne çaldığını YAYINLAR. Devralan cihazın bölümü
-      // ve saniyeyi öğrenebileceği tek kaynak budur; yayın olmadan devralma
-      // kendi eski yerel kaydından devam ederdi.
-      const result = await deviceSession.poll(playing ? currentCommand() : undefined);
+      // Çalan cihaz ne çaldığını YAYINLAR — devralan cihazın bölümü ve
+      // saniyeyi öğrenebileceği tek kaynak budur. Yayın her turda değil,
+      // PUBLISH_MS'te bir yapılır: aradaki boşluğu sunucunun ölçtüğü yaş
+      // kapatır, yazma sayısı düşer. Bölüm değişimi beklemeden yayınlanır.
+      const episodeId = usePlayerStore.getState().currentEpisode?.id ?? null;
+      const due =
+        Date.now() - lastPublish.current >= PUBLISH_MS || episodeId !== published.current;
+      const publish = playing && due;
+      if (publish) {
+        lastPublish.current = Date.now();
+        published.current = episodeId;
+      }
+
+      const result = await deviceSession.poll(publish ? currentCommand() : undefined);
       if (!result.ok) {
         // Ağ hatası oturum kaybı SAYILMAZ: çevrimdışı bir cihazda müziği
         // susturmak, kuralın korumaya çalıştığı şeyden daha zararlı olurdu.

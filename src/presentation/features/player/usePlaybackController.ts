@@ -90,11 +90,18 @@ export const usePlaybackController = () => {
       return;
     }
     if (playback.currentEpisodeId !== currentEpisode.id) {
-      await play(currentEpisode);
+      // Bölüm oynatıcıya henüz yüklenmemiş. KUYRUK ZATEN ONU İÇERİYORSA
+      // yeniden kurulmaz: `play` kuyruğu tek bölüme indirger ve CarPlay'de
+      // ya da bir listeden kurulmuş sırayı yok ederdi — telefondan "oynat"a
+      // basmak araçtaki "Sıradakiler" listesini boşaltıyordu.
+      const inQueue = usePlayerQueueStore
+        .getState()
+        .items.some(item => item.episode.id === currentEpisode.id);
+      await (inQueue ? start(currentEpisode) : play(currentEpisode));
       return;
     }
     await resumePlayback.execute();
-  }, [pausePlayback, play, resumePlayback]);
+  }, [pausePlayback, play, resumePlayback, start]);
 
   const next = useCallback(() => {
     const { items, index } = usePlayerQueueStore.getState();

@@ -8,6 +8,17 @@
  */
 const calls = [];
 
+/**
+ * Şablon kimliği üretir.
+ *
+ * Gerçek kütüphanede her şablonun benzersiz bir `id`si vardır ve gezinme
+ * kararları (yığında mı, tepede mi) buna dayanır. Mock kimlik vermediğinde
+ * tüm şablonlar `undefined` id ile eşit görünüyor ve testler gerçek davranışı
+ * ölçmüyordu.
+ */
+let nextId = 0;
+const makeId = type => `${type}-${(nextId += 1)}`;
+
 const CarPlay = {
   setRootTemplate: t => calls.push(['setRootTemplate', t]),
   pushTemplate: t => calls.push(['pushTemplate', t]),
@@ -30,6 +41,7 @@ const CarPlay = {
 class ListTemplate {
   constructor(config) {
     this.config = config;
+    this.id = config.id || makeId('list');
   }
 
   /** Gerçek şablonda içerik yerinde güncellenir; testte çağrı kaydedilir. */
@@ -42,6 +54,7 @@ class ListTemplate {
 class TabBarTemplate {
   constructor(config) {
     this.config = config;
+    this.id = config.id || makeId('tabbar');
   }
 
   updateTemplates(config) {
@@ -53,12 +66,15 @@ class TabBarTemplate {
 class NowPlayingTemplate {
   constructor(config) {
     this.config = config;
+    // Gerçekte SİNGLETON'dır: aynı native şablon, sabit kimlik.
+    this.id = 'nowplaying';
   }
 }
 
 class GridTemplate {
   constructor(config) {
     this.config = config;
+    this.id = config.id || makeId('grid');
   }
 }
 

@@ -29,6 +29,7 @@ import {
   withLocalImages,
   withoutImages,
 } from '../templates/sections';
+import { TemplateStack } from '../templates/templateStack';
 
 /**
  * Sürücü dikkatini dağıtmamak için liste uzunlukları sınırlıdır.
@@ -71,6 +72,7 @@ class TabList {
     },
     private readonly logger: Logger,
     private readonly render: (sections: readonly CarPlaySection[]) => Promise<CarPlaySection[]>,
+    onAppear: (templateId: string) => void,
   ) {
     this.template = new ListTemplate({
       title,
@@ -80,6 +82,9 @@ class TabList {
       emptyViewTitleVariants: [config.emptyTitle],
       emptyViewSubtitleVariants: [config.emptySubtitle],
       sections: [],
+      // Kök sekme göründü = yığın boşaldı. Kullanıcının "geri" tuşunu
+      // öğrenebileceğimiz tek yer budur.
+      onDidAppear: () => onAppear(this.template.id),
       onItemSelect: async ({ index }) => {
         try {
           await this.actions[index]?.();
@@ -130,17 +135,26 @@ export class CarPlayController {
    * tek örnek tutarız (bkz. `showNowPlaying`).
    */
   private nowPlayingTemplate?: NowPlayingTemplate;
-  /** Now Playing şu an EKRANDA mı? (şablonun kendi olaylarından) */
-  private nowPlayingVisible = false;
-  /** Now Playing YIĞINDA mı? (ekranda olmayabilir: üstüne bir şey itilmiştir) */
-  private nowPlayingInStack = false;
-  /** Now Playing'in üstüne biz mi ittik? Yığında kalıp kalmadığını bu ayırır. */
-  private pushedOverNowPlaying = false;
+
+  /**
+   * Şablon yığınının modeli — itme/geri dönme kararları buradan verilir.
+   * Sistemin "göründü" olaylarıyla kendini düzeltir (bkz. TemplateStack).
+   */
+  private readonly stack = new TemplateStack();
+  /** Kök sekmelerin şablon kimlikleri — yığın modelinde "kök" sayılırlar. */
+  private rootTemplateIds: string[] = [];
+  /**
+   * Sistem oynatma ekranı gözlemcisi bağlandı mı? Denetleyici uygulama ömrü
+   * boyunca tek örnektir, dolayısıyla yeniden bağlanmalar bunu korur.
+   */
+  private nowPlayingEnabled = false;
 
   /** Katalog — Kitaplığın sekmesi ve Now Playing'deki şov düğmesi için. */
   private shows: readonly Show[] = [];
 
   private currentEpisodeId: string | null = null;
+  /** Oynatıcı ŞU AN çalıyor mu? Duraklamış bölüme dokunmak devam ettirmeli. */
+  private isPlaying = false;
   private unsubscribePlayback?: () => void;
 
   /** Süren tazeleme; aynı anda ikinci bir tur başlatılmaz. */
@@ -156,11 +170,27 @@ export class CarPlayController {
   /** CarPlay bağlandığında çağrılır. */
   async onConnect(): Promise<void> {
     this.logger.info('CarPlay bağlandı');
-    // Sistem oynatma ekranını bir kez etkinleştir: her çalışta çağırmak
-    // gözlemciyi tekrar tekrar bağlamaya çalışmak olurdu.
-    CarPlay.enableNowPlaying(true);
+    this.enableNowPlayingOnce();
     this.watchPlayback();
     await this.buildRoot();
+  }
+
+  /**
+   * Sistem oynatma ekranını UYGULAMA ÖMRÜNDE BİR KEZ etkinleştirir.
+   *
+   * `react-native-carplay` 2.3.0'da `enableNowPlaying` bir bayrağı okur ama
+   * hiç yazmaz (`isNowPlayingActive` atanmıyor): her `true` çağrısı Now
+   * Playing şablonuna BİR GÖZLEMCİ DAHA ekler ve `false` çağrısı hiçbir şey
+   * yapmaz. Yeniden bağlanmalarda tekrar çağırmak, "Sıradakiler" ve şov
+   * düğmelerinin tek dokunuşta iki-üç kez tetiklenmesi ve aynı şablonun üst
+   * üste itilmesi demekti.
+   */
+  private enableNowPlayingOnce(): void {
+    if (this.nowPlayingEnabled) {
+      return;
+    }
+    this.nowPlayingEnabled = true;
+    CarPlay.enableNowPlaying(true);
   }
 
   /** CarPlay bağlantısı koptuğunda çağrılır. */
@@ -168,12 +198,13 @@ export class CarPlayController {
     this.logger.info('CarPlay bağlantısı koptu');
     this.unsubscribePlayback?.();
     this.unsubscribePlayback = undefined;
-    CarPlay.enableNowPlaying(false);
+    // `enableNowPlaying(false)` BİLİNÇLİ olarak çağrılmaz: kütüphane onu
+    // uygulayamıyor (bkz. enableNowPlayingOnce) ve çağırmak yalnızca yanlış
+    // bir güven yaratırdı.
     // Şablonlar araçla birlikte gider; yeniden bağlanınca kök baştan kurulur.
     this.nowPlayingTemplate = undefined;
-    this.nowPlayingVisible = false;
-    this.nowPlayingInStack = false;
-    this.pushedOverNowPlaying = false;
+    this.stack.clear();
+    this.rootTemplateIds = [];
   }
 
   /**
@@ -206,6 +237,7 @@ export class CarPlayController {
         },
         this.logger,
         sections => this.localize(sections),
+        id => this.onTemplateAppear(id),
       );
 
       this.library = new TabList(
@@ -217,6 +249,7 @@ export class CarPlayController {
         },
         this.logger,
         sections => this.localize(sections),
+        id => this.onTemplateAppear(id),
       );
 
       this.downloads = new TabList(
@@ -228,6 +261,7 @@ export class CarPlayController {
         },
         this.logger,
         sections => this.localize(sections),
+        id => this.onTemplateAppear(id),
       );
 
       this.playing = new TabList(
@@ -239,6 +273,7 @@ export class CarPlayController {
         },
         this.logger,
         sections => this.localize(sections),
+        id => this.onTemplateAppear(id),
       );
 
       CarPlay.setRootTemplate(
@@ -263,6 +298,15 @@ export class CarPlayController {
           },
         }),
       );
+
+      // Kök sekmeler: bunlardan biri göründüğünde yığın boşalmış demektir.
+      this.rootTemplateIds = [
+        this.home.template.id,
+        this.library.template.id,
+        this.downloads.template.id,
+        this.playing.template.id,
+      ];
+      this.stack.clear();
 
       await this.loadCatalog();
       await this.refreshAll();
@@ -526,16 +570,13 @@ export class CarPlayController {
       },
     ]);
 
-    // Now Playing'in üstüne itiyorsak şablon yığında kalacak; bunu
-    // `showNowPlaying` bilmek zorunda.
-    this.pushedOverNowPlaying = this.nowPlayingVisible;
-
     // Liste ÖNCE kapaksız açılır: kapak indirmesini beklemek, dokunuşla ekranın
     // gelmesi arasında sessiz bir gecikme yaratıyordu. Kapaklar hazır olunca
     // aynı şablon yerinde güncellenir.
     const template = new ListTemplate({
       title,
       sections: asListSections(withoutImages(list.sections)),
+      onDidAppear: () => this.onTemplateAppear(template.id),
       onItemSelect: async ({ index }) => {
         try {
           await list.actions[index]?.();
@@ -545,6 +586,7 @@ export class CarPlayController {
       },
     });
     CarPlay.pushTemplate(template);
+    this.stack.pushed(template.id);
 
     try {
       const sections = await this.localize(list.sections);
@@ -585,9 +627,17 @@ export class CarPlayController {
     queue: readonly Episode[] = [episode],
     index = 0,
   ): Promise<void> {
-    // Zaten çalan bölüme dokunmak onu BAŞTAN başlatmamalı: yalnızca oynatıcıyı
-    // aç. Aksi halde kullanıcı dinlediği yeri kaybederdi.
+    // Oynatıcıda ZATEN yüklü olan bölüme dokunmak onu baştan başlatmamalı:
+    // kullanıcı dinlediği yeri kaybederdi. Ama duraklatılmışsa (ör. telefondan
+    // duraklatıldı) dokunuş DEVAM ETTİRMELİ — eskiden yalnızca ekran açılıyor,
+    // ses gelmiyordu ve düğme bozuk görünüyordu.
     if (episode.id === this.currentEpisodeId) {
+      if (!this.isPlaying) {
+        const resumed = await this.deps.resumePlayback.execute();
+        if (!isOk(resumed)) {
+          this.logger.error('CarPlay: oynatma sürdürülemedi', resumed.error);
+        }
+      }
       this.showNowPlaying();
       return;
     }
@@ -624,18 +674,34 @@ export class CarPlayController {
    *
    * Körlemesine `popToRootTemplate` çağrılmaz: kökteyken CarPlay bunu
    * *"No templates were available to be popped"* hatasıyla bildirir.
+   *
+   * Karar üç boolean'la TAHMİN EDİLMEZ; `TemplateStack` sistemin "göründü"
+   * olaylarıyla kendini düzelttiği için sistemin bizden habersiz açtığı bir
+   * Now Playing de modelde görünür — eskiden bu durum bir sonraki itişi
+   * çökme sebebine çeviriyordu.
    */
   private showNowPlaying(): void {
     const template = this.nowPlaying();
-    if (this.nowPlayingVisible) {
+    if (this.stack.top() === template.id) {
       return;
     }
-    if (this.nowPlayingInStack) {
+    if (this.stack.contains(template.id)) {
       CarPlay.popToTemplate(template);
+      this.stack.poppedTo(template.id);
       return;
     }
     CarPlay.pushTemplate(template);
-    this.nowPlayingInStack = true;
+    this.stack.pushed(template.id);
+  }
+
+  /**
+   * Bir şablon göründü — yığın modeli düzeltilir.
+   *
+   * Kullanıcının "geri" tuşunu ve sistemin kendi gezinmesini öğrenebildiğimiz
+   * tek kanal budur; kütüphane yığını sorgulamaya izin vermez.
+   */
+  private onTemplateAppear(templateId: string): void {
+    this.stack.didAppear(templateId, this.rootTemplateIds.includes(templateId));
   }
 
   /** Paylaşılan Now Playing şablonunu kurar (bir kez). */
@@ -645,17 +711,9 @@ export class CarPlayController {
     }
 
     this.nowPlayingTemplate = new NowPlayingTemplate({
-      onDidAppear: () => {
-        this.nowPlayingVisible = true;
-        this.nowPlayingInStack = true;
-      },
-      onDidDisappear: () => {
-        this.nowPlayingVisible = false;
-        // Üstüne biz bir liste ittiysek şablon yığında KALIR; kullanıcı geri
-        // döndüyse yığından çıkmıştır. Ayrımı yapan tek bilgi budur.
-        this.nowPlayingInStack = this.pushedOverNowPlaying;
-        this.pushedOverNowPlaying = false;
-      },
+      // Sistem de bu şablonu açabilir (aracın kendi "şimdi çalıyor" düğmesi);
+      // model bunu ancak buradan öğrenir.
+      onDidAppear: () => this.onTemplateAppear(this.nowPlayingTemplate!.id),
       // Düğmeler sabit kalır; ne yapacaklarına dokunulduğu anda güncel duruma
       // bakarak karar verilir (şablon yeniden yaratılamadığı için).
       upNextButtonEnabled: true,
@@ -724,7 +782,15 @@ export class CarPlayController {
    */
   private watchPlayback(): void {
     this.unsubscribePlayback = this.deps.audioPlayer.subscribe(state => {
-      if (state.currentEpisodeId === this.currentEpisodeId) {
+      const playing = state.status === 'playing';
+      const episodeChanged = state.currentEpisodeId !== this.currentEpisodeId;
+
+      // Çalıyor/duraklatıldı bilgisi de İZLENİR. Yalnızca bölüm değişimini
+      // dinlemek yetmiyordu: telefondan duraklatınca CarPlay hem satırlardaki
+      // "çalıyor" işaretini eski gösteriyor, hem de dokunulan bölümü
+      // sürdürmesi gerektiğini bilemiyordu.
+      this.isPlaying = playing;
+      if (!episodeChanged) {
         return;
       }
       this.currentEpisodeId = state.currentEpisodeId;

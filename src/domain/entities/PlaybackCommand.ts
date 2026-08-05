@@ -16,6 +16,24 @@ export interface PlaybackCommand {
   readonly episode: EpisodeSnapshot;
   /** Oynatmanın başlayacağı saniye (kaynak cihazın kaldığı yer). */
   readonly positionSec: number;
+  /**
+   * Kaynak cihazın oynatma hızı. Konum ilerletilirken kullanılır: 1.5× ile
+   * dinleyen birinin 10 saniyesi 15 saniyelik ses demektir.
+   */
+  readonly rate?: number;
+  /**
+   * Bilginin yaşı (ms) — SUNUCU hesaplar.
+   *
+   * Çalan cihaz konumunu her turda değil, seyrek yayınlar (yazma maliyeti).
+   * Aradaki boşluk bu yaşla kapatılır. Damgayı gönderip istemciye
+   * çıkarttırmak, cihaz saatleri kaymışsa yanlış saniyeden başlamak demekti;
+   * bu yüzden farkı tek bir saat (sunucununki) ölçer.
+   *
+   * Yalnızca "şu an çalıyor" yayınında bulunur. Aktarılan komutta BULUNMAZ:
+   * kaynak cihaz komutu gönderirken zaten susmuştu, geçen süre dinlenmiş
+   * sayılmaz.
+   */
+  readonly ageMs?: number;
 }
 
 /** Bölümün oynatmaya yeten en küçük görünümü. */
@@ -29,7 +47,11 @@ export interface EpisodeSnapshot {
 }
 
 /** Çalan bölümden aktarılabilir bir komut kurar. */
-export const playCommand = (episode: Episode, positionSec: number): PlaybackCommand => ({
+export const playCommand = (
+  episode: Episode,
+  positionSec: number,
+  rate = 1,
+): PlaybackCommand => ({
   kind: 'play',
   episode: {
     id: episode.id,
@@ -40,7 +62,25 @@ export const playCommand = (episode: Episode, positionSec: number): PlaybackComm
     imageUrl: episode.imageUrl,
   },
   positionSec: Math.max(0, Math.floor(positionSec)),
+  rate,
 });
+
+/**
+ * Komutun ŞU ANKİ konumu.
+ *
+ * Yayın seyrek yapılır; aradan geçen süre (sunucunun ölçtüğü `ageMs`) hızla
+ * çarpılıp konuma eklenir. Yaş yoksa (aktarılan komut) konum olduğu gibi
+ * kullanılır. Bölüm süresi biliniyorsa taşma kırpılır: yaşlanmış bir yayın
+ * bölümün sonunu aşan bir saniye üretebilirdi.
+ */
+export const commandPositionSec = (command: PlaybackCommand): number => {
+  if (!command.ageMs || command.ageMs <= 0) {
+    return command.positionSec;
+  }
+  const advanced = command.positionSec + (command.ageMs / 1000) * (command.rate ?? 1);
+  const duration = command.episode.durationSec;
+  return duration > 0 ? Math.min(advanced, duration) : advanced;
+};
 
 /**
  * Komuttan çalınabilir bir bölüm kurar.
@@ -82,5 +122,7 @@ export const parsePlaybackCommand = (raw: unknown): PlaybackCommand | null => {
       imageUrl: episode.imageUrl,
     },
     positionSec: typeof command.positionSec === 'number' ? command.positionSec : 0,
+    rate: typeof command.rate === 'number' && command.rate > 0 ? command.rate : 1,
+    ...(typeof command.ageMs === 'number' ? { ageMs: command.ageMs } : {}),
   };
 };

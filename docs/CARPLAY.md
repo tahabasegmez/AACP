@@ -24,9 +24,21 @@ Boş gruplar hiç gösterilmez; sekme tümüyle boşsa açıklayıcı bir boş g
 çıkar (`emptyViewTitleVariants`).
 
 Bir bölüme dokunmak **kaldığı yerden** çalar ve Now Playing ekranını açar. Zaten
-çalan bölüme dokunmak onu BAŞTAN başlatmaz, yalnızca oynatıcıyı açar — aynı
-bölüm birçok listede görünür ve hangisinden dokunulursa dokunulsun dinlenen yer
-kaybolmamalı. Aynı kural telefonda da geçerlidir (`usePlayEpisode`).
+yüklü olan bölüme dokunmak onu BAŞTAN başlatmaz — aynı bölüm birçok listede
+görünür ve hangisinden dokunulursa dokunulsun dinlenen yer kaybolmamalı. Aynı
+kural telefonda da geçerlidir (`usePlayEpisode`).
+
+Yüklü bölüm **duraklatılmışsa** dokunuş oynatmayı **sürdürür**. Eskiden yalnızca
+ekran açılıyordu: kullanıcı telefondan duraklatıp araçta bölüme dokunduğunda
+hiçbir ses gelmiyor ve düğme bozuk görünüyordu. Bunun için oynatıcının
+çalıyor/duraklatıldı durumu da izlenir — yalnızca "hangi bölüm" değişimini
+dinlemek yetmiyordu.
+
+> **Telefondan "oynat"a basmak araçtaki sırayı bozmamalı.** Telefonun
+> `togglePlay`'i, bölüm oynatıcıya henüz yüklenmemişse yeni bir bağlam kuruyordu
+> ve bu kuyruğu tek bölüme indiriyordu — CarPlay'de kurulmuş sıra siliniyor,
+> "Sıradakiler" boşalıyordu. Artık kuyruk o bölümü zaten içeriyorsa yeniden
+> kurulmaz, yalnızca oynatma başlatılır.
 
 Alt seviye listeler **önce kapaksız açılır**, kapaklar hazır olunca yerinde
 güncellenir: dokunuşla ekranın gelmesi arasındaki sessiz bekleme böyle kalkar.
@@ -98,24 +110,54 @@ Bundan iki kural doğar:
    olay dinleyicisi daha bağlamak olurdu. Bu yüzden düğme davranışları
    dokunulduğu anda güncel duruma bakar, şablona gömülmez.
 2. **Aynı örnek yığına iki kez eklenemez** — iOS istisna fırlatır ve uygulama
-   ÇÖKER. Bu yüzden açılmadan önce şablonun nerede olduğuna bakılır:
+   ÇÖKER. `popToTemplate` da yığında olmayan bir şablonla çağrılamaz. Bu yüzden
+   açılmadan önce şablonun nerede olduğuna bakılır:
 
    | Durum | Yapılan |
    |---|---|
-   | Ekranda | Hiçbir şey |
-   | Yığında ama ekranda değil (üstüne liste itilmiş) | `popToTemplate` ile ona dönülür |
+   | Tepede | Hiçbir şey |
+   | Yığında ama tepede değil (üstüne liste itilmiş) | `popToTemplate` ile ona dönülür |
    | Yığında değil | `pushTemplate` |
-
-   Durum şablonun kendi `didAppear`/`didDisappear` olaylarından izlenir. Tek
-   belirsizlik "ekrandan kayboldu" anıdır: üstüne biz bir liste ittiysek şablon
-   yığında kalır, kullanıcı geri döndüyse kalmaz — ayrımı `pushedOverNowPlaying`
-   yapar.
 
    > Körlemesine `popToRootTemplate` çağrılmaz: kökteyken CarPlay bunu
    > *"No templates were available to be popped"* hatasıyla bildirir.
 
-`enableNowPlaying(true)` de bağlantı başında bir kez çağrılır (her oynatmada
-değil), bağlantı koptuğunda kapatılır.
+#### Yığın nasıl biliniyor
+
+Kütüphane yığını sorgulamanın bir yolunu **vermez**. Durum önce üç boolean ile
+tahmin ediliyordu ve bu yetmiyordu: **sistemin kendisi de** paylaşılan Now
+Playing şablonunu açabilir (aracın kendi "şimdi çalıyor" düğmesi). O açılış
+bizim modelimize yazılmadığı için, sonraki `pushTemplate` çağrımız çökme
+sebebine dönüşüyordu — "CarPlay'de farklı bir bölüme dokununca uygulama
+çöküyor" şikâyetinin kaynağı buydu.
+
+Yerine `TemplateStack` (`src/carplay/templates/templateStack.ts`) geldi. Model
+tek bir değişmez kuraldan beslenir:
+
+> **Bir şablon göründüyse, o an yığının tepesindedir.**
+
+- kök sekmelerden biri göründü → yığın **boş**,
+- bilinen bir şablon göründü → üstündekiler **düştü**,
+- **bilinmeyen** bir şablon göründü → sistem itmiş, modele **eklenir**.
+
+Böylece kullanıcının "geri" tuşu, sistemin kendi gezinmesi ve bizim
+itmelerimiz aynı kanaldan geçer. Model saftır ve ayrı test edilir.
+
+#### `enableNowPlaying` bir kez, kapatma yok
+
+`react-native-carplay` 2.3.0'da bu metot bir bayrağı okur ama **hiç yazmaz**
+(`isNowPlayingActive` hiçbir yerde atanmıyor):
+
+```objc
+if (enable && !isNowPlayingActive) { [... addObserver:self]; }
+else if (!enable && isNowPlayingActive) { [... removeObserver:self]; }
+```
+
+Sonuç: her `true` çağrısı **bir gözlemci daha** ekler, `false` çağrısı hiçbir
+şey yapmaz. Bağlantı kopup yeniden kurulduğunda tekrar çağırmak, "Sıradakiler"
+ve şov düğmelerinin tek dokunuşta iki-üç kez tetiklenmesi (ve aynı şablonun üst
+üste itilmesi) demekti. Bu yüzden uygulama ömrü boyunca **bir kez** çağrılır ve
+`enableNowPlaying(false)` bilinçli olarak hiç çağrılmaz.
 
 ### Oynatma oturumu tek yerde yaşar
 
