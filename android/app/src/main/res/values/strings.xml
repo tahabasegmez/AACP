@@ -1,3 +1,18 @@
 <resources>
     <string name="app_name">AACP</string>
+
+    <!--
+      react-native-config'in `BuildConfig` sınıfını bulabilmesi için.
+
+      Kütüphane sınıfı `<applicationId>.BuildConfig` olarak arar; bizde
+      applicationId `com.aa.podcast` (iOS bundle kimliğiyle aynı olsun diye)
+      ama sınıf `namespace` altında, yani `com.aacp` paketinde üretiliyor.
+      İkisi ayrıştığında arama başarısız olur, `.env` değerleri JS tarafına
+      HİÇ ULAŞMAZ ve uygulama sessizce sunucusuz çalışır
+      (log: "ReactConfig: Could not find BuildConfig class").
+
+      Bu kaynak dizesi kütüphanenin bunun için sunduğu resmî kancadır;
+      değeri `android/app/build.gradle` içindeki `namespace` ile aynı olmalı.
+    -->
+    <string name="build_config_package">com.aacp</string>
 </resources>

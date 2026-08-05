@@ -86,7 +86,22 @@ export class TrackPlayerAudioService implements AudioPlayerService {
         Capability.SkipToNext,
         Capability.SkipToPrevious,
       ],
-      compactCapabilities: [Capability.Play, Capability.Pause, Capability.SeekTo],
+      /**
+       * Android bildirimindeki TUŞLAR.
+       *
+       * `capabilities` uzaktan kumandanın ne KABUL ettiğini söyler; bu liste
+       * bildirimde neyin ÇİZİLECEĞİNİ. `Stop` ve `SeekTo` dışarıda: durdurma
+       * bildirimi kapatmakla aynı işi görür, sarma ise tuş değil sürgüdür.
+       *
+       * (v4'teki `compactCapabilities` v5'te kaldırıldı; daraltılmış bildirim
+       * ayrı olarak yapılandırılmıyor.)
+       */
+      notificationCapabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.SkipToPrevious,
+        Capability.SkipToNext,
+      ],
       android: {
         appKilledPlaybackBehavior:
           AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,

@@ -54,6 +54,28 @@ zorunludur**:
 iOS'ta bu işleri CocoaPods ve `Info.plist`'teki `UIAppFonts` yapar; Android'de
 elle bağlanmaları gerekir.
 
+### ⚠️ `build_config_package` kaynak dizesi
+
+`dotenv.gradle` tek başına YETMEZ. react-native-config, değerleri okuyacağı
+sınıfı `<applicationId>.BuildConfig` olarak arar. Bizde `applicationId`
+(`com.aa.podcast`) ile `namespace` (`com.aacp`) bilinçli olarak farklı, sınıf
+ise `namespace` altında üretiliyor — arama başarısız olur.
+
+Belirti sinsidir: **uygulama açılır, çökmez**, yalnızca `.env` değerleri boş
+gelir ve uygulama sessizce sunucusuz çalışır. Tek ipucu logdadır:
+
+```
+D ReactNative: ReactConfig: Could not find BuildConfig class
+```
+
+Bu yüzden `res/values/strings.xml` içinde kütüphanenin resmî kancası tanımlıdır:
+
+```xml
+<string name="build_config_package">com.aacp</string>
+```
+
+Değeri `namespace` ile aynı kalmalıdır.
+
 Doğrulama:
 
 ```bash
@@ -106,27 +128,41 @@ zamanında da sorulur. Bu, oynatıcı kurulurken yapılır
 Reddedilirse **akış devam eder**: izin oynatmanın değil, kontrol yüzeyinin
 koşuludur.
 
-## 6. Kütüphane yaması (patch-package)
+## 6. track-player neden 5.0.0-alpha0
 
-`react-native-track-player@4.1.2`, React Native 0.86 ile Kotlin düzeyinde
-uyumsuzdur: `Arguments.fromBundle` artık non-null `Bundle` ister, kütüphane ise
-nullable `originalItem` geçiriyor ve Android derlemesi **çöker**.
+`react-native-track-player` **5.0.0-alpha0** sürümüne sabitlenmiştir (`^` yok —
+alpha sürümlerin sessizce değişmesi istenmiyor).
 
-En son kararlı sürüm 4.1.2 olduğu için (5.0.0 yalnızca alpha) iki satırlık
-düzeltme `patches/react-native-track-player+4.1.2.patch` içinde tutulur ve
-`npm install` sonrası `postinstall` betiğiyle otomatik uygulanır.
+Sebep: **4.x Android'de Yeni Mimari ile çalışamaz.** 4.1.2'de 36 `@ReactMethod`
+fonksiyonu Kotlin ifade gövdesiyle yazılmış (`= scope.launch { ... }`) ve
+dolayısıyla `Job` döndürüyor. TurboModule interop katmanı bunu reddediyor:
 
-Kütüphane yükseltilirken:
+```
+TurboModule system assumes returnType == void iff the method is synchronous
+```
 
-1. Yeni sürümde sorun düzelmişse yamayı **sil**,
-2. Düzelmemişse yamayı yeniden üret:
-   ```bash
-   # node_modules içindeki dosyayı düzelt, sonra:
-   npx patch-package react-native-track-player
-   ```
+Uygulama derleniyor ama **açılışta çöküyordu**.
 
-> Alpha sürüme geçmek yerine yama seçildi: 5.0.0-alpha çalışan iOS/CarPlay
-> entegrasyonunu riske atardı.
+Denenen ve elenen yollar:
+
+| Yol | Neden olmadı |
+|---|---|
+| Eski mimariye dönmek | RN 0.82'den beri `newArchEnabled=false` YOK SAYILIYOR; 0.86'da tek mimari Yeni Mimari |
+| 4.1.2'yi yamalamak | 36 metodu blok gövdeye çevirmek gerekir — yukarı akışın terk ettiği bir sürümün çatalını bakmak demek |
+
+5.x bu sorunu kökten çözüyor: modül artık codegen'le üretilen
+`NativeTrackPlayerSpec`'i genişletiyor ve **hiç `@ReactMethod` içermiyor**, yani
+hatayı fırlatan interop ayrıştırıcısı devreden çıkıyor. Ayrıca Media3
+`MediaLibraryService` bildirimi geliyor — Android Auto'nun temeli.
+
+**Göç yüzeyi tek satırdı:** `UpdateOptions.compactCapabilities` kaldırılmış;
+yerine bildirim tuşları `notificationCapabilities` ile veriliyor
+([TrackPlayerAudioService](../src/infrastructure/audio/TrackPlayerAudioService.ts)).
+
+> **iOS'ta doğrulanmalı.** Yükseltme Android emülatöründe uçtan uca test edildi
+> (oynatma, bildirim, ön plan servisi). iOS tarafı Windows'tan derlenemediği
+> için CarPlay ve kilit ekranı davranışı mac'te sınanmalı. `pod install`
+> gerekir.
 
 ## 7. Kenardan kenara çizim (edge-to-edge)
 
@@ -197,7 +233,7 @@ cd android
 | Konu | Durum |
 |---|---|
 | **Push bildirimi** | Sunucu yalnızca **APNs** konuşuyor. Android için FCM gerekir: Firebase projesi, `google-services.json`, istemci jeton kaydı ve worker'da bir `FcmSender`. `push_registrations` tablosu `platform` alanını zaten tutuyor. |
-| **Android Auto** | CarPlay'in karşılığı. track-player destekliyor ama manifest ve `automotive_app_desc.xml` yapılandırması yapılmadı. CarPlay iş mantığı (`src/carplay`) yeniden kullanılamaz — Android Auto'nun kendi şablon sistemi var. |
+| **Android Auto** | Temeli hazır: track-player 5 Media3 `MediaLibraryService` bildiriyor. Eksik olan `automotive_app_desc.xml` ve manifest meta verisi. CarPlay iş mantığı (`src/carplay`) yeniden kullanılamaz — Android Auto'nun kendi tarama (browse) ağacı var. |
 | **Uyarlanabilir ikon** | Şu an yalnızca eski tip `ic_launcher` PNG'leri var. Android 8+ için `mipmap-anydpi-v26` uyarlanabilir ikon eklenmeli. |
-| **Cihaz doğrulaması** | Derleme Windows'ta doğrulandı; **gerçek cihazda çalıştırılmadı**. Oynatma bildirimi, kenardan kenara yerleşim ve indirme akışı cihazda görülmeli. |
+| **Gerçek cihaz** | API 35 emülatöründe uçtan uca doğrulandı: uygulama açılıyor, katalog sunucudan geliyor, ses çalıyor, medya bildirimi ve ön plan servisi (`types=mediaPlayback`) ayakta. **Fiziksel cihazda** ve indirme/çevrimdışı akışında sınanmadı. |
 | **ProGuard** | `enableProguardInReleaseBuilds = false`. Yayına çıkmadan önce açılıp kural dosyası doğrulanmalı. |
