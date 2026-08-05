@@ -4,7 +4,7 @@ import { Episode } from '@domain/entities';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
 import { BottomSheet, CoverImage, Icon, NowPlayingBars, Text } from '../../../ui';
-import { usePlayerQueueStore, usePlayerStore } from '../../../stores';
+import { QueueItem, usePlayerQueueStore, usePlayerStore } from '../../../stores';
 import { usePlaybackController } from '../usePlaybackController';
 
 /** Bir kuyruk satırının yüksekliği — sürükleme hesabı buna dayanır. */
@@ -28,13 +28,13 @@ export const QueueSheet: React.FC<{ visible: boolean; onClose: () => void }> = (
   onClose,
 }) => {
   const theme = useTheme();
-  const episodes = usePlayerQueueStore(s => s.episodes);
+  const items = usePlayerQueueStore(s => s.items);
   const index = usePlayerQueueStore(s => s.index);
   const removeAt = usePlayerQueueStore(s => s.removeAt);
   const moveItem = usePlayerQueueStore(s => s.moveItem);
   const current = usePlayerStore(s => s.currentEpisode);
   const playback = usePlayerStore(s => s.playback);
-  const { play } = usePlaybackController();
+  const { playIndex } = usePlaybackController();
 
   /** Sürüklenen satırın kuyruktaki konumu; yoksa sürükleme yok. */
   const [dragging, setDragging] = useState<number | null>(null);
@@ -43,15 +43,20 @@ export const QueueSheet: React.FC<{ visible: boolean; onClose: () => void }> = (
 
   // Çalan bölüm + sonrasındakiler (geçmiş gösterilmez).
   const start = index >= 0 ? index : 0;
-  const visibleQueue = index >= 0 ? episodes.slice(index) : current ? [current] : [];
+  const visibleQueue: QueueItem[] =
+    index >= 0
+      ? items.slice(index)
+      : current
+        ? [{ episode: current, source: 'context' }]
+        : [];
 
-  const jumpTo = (episode: Episode, position: number): void => {
-    void play(episode, { episodes, index: position });
+  const jumpTo = (position: number): void => {
+    playIndex(position);
     onClose();
   };
 
   const finishDrag = (from: number, rows: number): void => {
-    const to = Math.max(start, Math.min(episodes.length - 1, from + rows));
+    const to = Math.max(start, Math.min(items.length - 1, from + rows));
     if (to !== from) {
       moveItem(from, to);
     }
@@ -84,6 +89,15 @@ export const QueueSheet: React.FC<{ visible: boolean; onClose: () => void }> = (
               // Kuyruk kopya içerebildiği için anahtar KONUMU da taşır.
               const position = start + i;
               const isDragged = dragging === position;
+              // Çalan satır (i === 0) başlık almaz. Sonrasında başlık, listenin
+              // BAŞINDA ve kaynak her DEĞİŞTİĞİNDE çizilir; böylece kullanıcının
+              // eklediği blok ile şovun/listenin devamı görsel olarak ayrılır.
+              const heading =
+                i >= 1 && (i === 1 || item.source !== visibleQueue[i - 1].source)
+                  ? item.source === 'user'
+                    ? 'SIRAYA EKLEDİKLERİN'
+                    : 'SONRAKİ BÖLÜMLER'
+                  : null;
 
               // Sürüklenen satır taşınırken diğerleri yer açar.
               let shift = 0;
@@ -97,19 +111,33 @@ export const QueueSheet: React.FC<{ visible: boolean; onClose: () => void }> = (
               }
 
               return (
-                <QueueRow
-                  key={`${item.id}-${position}`}
-                  episode={item}
-                  active={i === 0}
-                  playing={playback.status === 'playing'}
-                  dragging={isDragged}
-                  shiftRows={shift}
-                  onPress={() => (i === 0 ? onClose() : jumpTo(item, position))}
-                  onRemove={i === 0 ? undefined : () => removeAt(position)}
-                  onDragStart={() => setDragging(position)}
-                  onDragMove={setOffsetRows}
-                  onDragEnd={rows => finishDrag(position, rows)}
-                />
+                <React.Fragment key={`${item.episode.id}-${position}`}>
+                  {heading && (
+                    <Text
+                      variant="label"
+                      color={theme.colors.textDim}
+                      uppercase
+                      style={{
+                        paddingHorizontal: theme.spacing(2),
+                        paddingTop: theme.spacing(1.25),
+                        paddingBottom: theme.spacing(0.5),
+                      }}>
+                      {heading}
+                    </Text>
+                  )}
+                  <QueueRow
+                    episode={item.episode}
+                    active={i === 0}
+                    playing={playback.status === 'playing'}
+                    dragging={isDragged}
+                    shiftRows={shift}
+                    onPress={() => (i === 0 ? onClose() : jumpTo(position))}
+                    onRemove={i === 0 ? undefined : () => removeAt(position)}
+                    onDragStart={() => setDragging(position)}
+                    onDragMove={setOffsetRows}
+                    onDragEnd={rows => finishDrag(position, rows)}
+                  />
+                </React.Fragment>
               );
             })}
           </ScrollView>

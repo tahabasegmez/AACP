@@ -9,6 +9,7 @@ import { SettingsScreen } from '../features/settings/screens/SettingsScreen';
 import { DownloadsScreen } from '../features/downloads/screens/DownloadsScreen';
 import { PlaylistDetailScreen } from '../features/playlists/screens/PlaylistDetailScreen';
 import { TabNavigator } from './TabNavigator';
+import { useDeepLinks } from './useDeepLinks';
 import { useRouteStore } from '../stores';
 import { resetScrim } from '../ui';
 import type { RootStackParamList } from './types';
@@ -33,6 +34,9 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
  */
 export const PodcastNavigator: React.FC = () => {
   const theme = useTheme();
+  // Paylaşılan bağlantılar burada karşılanır: ağaç hangi modda kurulursa
+  // kurulsun (standalone/gömülü) davranış aynı olur.
+  useDeepLinks();
 
   return (
     <>

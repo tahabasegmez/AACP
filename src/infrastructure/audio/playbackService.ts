@@ -38,4 +38,19 @@ export default async function playbackService(): Promise<void> {
   TrackPlayer.addEventListener(Event.RemotePrevious, () =>
     remoteQueueHandlers().previous(),
   );
+
+  /**
+   * Bölüm sonuna gelindi → kuyrukta sonrakine geç.
+   *
+   * Oynatıcıya HER SEFERİNDE tek bölüm yüklenir (kuyruk uygulamanındır), bu
+   * yüzden bir bölüm bitince track-player'ın kendi kuyruğu boşalır ve bu olay
+   * düşer. Dinleyici olmadığı için oynatma bölüm sonunda sessizce duruyordu:
+   * sıra dolu olsa bile sonraki bölüme geçilmiyordu.
+   *
+   * Kuyruğun sonundaysak `next()` hiçbir şey yapmaz; oynatma doğal olarak
+   * biter.
+   */
+  TrackPlayer.addEventListener(Event.PlaybackQueueEnded, () =>
+    remoteQueueHandlers().next(),
+  );
 }

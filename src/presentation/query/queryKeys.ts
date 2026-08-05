@@ -15,6 +15,7 @@ export const queryKeys = {
   playlists: ['playlists'] as const,
   currentUser: ['currentUser'] as const,
   preferences: ['preferences'] as const,
+  playbackDevices: ['playbackDevices'] as const,
   isFollowed: (showId: string) => ['isFollowed', showId] as const,
   latestEpisodes: (feedUrls: readonly string[]) =>
     ['latestEpisodes', [...feedUrls].sort().join(',')] as const,

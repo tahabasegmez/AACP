@@ -5,7 +5,6 @@ import {
   Linking,
   PanResponder,
   Pressable,
-  Share,
   StatusBar,
   StyleSheet,
   View,
@@ -38,6 +37,7 @@ import { useDownloads, useDownloadStatus } from '../../downloads/useDownloads';
 import { SkipButton } from '../components/SkipButton';
 import { PlayerMenuSheet } from '../components/PlayerMenuSheet';
 import { QueueSheet } from '../components/QueueSheet';
+import { DevicesSheet } from '../components/DevicesSheet';
 import { SleepTimerSheet } from '../components/SleepTimerSheet';
 
 const SPEEDS = [1, 1.25, 1.5, 1.75, 2];
@@ -51,7 +51,7 @@ export const PlayerScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useAppNavigation();
-  const { seekTo, setPlaybackRate, routePicker } = useDependencies();
+  const { seekTo, setPlaybackRate } = useDependencies();
   const { togglePlay, next, previous } = usePlaybackController();
   const { start: startDownload } = useDownloads();
 
@@ -88,6 +88,7 @@ export const PlayerScreen: React.FC = () => {
   const [queueOpen, setQueueOpen] = useState(false);
   const [sleepOpen, setSleepOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [devicesOpen, setDevicesOpen] = useState(false);
 
   const isPlaying = playback.status === 'playing';
   const isBusy = playback.status === 'loading' || playback.status === 'buffering';
@@ -305,7 +306,6 @@ export const PlayerScreen: React.FC = () => {
               ) : (
                 <Tool icon="timer" label="Uyku" onPress={() => setSleepOpen(true)} />
               )}
-              <Tool icon="queue" label="Sıradakiler" onPress={() => setQueueOpen(true)} />
               <Tool
                 icon={dlStatus === 'downloaded' ? 'downloaded' : 'download'}
                 label="İndir"
@@ -313,16 +313,10 @@ export const PlayerScreen: React.FC = () => {
                 busy={dlStatus === 'downloading'}
                 onPress={onDownload}
               />
-              <Tool
-                icon="cast"
-                label="Cihaz"
-                onPress={() =>
-                  routePicker.available
-                    ? routePicker.present()
-                    : showHint('Cihaz seçimi bu platformda kullanılamıyor')
-                }
-              />
-              <Tool icon="share" label="Paylaş" onPress={() => episode && Share.share({ message: `${episode.title} — Anadolu Ajansı Podcast` }).catch(() => {})} />
+              <Tool icon="cast" label="Cihaz" onPress={() => setDevicesOpen(true)} />
+              {/* Kuyruk EN SAĞDA: en sık açılan panel, başparmağa en yakın
+                  köşede durur. Paylaş buradan kalktı — "…" menüsünde. */}
+              <Tool icon="queue" label="Sıradakiler" onPress={() => setQueueOpen(true)} />
             </View>
           </View>
         </View>
@@ -337,6 +331,7 @@ export const PlayerScreen: React.FC = () => {
 
       {/* Alttan açılan paneller — hepsi ortak BottomSheet üzerine kuruludur. */}
       <QueueSheet visible={queueOpen} onClose={() => setQueueOpen(false)} />
+      <DevicesSheet visible={devicesOpen} onClose={() => setDevicesOpen(false)} />
       <SleepTimerSheet
         visible={sleepOpen}
         activeMinutes={sleepRemainingMin ?? 0}

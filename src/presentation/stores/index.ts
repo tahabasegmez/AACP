@@ -5,3 +5,4 @@ export * from './episodeSheetStore';
 export * from './playerQueueStore';
 export * from './playbackSession';
 export * from './routeStore';
+export * from './deviceSessionStore';

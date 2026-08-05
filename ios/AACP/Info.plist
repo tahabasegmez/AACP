@@ -24,6 +24,22 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- Paylaşılan bölüm/şov bağlantıları (derin bağlantı). Paylaşılan adres
+	     https'tir; tanıtım sayfası uygulama kuruluysa bu şemaya yönlendirir.
+	     https adresini doğrudan yakalamak (Universal Links) alan adında
+	     `apple-app-site-association` ve takım kimliği ister; mağaza yayını
+	     sonrasına bırakıldı (bkz. docs/DEEPLINKS.md). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>aacp</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>

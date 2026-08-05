@@ -6,6 +6,7 @@ import {
   resolveCatalogUrl,
 } from '@core/config';
 import { DEFAULT_AD_POLICY } from '@domain/entities';
+import { Platform } from 'react-native';
 import { ConsoleLogger } from '@core/logger';
 import {
   AddEpisodeToPlaylist,
@@ -44,6 +45,7 @@ import {
   ToggleSavedEpisode,
 } from '@domain/usecases';
 import {
+  ApiDeviceSessionRepository,
   ApiEpisodePageRepository,
   ApiSyncTransport,
   DownloadRepositoryImpl,
@@ -122,6 +124,9 @@ export const composeDependencies = (): AppDependencies => {
   const errorReporter = new LoggingErrorReporter(logger, analytics);
   // Kullanıcı kimliği — sunucu kapalıysa yalnızca yerel profil önbelleği çalışır.
   const userRepository = new UserRepositoryImpl(api, storage);
+  // "Aynı hesapta tek cihaz" oturumu — kural sunucuda zorlanır, istemci
+  // yalnızca devralır/bırakır ve sonucu gösterir.
+  const deviceSession = new ApiDeviceSessionRepository(api, Platform.OS);
 
   // Oynatıcı: reklam yapılandırılmışsa gerçek oynatıcı bir DECORATOR ile sarılır.
   // Reklam mantığı tek yerde toplanır; use case'ler, UI ve CarPlay aynı portu
@@ -256,6 +261,7 @@ export const composeDependencies = (): AppDependencies => {
     imagePalette,
     imagePicker,
     userRepository,
+    deviceSession,
     routePicker,
     downloadEpisode,
     removeDownload,

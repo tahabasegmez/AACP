@@ -63,10 +63,35 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     self.window = window
     appDelegate.window = window
 
+    // Uygulama KAPALIYKEN tıklanan paylaşım bağlantısı sahne bağlanırken
+    // gelir ve `openURLContexts` ÇAĞRILMAZ. Bağlantıyı başlatma seçeneklerine
+    // koymak tek güvenli yol: bildirimle göndermek, JS henüz dinlemediği için
+    // yutulurdu. `Linking.getInitialURL()` bu anahtarı okur.
+    var launchOptions = appDelegate.launchOptions ?? [:]
+    if let url = connectionOptions.URLContexts.first?.url {
+      launchOptions[UIApplication.LaunchOptionsKey.url] = url
+    }
+
     factory.startReactNative(
       withModuleName: "AACP",
       in: window,
-      launchOptions: appDelegate.launchOptions
+      launchOptions: launchOptions
+    )
+  }
+
+  /// Uygulama AÇIKKEN gelen paylaşım bağlantısı. Sahne yaşam döngüsünde
+  /// `AppDelegate.application(_:open:options:)` çağrılmaz; köprü burasıdır.
+  ///
+  /// RCTLinkingManager'ın dinlediği bildirim doğrudan gönderilir — böylece
+  /// Swift tarafında ek bir modül içe aktarımına gerek kalmaz.
+  func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+    guard let url = URLContexts.first?.url else {
+      return
+    }
+    NotificationCenter.default.post(
+      name: NSNotification.Name("RCTOpenURLNotification"),
+      object: self,
+      userInfo: ["url": url.absoluteString]
     )
   }
 }

@@ -11,114 +11,125 @@ const episode = (id: string): Episode => ({
   publishedAt: '',
 });
 
-const reset = () => usePlayerQueueStore.setState({ episodes: [], index: -1 });
+const reset = () => usePlayerQueueStore.setState({ items: [], index: -1 });
 const state = () => usePlayerQueueStore.getState();
+/** Kuyruğu "kimlik:kaynak" biçiminde okunur hale getirir. */
+const shape = () => state().items.map(i => `${i.episode.id}:${i.source[0]}`);
+const ids = () => state().items.map(i => i.episode.id);
 
-describe('playerQueueStore', () => {
-  beforeEach(reset);
+beforeEach(reset);
 
-  it('enqueue bölümü kuyruğun sonuna ekler', () => {
-    state().setQueue([episode('a')], 0);
-    state().enqueue(episode('b'));
+describe('setQueue', () => {
+  it('bağlamı kurar ve tüm öğeleri context olarak işaretler', () => {
+    state().setQueue([episode('a'), episode('b')], 0);
+    expect(shape()).toEqual(['a:c', 'b:c']);
+  });
+});
 
-    expect(state().episodes.map(e => e.id)).toEqual(['a', 'b']);
+describe('enqueue', () => {
+  it('kullanıcı eklemesi bağlamın ÖNÜNE geçer', () => {
+    // Asıl kural: "şunu da dinleyeyim" demek, bölümü şovun geri kalanının
+    // arkasına atmak anlamına gelmemeli.
+    state().setQueue([episode('a'), episode('b'), episode('c')], 0);
+    state().enqueue(episode('x'));
+
+    expect(shape()).toEqual(['a:c', 'x:u', 'b:c', 'c:c']);
   });
 
-  it('ÇALAN bölüm tekrar sıraya eklenebilir (kopyaya izin verilir)', () => {
-    // Kullanıcı çalan bölümü tekrar sıraya alabilmeli; sessizce yok sayılmamalı.
+  it('birden çok ekleme kendi aralarında SIRAYLA dizilir', () => {
+    state().setQueue([episode('a'), episode('b')], 0);
+    state().enqueue(episode('x'));
+    state().enqueue(episode('y'));
+
+    expect(shape()).toEqual(['a:c', 'x:u', 'y:u', 'b:c']);
+  });
+
+  it('kuyruk boşken sona ekler', () => {
+    state().enqueue(episode('x'));
+    expect(shape()).toEqual(['x:u']);
+  });
+
+  it('aynı bölüm iki kez sıraya alınabilir', () => {
+    // Çalan bölümü tekrar sıraya eklemek geçerli bir istektir.
     state().setQueue([episode('a')], 0);
     state().enqueue(episode('a'));
+    state().enqueue(episode('a'));
 
-    expect(state().episodes.map(e => e.id)).toEqual(['a', 'a']);
+    expect(ids()).toEqual(['a', 'a', 'a']);
   });
 
-  it('enqueueNext bölümü çalanın hemen ardına koyar', () => {
-    state().setQueue([episode('a'), episode('b')], 0);
-    state().enqueueNext(episode('c'));
+  it('çalan bölüm ilerledikçe ekleme yeni konuma göre yapılır', () => {
+    state().setQueue([episode('a'), episode('b'), episode('c')], 1);
+    state().enqueue(episode('x'));
 
-    expect(state().episodes.map(e => e.id)).toEqual(['a', 'c', 'b']);
-    expect(state().index).toBe(0); // çalan bölüm kaymadı
+    expect(shape()).toEqual(['a:c', 'b:c', 'x:u', 'c:c']);
   });
+});
 
-  it('kuyruk boşken enqueueNext sona ekler', () => {
-    state().enqueueNext(episode('a'));
-    expect(state().episodes.map(e => e.id)).toEqual(['a']);
-  });
-
-  it('removeAt konuma göre siler', () => {
+describe('removeAt', () => {
+  it('konuma göre çıkarır', () => {
     state().setQueue([episode('a'), episode('b'), episode('c')], 0);
     state().removeAt(1);
-
-    expect(state().episodes.map(e => e.id)).toEqual(['a', 'c']);
+    expect(ids()).toEqual(['a', 'c']);
   });
 
-  it('çalandan ÖNCEKİ bir öğe silinince indeks kayar', () => {
+  it('çalanın önünden çıkarınca indeks kayar', () => {
     state().setQueue([episode('a'), episode('b'), episode('c')], 2);
     state().removeAt(0);
-
-    expect(state().episodes.map(e => e.id)).toEqual(['b', 'c']);
-    expect(state().index).toBe(1); // hâlâ 'c' çalıyor
+    expect(state().index).toBe(1);
   });
 
-  it('geçersiz konumda removeAt kuyruğu bozmaz', () => {
+  it('geçersiz konum yok sayılır', () => {
     state().setQueue([episode('a')], 0);
     state().removeAt(5);
+    expect(state().items).toHaveLength(1);
+  });
+});
 
-    expect(state().episodes).toHaveLength(1);
+describe('moveItem', () => {
+  it('aynı grup içinde taşır', () => {
+    state().setQueue([episode('a'), episode('b'), episode('c')], 0);
+    state().moveItem(1, 2);
+    expect(ids()).toEqual(['a', 'c', 'b']);
   });
 
-  describe('moveItem (sürükle-bırak sıralama)', () => {
-    it('öğeyi aşağı taşır', () => {
-      state().setQueue([episode('a'), episode('b'), episode('c')], 0);
-      state().moveItem(1, 2);
+  it('kullanıcı bloğundaki öğe bağlamın içine TAŞINAMAZ', () => {
+    // İki grup birbirine karışsaydı paneldeki ayrım anlamını yitirirdi.
+    state().setQueue([episode('a'), episode('b'), episode('c')], 0);
+    state().enqueue(episode('x'));
+    state().enqueue(episode('y'));
+    // x (1) → 3 (bağlam bölgesi) denemesi kendi grubuna sıkışır.
+    state().moveItem(1, 3);
 
-      expect(state().episodes.map(e => e.id)).toEqual(['a', 'c', 'b']);
-    });
+    expect(shape()).toEqual(['a:c', 'y:u', 'x:u', 'b:c', 'c:c']);
+  });
 
-    it('öğeyi yukarı taşır', () => {
-      state().setQueue([episode('a'), episode('b'), episode('c')], 0);
-      state().moveItem(2, 1);
+  it('bağlamdaki öğe kullanıcı bloğuna TAŞINAMAZ', () => {
+    state().setQueue([episode('a'), episode('b'), episode('c')], 0);
+    state().enqueue(episode('x'));
+    // b (2) → 1 (kullanıcı bloğu) denemesi kendi grubunda kalır.
+    state().moveItem(2, 1);
 
-      expect(state().episodes.map(e => e.id)).toEqual(['a', 'c', 'b']);
-    });
+    expect(shape()).toEqual(['a:c', 'x:u', 'b:c', 'c:c']);
+  });
 
-    it('ÇALAN bölüm taşınırsa indeks onu takip eder', () => {
-      state().setQueue([episode('a'), episode('b'), episode('c')], 0);
-      state().moveItem(0, 2);
+  it('çalan öğe taşınırsa indeks onu takip eder', () => {
+    state().setQueue([episode('a'), episode('b'), episode('c')], 0);
+    state().moveItem(0, 2);
+    expect(state().index).toBe(2);
+  });
 
-      expect(state().episodes.map(e => e.id)).toEqual(['b', 'c', 'a']);
-      expect(state().index).toBe(2); // hâlâ 'a' çalıyor
-    });
+  it('çalanın önünden arkasına taşımada indeks kayar', () => {
+    state().setQueue([episode('a'), episode('b'), episode('c')], 1);
+    state().moveItem(0, 2);
+    expect(state().index).toBe(0);
+  });
 
-    it('çalanın ÜSTÜNDEN altına taşımada indeks bir azalır', () => {
-      state().setQueue([episode('a'), episode('b'), episode('c')], 1);
-      state().moveItem(0, 2); // 'a' aşağı indi, 'b' bir üste kaydı
-
-      expect(state().episodes.map(e => e.id)).toEqual(['b', 'c', 'a']);
-      expect(state().index).toBe(0); // hâlâ 'b' çalıyor
-    });
-
-    it('çalanın ALTINDAN üstüne taşımada indeks bir artar', () => {
-      state().setQueue([episode('a'), episode('b'), episode('c')], 1);
-      state().moveItem(2, 0); // 'c' başa geldi, 'b' bir alta kaydı
-
-      expect(state().episodes.map(e => e.id)).toEqual(['c', 'a', 'b']);
-      expect(state().index).toBe(2); // hâlâ 'b' çalıyor
-    });
-
-    it('aynı konuma taşıma kuyruğu değiştirmez', () => {
-      state().setQueue([episode('a'), episode('b')], 0);
-      state().moveItem(1, 1);
-
-      expect(state().episodes.map(e => e.id)).toEqual(['a', 'b']);
-    });
-
-    it('sınır dışı konumlar yok sayılır', () => {
-      state().setQueue([episode('a'), episode('b')], 0);
-      state().moveItem(0, 9);
-      state().moveItem(-1, 1);
-
-      expect(state().episodes.map(e => e.id)).toEqual(['a', 'b']);
-    });
+  it('aynı konuma taşıma ve geçersiz sınırlar yok sayılır', () => {
+    state().setQueue([episode('a'), episode('b')], 0);
+    state().moveItem(1, 1);
+    state().moveItem(-1, 0);
+    state().moveItem(0, 9);
+    expect(ids()).toEqual(['a', 'b']);
   });
 });

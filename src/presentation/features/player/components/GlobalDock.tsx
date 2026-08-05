@@ -6,6 +6,7 @@ import { AnimatedTabBar } from '../../../navigation/AnimatedTabBar';
 import { useRouteStore } from '../../../stores';
 import { openPlayer } from '../../../navigation/navigationRef';
 import { MiniPlayer } from './MiniPlayer';
+import { PlaybackElsewhereBar } from './PlaybackElsewhereBar';
 
 /** Tab çubuğu içerik yüksekliği (safe-area hariç). */
 const TAB_CONTENT_H = 52;
@@ -82,6 +83,9 @@ export const GlobalDock: React.FC = () => {
         {/* Çevrimdışı şeridi mini player'ın ÜSTÜNDE: tab çubuğunu ve mini
             player'ı kapatmaz, ikisiyle birlikte yukarı/aşağı kayar. */}
         <OfflineBar />
+        {/* "Başka cihazda çalıyor" şeridi de aynı yerde: iki durum aynı anda
+            oluşabilir ve ikisi de aynı görsel dille anlatılır. */}
+        <PlaybackElsewhereBar />
         <MiniPlayer onOpen={openPlayer} />
       </Animated.View>
 

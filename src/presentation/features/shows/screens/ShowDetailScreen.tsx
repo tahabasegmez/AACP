@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FlashList } from '@shopify/flash-list';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Episode, EpisodeSortOrder } from '@domain/entities';
@@ -40,7 +40,7 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useAppNavigation();
-  const { showId, feedUrl } = route.params;
+  const { showId, feedUrl, episodeId } = route.params;
   const play = usePlayEpisode();
   const openSheet = useEpisodeSheetStore(s => s.open);
   const coverSize = useHeroCoverSize();
@@ -75,6 +75,21 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
       hideCompleted ? allEpisodes.filter(e => !progressIndex?.get(e.id)?.completed) : allEpisodes,
     [allEpisodes, hideCompleted, progressIndex],
   );
+
+  // Paylaşılan bir bölüm bağlantısıyla gelindiyse, bölüm listeye iner inmez
+  // ayrıntı paneli açılır. Tek sefer: kullanıcı paneli kapattığında liste
+  // gezinirken tekrar açılması rahatsız edici olurdu.
+  const openedShared = useRef(false);
+  useEffect(() => {
+    if (!episodeId || openedShared.current) {
+      return;
+    }
+    const target = allEpisodes.find(e => e.id === episodeId);
+    if (target) {
+      openedShared.current = true;
+      openSheet(target);
+    }
+  }, [allEpisodes, episodeId, openSheet]);
 
   const BackButton = (
     <Pressable

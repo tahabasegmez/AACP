@@ -6,7 +6,7 @@ import {
   RoutePicker,
 } from '@core/ports';
 import { SyncStatus } from '@domain/entities';
-import { UserRepository } from '@domain/repositories';
+import { DeviceSessionRepository, UserRepository } from '@domain/repositories';
 import { AudioPlayerService } from '@domain/services';
 import {
   AddEpisodeToPlaylist,
@@ -124,6 +124,9 @@ export interface AppDependencies {
 
   /** Kullanıcı kimliği ve profili (anonim ya da hesaplı). */
   readonly userRepository: UserRepository;
+
+  /** Oynatma oturumu — aynı hesapta tek cihaz kuralı. */
+  readonly deviceSession: DeviceSessionRepository;
 
   /** Ses çıkış cihazı (AirPlay) seçici. Kullanılamıyorsa düğme pasifleşir. */
   readonly routePicker: RoutePicker;

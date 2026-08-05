@@ -12,3 +12,5 @@ export * from './Preferences';
 export * from './SyncStatus';
 export * from './Ad';
 export * from './adPolicy';
+export * from './ShareLink';
+export * from './PlaybackDevice';

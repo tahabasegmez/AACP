@@ -40,6 +40,9 @@ export const Seekbar: React.FC<{
   const [scrubbing, setScrubbing] = useState(false);
   const [scrubSec, setScrubSec] = useState(0);
   const widthRef = useRef(0);
+  /** Çubuğun ekrandaki sol kenarı — `pageX` bundan çıkarılır. */
+  const leftRef = useRef(0);
+  const trackRef = useRef<View>(null);
   const durationRef = useRef(0);
   durationRef.current = durationSec;
   // PanResponder bir kez kurulduğu için güncel `disabled` değerini ref'ten okur.
@@ -62,27 +65,44 @@ export const Seekbar: React.FC<{
     return () => loop.stop();
   }, [buffering, pulse]);
 
-  const secFromX = (x: number): number => {
+  /**
+   * Dokunuşun saniye karşılığı.
+   *
+   * EKRAN koordinatı (`pageX`) kullanılır, `locationX` DEĞİL: `locationX`
+   * dokunuşu alan görünüme göredir ve çubuğun içinde dolu kısım, tampon ve
+   * düğme ayrı görünümler olduğu için hangi çocuğa denk geldiğine göre başka
+   * bir başlangıç noktasından ölçülür. Sürüklerken bu, konumun ileri geri
+   * sıçramasına; çubuğun dolu kısmına dokunulduğunda ise tamamen yanlış bir
+   * saniyeye yol açıyordu.
+   */
+  const secFromPageX = (pageX: number): number => {
     if (widthRef.current <= 0 || durationRef.current <= 0) {
       return 0;
     }
+    const x = pageX - leftRef.current;
     const ratio = Math.max(0, Math.min(1, x / widthRef.current));
     return ratio * durationRef.current;
   };
 
   const pan = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !disabledRef.current,
-      onMoveShouldSetPanResponder: () => !disabledRef.current,
+      // Yakalama (capture) aşamasında üstlenilir: çubuk bir kaydırma görünümü
+      // içinde olduğunda dokunuş aksi halde önce ona gider ve kullanıcı
+      // sürüklemeye başlayana kadar sarma tepki vermezdi.
+      onStartShouldSetPanResponderCapture: () => !disabledRef.current,
+      onMoveShouldSetPanResponderCapture: () => !disabledRef.current,
       onPanResponderGrant: (e: GestureResponderEvent) => {
+        // Ölçüm dokunuş anında tazelenir: ekran kaydırıldıysa çubuğun mutlak
+        // konumu değişmiş olabilir.
+        measure();
         setScrubbing(true);
-        setScrubSec(secFromX(e.nativeEvent.locationX));
+        setScrubSec(secFromPageX(e.nativeEvent.pageX));
       },
       onPanResponderMove: (e: GestureResponderEvent) => {
-        setScrubSec(secFromX(e.nativeEvent.locationX));
+        setScrubSec(secFromPageX(e.nativeEvent.pageX));
       },
       onPanResponderRelease: (e: GestureResponderEvent) => {
-        const sec = secFromX(e.nativeEvent.locationX);
+        const sec = secFromPageX(e.nativeEvent.pageX);
         setScrubbing(false);
         onSeek(sec);
       },
@@ -90,10 +110,21 @@ export const Seekbar: React.FC<{
     }),
   ).current;
 
+  /** Çubuğun ekrandaki sol kenarı ve genişliği. */
+  const measure = (): void => {
+    trackRef.current?.measureInWindow((x, _y, w) => {
+      leftRef.current = x;
+      if (w > 0) {
+        widthRef.current = w;
+      }
+    });
+  };
+
   const onLayout = (e: LayoutChangeEvent) => {
     const w = e.nativeEvent.layout.width;
     widthRef.current = w;
     setWidth(w);
+    measure();
   };
 
   const current = scrubbing ? scrubSec : positionSec;
@@ -111,6 +142,8 @@ export const Seekbar: React.FC<{
 
   return (
     <View
+      ref={trackRef}
+      collapsable={false}
       onLayout={onLayout}
       hitSlop={{ top: 14, bottom: 14, left: 0, right: 0 }}
       accessibilityRole="adjustable"

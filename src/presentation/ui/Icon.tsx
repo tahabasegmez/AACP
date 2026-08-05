@@ -33,6 +33,8 @@ export type IconName =
   | 'list'
   | 'timer'
   | 'cast'
+  /** Ses çıkışı (AirPlay/Bluetooth) — cihaz seçiminden ayrı kavram. */
+  | 'audio-output'
   | 'close'
   | 'refresh'
   | 'cloud-offline'
@@ -79,6 +81,7 @@ const GLYPHS: Record<IconName, string> = {
   list: 'list',
   timer: 'timer-outline',
   cast: 'phone-portrait-outline',
+  'audio-output': 'volume-high-outline',
   close: 'close',
   refresh: 'refresh',
   'cloud-offline': 'cloud-offline-outline',

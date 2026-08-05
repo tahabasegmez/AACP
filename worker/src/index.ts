@@ -6,6 +6,8 @@ import { Router, ok } from './router';
 import { registerAuthRoutes } from './routes/auth';
 import { registerCatalogRoutes } from './routes/catalog';
 import { registerMiscRoutes } from './routes/misc';
+import { registerPlaybackRoutes } from './routes/playback';
+import { registerShareRoutes } from './routes/share';
 import { registerSyncRoutes } from './routes/sync';
 import { storagePlacement } from './storage/resolveStore';
 
@@ -24,7 +26,10 @@ const router = new Router();
 registerAuthRoutes(router);
 registerSyncRoutes(router);
 registerCatalogRoutes(router);
+registerPlaybackRoutes(router);
 registerMiscRoutes(router);
+// Paylaşılan bağlantıların karşılandığı sayfalar (derin bağlantı).
+registerShareRoutes(router);
 
 /** Sağlık kontrolü — dağıtımın ayakta olduğunu doğrular. */
 router.get('/health', async ctx =>

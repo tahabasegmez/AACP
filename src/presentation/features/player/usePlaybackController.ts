@@ -14,19 +14,22 @@ const BACK_TO_PREVIOUS_THRESHOLD_SEC = 10;
 /**
  * usePlaybackController — oynatma akışının çekirdeği (navigasyonsuz).
  *
- * play(): kuyruğu kurar, "kaldığın yerden" çalar. next/previous: kuyruğa göre
- * sonraki/önceki bölüm. previous, konum 10 sn'den fazlaysa bölümü başa sarar.
- * usePlayEpisode bunu sarıp Player'ı açar; Player içi ileri/geri navigasyonsuz kullanır.
+ * play(): yeni bir bağlam kurar ve "kaldığın yerden" çalar.
+ * playIndex(): MEVCUT kuyrukta başka bir bölüme atlar — kuyruğu yeniden
+ * kurmaz, yalnızca konumu değiştirir.
+ * next/previous: kuyruğa göre sonraki/önceki bölüm; previous, konum 10 sn'den
+ * fazlaysa bölümü başa sarar.
+ *
+ * usePlayEpisode bunu sarıp Player'ı açar; Player içi ileri/geri navigasyonsuz
+ * kullanır.
  */
 export const usePlaybackController = () => {
   const { continueEpisode, seekTo, analytics, pausePlayback, resumePlayback } =
     useDependencies();
 
-  const play = useCallback(
-    async (episode: Episode, context?: PlayContext) => {
-      // Kuyruk ve çalan bölüm tek yerden kurulur (bkz. setPlaybackSession);
-      // CarPlay de aynı noktadan geçer, iki yüzey ayrışamaz.
-      setPlaybackSession(context?.episodes ?? [episode], context?.index ?? 0);
+  /** Oynatmayı başlatır; KUYRUĞA DOKUNMAZ. */
+  const start = useCallback(
+    async (episode: Episode) => {
       // Telemetri: hangi bölüm/şov çalındı (kişisel veri içermez).
       analytics.track('episode_play', {
         episodeId: episode.id,
@@ -38,15 +41,35 @@ export const usePlaybackController = () => {
     [analytics, continueEpisode],
   );
 
+  const play = useCallback(
+    async (episode: Episode, context?: PlayContext) => {
+      // Kuyruk ve çalan bölüm tek yerden kurulur (bkz. setPlaybackSession);
+      // CarPlay de aynı noktadan geçer, iki yüzey ayrışamaz.
+      setPlaybackSession(context?.episodes ?? [episode], context?.index ?? 0);
+      await start(episode);
+    },
+    [start],
+  );
+
+  /**
+   * Kuyrukta başka bir bölüme atlar.
+   *
+   * `play` çağırmak kuyruğu YENİDEN KURARDI ve tüm öğeler `context` olurdu —
+   * yani kullanıcının sıraya eklediği bölümler sıradan bağlam öğelerine
+   * dönüşür, ayrım kaybolurdu.
+   */
   const playIndex = useCallback(
     (i: number) => {
-      const { episodes } = usePlayerQueueStore.getState();
-      const ep = episodes[i];
-      if (ep) {
-        void play(ep, { episodes, index: i });
+      const { items } = usePlayerQueueStore.getState();
+      const episode = items[i]?.episode;
+      if (!episode) {
+        return;
       }
+      usePlayerQueueStore.setState({ index: i });
+      usePlayerStore.getState().setCurrentEpisode(episode);
+      void start(episode);
     },
-    [play],
+    [start],
   );
 
   /**
@@ -74,8 +97,8 @@ export const usePlaybackController = () => {
   }, [pausePlayback, play, resumePlayback]);
 
   const next = useCallback(() => {
-    const { episodes, index } = usePlayerQueueStore.getState();
-    if (index >= 0 && index < episodes.length - 1) {
+    const { items, index } = usePlayerQueueStore.getState();
+    if (index >= 0 && index < items.length - 1) {
       playIndex(index + 1);
     }
   }, [playIndex]);
@@ -92,5 +115,5 @@ export const usePlaybackController = () => {
     [playIndex, seekTo],
   );
 
-  return { play, togglePlay, next, previous };
+  return { play, playIndex, togglePlay, next, previous };
 };

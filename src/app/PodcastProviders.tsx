@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   DependencyProvider,
   EpisodeSheet,
   LastPlayedRestorer,
+  PlaybackSessionBridge,
   QueryProvider,
   RemoteQueueBridge,
   SyncRunner,
@@ -10,6 +11,7 @@ import {
   useDependencies,
   useDownloads,
   usePlayerStore,
+  useProgressRecorder,
   useSleepTimerStore,
 } from '@presentation';
 import { getDependencies } from './di';
@@ -43,6 +45,8 @@ export const PodcastProviders: React.FC<{ children: React.ReactNode }> = ({ chil
           <LastPlayedRestorer />
           {/* CarPlay / kilit ekranı "sonraki-önceki bölüm" komutlarını kuyruğa bağlar. */}
           <RemoteQueueBridge />
+          {/* Aynı hesapta tek cihaz kuralı — oturum boyunca geçerli. */}
+          <PlaybackSessionBridge />
           {children}
           {/* Bölüm ayrıntı paneli — navigasyondan bağımsız, kökte tek örnek. */}
           <EpisodeSheet />
@@ -90,62 +94,27 @@ const SleepTimerRunner: React.FC = () => {
   return null;
 };
 
-/** Konumu en fazla bu aralıkla (saniye) kaydet — her emit'te yazmaktan kaçınır. */
-const PROGRESS_SAVE_INTERVAL_SEC = 5;
-
 /**
  * AudioPlayerService'in yayınladığı durumu Zustand playerStore'a aktarır ve
- * dinleme konumunu periyodik olarak kalıcı kaydeder ("kaldığın yerden devam").
- * Böylece UI, player kütüphanesini tanımadan güncel oynatma durumunu görür.
+ * dinleme konumunu kalıcı kaydeder ("kaldığın yerden devam"). Böylece UI,
+ * player kütüphanesini tanımadan güncel oynatma durumunu görür.
+ *
+ * Kaydın ne zaman yazılacağı `useProgressRecorder`'ın işidir: köprü yalnızca
+ * her durumu ona iletir.
  */
 const PlayerStateBridge: React.FC = () => {
-  const { audioPlayer, savePlaybackProgress } = useDependencies();
+  const { audioPlayer } = useDependencies();
   const setPlayback = usePlayerStore(s => s.setPlayback);
-  const lastSavedPositionRef = useRef(0);
+  const recordProgress = useProgressRecorder();
 
   useEffect(() => {
     audioPlayer.setup();
     const unsubscribe = audioPlayer.subscribe(state => {
       setPlayback(state);
-
-      // Reklam çalarken ilerleme KAYDEDİLMEZ: reklamın konumu bölümün konumu
-      // değildir; kaydedilse "kaldığın yer" bozulurdu.
-      if (state.ad) {
-        return;
-      }
-
-      // Konumu seyrek kaydet: aktif oynatmada ve en az PROGRESS_SAVE_INTERVAL_SEC
-      // ilerledikçe. Böylece storage'a sürekli yazmayız.
-      const { currentEpisodeId, positionSec, durationSec, status } = state;
-      const enoughProgressed =
-        Math.abs(positionSec - lastSavedPositionRef.current) >=
-        PROGRESS_SAVE_INTERVAL_SEC;
-      if (
-        currentEpisodeId &&
-        (status === 'playing' || status === 'paused') &&
-        enoughProgressed
-      ) {
-        lastSavedPositionRef.current = positionSec;
-        // "Dinlemeye devam" kartının başlık/kapak gösterip doğrudan çalabilmesi
-        // için o an çalan bölümün meta'sını da kaydet.
-        const ep = usePlayerStore.getState().currentEpisode;
-        savePlaybackProgress
-          .execute({
-            episodeId: currentEpisodeId,
-            positionSec,
-            durationSec,
-            episodeTitle: ep?.title,
-            showId: ep?.showId,
-            artworkUrl: ep?.imageUrl,
-            audioUrl: ep?.audioUrl,
-          })
-          .catch(() => {
-            /* progress kaydı best-effort; hatada sessiz geç */
-          });
-      }
+      recordProgress(state);
     });
     return unsubscribe;
-  }, [audioPlayer, savePlaybackProgress, setPlayback]);
+  }, [audioPlayer, recordProgress, setPlayback]);
 
   return null;
 };

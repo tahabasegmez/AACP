@@ -1,9 +1,10 @@
 import React from 'react';
-import { Pressable, Share, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Episode } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { BottomSheet, Icon, IconName, Text } from '../../../ui';
 import { usePlayerQueueStore } from '../../../stores';
+import { shareEpisode } from '../../episode/shareEpisode';
 
 /**
  * PlayerMenuSheet — tam ekran oynatıcının "…" menüsü.
@@ -20,7 +21,6 @@ export const PlayerMenuSheet: React.FC<{
 }> = ({ visible, episode, onClose, onFeedback }) => {
   const theme = useTheme();
   const enqueue = usePlayerQueueStore(s => s.enqueue);
-  const enqueueNext = usePlayerQueueStore(s => s.enqueueNext);
 
   const run = (action: () => void, message: string): void => {
     action();
@@ -34,30 +34,18 @@ export const PlayerMenuSheet: React.FC<{
         <MenuItem
           icon="queue"
           label="Sıraya ekle"
-          description="Bölüm kuyruğun sonuna eklenir"
+          description="Şovun kalan bölümlerinin önüne geçer"
           disabled={!episode}
-          onPress={() =>
-            episode && run(() => enqueue(episode), 'Sıraya eklendi')
-          }
-        />
-        <MenuItem
-          icon="play"
-          label="Sıradaki olarak çal"
-          description="Çalan bölümden hemen sonra"
-          disabled={!episode}
-          onPress={() =>
-            episode && run(() => enqueueNext(episode), 'Sıradaki olarak eklendi')
-          }
+          onPress={() => episode && run(() => enqueue(episode), 'Sıraya eklendi')}
         />
         <MenuItem
           icon="share"
           label="Paylaş"
+          description="Bağlantıya dokunan kişi bölümü uygulamada açar"
           disabled={!episode}
           onPress={() => {
             if (episode) {
-              Share.share({ message: `${episode.title} — Anadolu Ajansı Podcast` }).catch(
-                () => {},
-              );
+              void shareEpisode(episode);
               onClose();
             }
           }}

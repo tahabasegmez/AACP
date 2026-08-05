@@ -13,7 +13,8 @@ export type SeeAllKind = 'shows' | 'continue' | 'latest' | 'saved' | 'playlists'
 /** Kök stack — sekmeler + detay/player/tam-liste (üstte). */
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabParamList> | undefined;
-  ShowDetail: { showId: string; feedUrl?: string; title?: string };
+  /** pisodeId: paylaşılan bağlantıdan gelindiğinde açılacak bölüm. */
+  ShowDetail: { showId: string; feedUrl?: string; title?: string; episodeId?: string };
   Player: { episodeId: string } | undefined;
   SeeAll: { kind: SeeAllKind; title: string };
   Settings: undefined;

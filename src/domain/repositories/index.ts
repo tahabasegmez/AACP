@@ -9,3 +9,4 @@ export * from './PlaylistRepository';
 export * from './UserRepository';
 export * from './PreferencesRepository';
 export * from './AdRepository';
+export * from './DeviceSessionRepository';

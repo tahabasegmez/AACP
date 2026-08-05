@@ -41,6 +41,16 @@ export class Supabase {
     return new SupabaseScope(this.url, this.anonKey, accessToken);
   }
 
+  /**
+   * Oturumsuz (anon) veri erişimi — RLS geçerlidir, yalnızca "herkes okur"
+   * politikası olan tablolar görünür. Herkese açık katalog okumaları için:
+   * paylaşım sayfası gibi kimliksiz yüzeylerde servis anahtarı kullanmak,
+   * gereksiz bir yetkiyi ortaya çıkarmak olurdu.
+   */
+  asAnon(): SupabaseScope {
+    return new SupabaseScope(this.url, this.anonKey, this.anonKey);
+  }
+
   /** Servis anahtarıyla veri erişimi — RLS BYPASS edilir (yönetim işleri). */
   asService(): SupabaseScope {
     if (!this.serviceKey) {
@@ -167,6 +177,22 @@ export class SupabaseScope {
       body: JSON.stringify(rows),
     });
     await this.read<void>(response);
+  }
+
+  /**
+   * Veritabanı fonksiyonu çağırır (PostgREST `rpc`).
+   *
+   * Birden çok yazmayı ATOMİK yapmak gerektiğinde kullanılır: PostgREST tek
+   * istekte işlem (transaction) açamaz, fonksiyon ise kendi işlemi içinde
+   * çalışır. "Tek aktif cihaz" gibi kurallar bu yüzden fonksiyona taşınır.
+   */
+  async rpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
+    const response = await fetch(`${this.url}/rest/v1/rpc/${name}`, {
+      method: 'POST',
+      headers: { ...this.headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(args),
+    });
+    return this.read<T>(response);
   }
 
   /** Kayıt siler. `query` PostgREST filtresidir (ör. `token=eq.abc`). */

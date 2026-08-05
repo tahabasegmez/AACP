@@ -1,5 +1,5 @@
 import { Episode } from '@domain/entities';
-import { usePlayerQueueStore } from './playerQueueStore';
+import { queueEpisodes, usePlayerQueueStore } from './playerQueueStore';
 import { usePlayerStore } from './playerStore';
 
 /**
@@ -25,6 +25,6 @@ export const playbackSession = (): {
   episodes: readonly Episode[];
   index: number;
 } => {
-  const { episodes, index } = usePlayerQueueStore.getState();
-  return { episodes, index };
+  const { items, index } = usePlayerQueueStore.getState();
+  return { episodes: queueEpisodes(items), index };
 };

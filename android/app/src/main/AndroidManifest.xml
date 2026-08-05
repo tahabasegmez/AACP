@@ -53,6 +53,22 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
+
+        <!--
+          Paylaşılan bölüm/şov bağlantıları (derin bağlantı).
+
+          Uygulamanın kendi şeması: paylaşılan https adresinin tanıtım sayfası,
+          uygulama kuruluysa buraya yönlendirir. https bağlantısını doğrudan
+          yakalamak (App Links) alan adının kökünde `assetlinks.json` ister;
+          uygulama mağazada yayımlanıp imza parmak izi belli olduğunda
+          eklenecektir (bkz. docs/DEEPLINKS.md).
+        -->
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="aacp" />
+        </intent-filter>
       </activity>
     </application>
 </manifest>
