@@ -68,7 +68,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     // koymak tek güvenli yol: bildirimle göndermek, JS henüz dinlemediği için
     // yutulurdu. `Linking.getInitialURL()` bu anahtarı okur.
     var launchOptions = appDelegate.launchOptions ?? [:]
-    if let url = connectionOptions.URLContexts.first?.url {
+    if let url = connectionOptions.urlContexts.first?.url {
       launchOptions[UIApplication.LaunchOptionsKey.url] = url
     }
 
