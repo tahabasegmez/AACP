@@ -24,6 +24,7 @@ import { usePreference, useShowEpisodes } from '../../../query';
 import { useIsFollowed, useToggleFollow } from '../../../query';
 import { useProgressIndex } from '../../player/useEpisodeStatus';
 import { EmptyState, ErrorView, LoadingView } from '../../../shared/components';
+import { shareShow } from '../../episode/shareEpisode';
 import { usePlayEpisode } from '../../player/usePlayEpisode';
 import { useEpisodeSheetStore } from '../../../stores';
 import { useAppNavigation } from '../../../navigation/useAppNavigation';
@@ -107,6 +108,24 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
     </Pressable>
   );
 
+  // Şovun paylaşım bağlantısı burada üretilir; bölüm paylaşımı player'ın
+  // ⋯ menüsünde. İkisi de aynı adres biçiminden (ShareLink) geçer.
+  const ShareButton = show ? (
+    <Pressable
+      onPress={() => void shareShow(show)}
+      hitSlop={16}
+      accessibilityRole="button"
+      accessibilityLabel="Şovu paylaş"
+      style={{
+        position: 'absolute',
+        top: insets.top + 6,
+        right: theme.spacing(1.5),
+        zIndex: 10,
+      }}>
+      <Icon name="share" size={24} color="#FFFFFF" />
+    </Pressable>
+  ) : null;
+
   const wrap = (body: React.ReactNode) => (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       {/* Sabit full-bleed backdrop: island dahil en üstten başlar, kapağın rengine göre */}
@@ -117,6 +136,7 @@ export const ShowDetailScreen: React.FC<Props> = ({ route }) => {
       />
       {body}
       {BackButton}
+      {ShareButton}
       <TextSheet
         visible={descOpen}
         title={show?.title ?? 'Açıklama'}

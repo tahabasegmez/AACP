@@ -25,7 +25,7 @@ export const fail = (error: AppError): Failure => ({ ok: false, error });
 
 export const isOk = <T>(result: Result<T>): result is Success<T> => result.ok;
 
-export const isFail = <T>(result: Result<T>): result is Failure => !result.ok;
+
 
 /** Başarılıysa değeri döner, değilse hatayı fırlatır (query katmanı için pratik). */
 export const unwrap = <T>(result: Result<T>): T => {

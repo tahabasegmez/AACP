@@ -10,10 +10,6 @@
  * Bileşenler bu token'lara ThemeProvider üzerinden erişir; sabit renk yazmaz.
  */
 
-export const palette = {
-  brand: '#0032A1',
-  brandDark: '#232741',
-} as const;
 
 export interface ColorTokens {
   bg: string;
@@ -66,29 +62,6 @@ export const darkColors: ColorTokens = {
   warning: '#E7A33E',
   danger: '#E5484D',
   skeleton: '#1C2033',
-};
-
-/** Açık tema. */
-export const lightColors: ColorTokens = {
-  bg: '#FFFFFF',
-  surface: '#F4F6FA',
-  elevated: '#EAEEF6',
-  brand: '#0032A1',
-  brandDeep: '#001B57',
-  accent: '#0A44C9',
-  accentSoft: 'rgba(10,68,201,0.10)',
-  accentTrack: 'rgba(10,68,201,0.38)',
-  onAccent: '#FFFFFF',
-  text: '#14171F',
-  textMuted: '#5B6172',
-  textDim: '#8A90A0',
-  border: '#E4E7EF',
-  divider: '#E9ECF3',
-  overlay: 'rgba(0,0,0,0.4)',
-  success: '#1E9E5A',
-  warning: '#C77F1E',
-  danger: '#D33A3F',
-  skeleton: '#E7EAF1',
 };
 
 /** 8'lik grid tabanlı boşluk. spacing(2) = 16. Yarım adım desteklenir. */

@@ -11,9 +11,9 @@ export const LoadingView: React.FC = () => {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: theme.colors.background,
+        backgroundColor: theme.colors.bg,
       }}>
-      <ActivityIndicator color={theme.colors.primary} />
+      <ActivityIndicator color={theme.colors.accent} />
     </View>
   );
 };

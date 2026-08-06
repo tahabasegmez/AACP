@@ -67,5 +67,4 @@ export const INITIAL_PLAYBACK_STATE: PlaybackState = {
   bufferedSec: 0,
 };
 
-/** Şu anda reklam mı çalıyor? (Tek yerde tanımlı yardımcı.) */
-export const isPlayingAd = (state: PlaybackState): boolean => state.ad != null;
+

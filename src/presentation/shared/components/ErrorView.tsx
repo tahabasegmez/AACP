@@ -38,7 +38,7 @@ export const ErrorView: React.FC<{
         alignItems: 'center',
         justifyContent: 'center',
         padding: theme.spacing(3),
-        backgroundColor: theme.colors.background,
+        backgroundColor: theme.colors.bg,
       }}>
       <Text style={{ color: theme.colors.text, textAlign: 'center', fontSize: 15 }}>
         {messageForError(error)}
@@ -54,7 +54,7 @@ export const ErrorView: React.FC<{
             borderRadius: theme.radius.md,
             backgroundColor: theme.colors.surface,
           }}>
-          <Text style={{ color: theme.colors.primary, fontSize: 15 }}>
+          <Text style={{ color: theme.colors.accent, fontSize: 15 }}>
             Tekrar dene
           </Text>
         </Pressable>

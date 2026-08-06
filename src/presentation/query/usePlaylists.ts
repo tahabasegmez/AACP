@@ -1,5 +1,5 @@
 import { unwrap } from '@core/error';
-import { Episode, Playlist, SAVED_PLAYLIST_ID } from '@domain/entities';
+import { Episode, Playlist } from '@domain/entities';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDependencies } from '../di';
 import { queryKeys } from './queryKeys';
@@ -22,8 +22,6 @@ export const usePlaylist = (playlistId?: string) => {
   };
 };
 
-/** "Sonra dinle" sistem listesi — uygulamanın her yerinde aynı liste. */
-export const useSavedPlaylist = () => usePlaylist(SAVED_PLAYLIST_ID);
 
 /**
  * Liste değiştiren işlemler tek yerde toplanır; hepsi başarıda liste sorgusunu

@@ -72,6 +72,9 @@ yarn-error.log
 # Kişisel notlar ve henüz karara bağlanmamış planlar — depoya girmez
 teach.md
 podcast-index.md
+carplay.md
+dependency-graph.html
+dependency-graph.svg
 
 # API (worker/) — Cloudflare Workers
 worker/.dev.vars

@@ -18,7 +18,3 @@ export const getDependencies = (): AppDependencies => {
   return instance;
 };
 
-/** Testler için grafiği sıfırlar. */
-export const resetDependencies = (): void => {
-  instance = null;
-};

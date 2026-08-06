@@ -33,8 +33,6 @@ export const setNavigationRef = (ref?: NavRef): void => {
   activeRef = ref ?? navigationRef;
 };
 
-/** Etkin ref — rota takibi ve navigasyon bunun üzerinden yapılır. */
-export const getNavigationRef = (): NavRef => activeRef;
 
 /** Tam ekran Player'ı açar (hangi modda olursak olalım). */
 export const openPlayer = (): void => {

@@ -18,7 +18,7 @@ export const EmptyState: React.FC<{
         alignItems: 'center',
         justifyContent: 'center',
         padding: theme.spacing(3),
-        backgroundColor: theme.colors.background,
+        backgroundColor: theme.colors.bg,
       }}>
       <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: '600' }}>
         {title}

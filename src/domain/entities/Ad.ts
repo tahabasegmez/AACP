@@ -49,10 +49,4 @@ export interface AdBreak {
   readonly ads: readonly Ad[];
 }
 
-/** Kesintideki toplam süre — UI'da "reklam bitene kadar" göstergesi için. */
-export const adBreakDurationSec = (adBreak: AdBreak): number =>
-  adBreak.ads.reduce((total, ad) => total + ad.durationSec, 0);
 
-/** Reklamsız (boş) kesinti mi? */
-export const isEmptyAdBreak = (adBreak: AdBreak | null): boolean =>
-  !adBreak || adBreak.ads.length === 0;

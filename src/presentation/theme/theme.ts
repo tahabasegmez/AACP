@@ -2,7 +2,6 @@ import {
   ColorTokens,
   darkColors,
   duration,
-  lightColors,
   radius,
   spacing,
   typography,
@@ -11,18 +10,12 @@ import {
 /**
  * Theme — bileşenlerin tükettiği çözülmüş tasarım sistemi.
  *
- * `colors` içinde token'lara ek olarak birkaç geriye-dönük alias (primary,
- * background) tutulur; eski ekranlar kırılmadan yeni sisteme geçebilsin diye.
- * Yeni kod doğrudan token isimlerini kullanmalı (bg, accent, textMuted...).
+ * Bileşenler token isimlerini doğrudan kullanır (bg, accent, textMuted...);
+ * sabit renk yazılmaz.
  */
 export interface Theme {
   readonly dark: boolean;
-  readonly colors: ColorTokens & {
-    /** @deprecated accent kullan */
-    readonly primary: string;
-    /** @deprecated bg kullan */
-    readonly background: string;
-  };
+  readonly colors: ColorTokens;
   readonly spacing: (multiplier: number) => number;
   readonly radius: typeof radius;
   readonly typography: typeof typography;
@@ -31,7 +24,7 @@ export interface Theme {
 
 const build = (dark: boolean, colors: ColorTokens): Theme => ({
   dark,
-  colors: { ...colors, primary: colors.accent, background: colors.bg },
+  colors,
   spacing,
   radius,
   typography,
@@ -39,4 +32,3 @@ const build = (dark: boolean, colors: ColorTokens): Theme => ({
 });
 
 export const darkTheme = build(true, darkColors);
-export const lightTheme = build(false, lightColors);

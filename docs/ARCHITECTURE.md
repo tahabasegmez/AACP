@@ -66,7 +66,6 @@ bağımlı değildir.
 - `config/` — uygulama ayarları ve **curated feed kataloğu** (şov RSS listesi).
 - `error/` — `AppError` tipleri ve `Result<T>` (hata yönetimi için).
 - `logger/` — `Logger` arayüzü + varsayılan konsol implementasyonu.
-- `di/` — bağımlılık enjeksiyonu için token'lar ve container arayüzü.
 - `utils/` — saf yardımcı fonksiyonlar (tarih, süre formatı vb.).
 
 ### `src/domain` — İş Kuralı (kalp)
@@ -113,7 +112,11 @@ domain use case'lerini** kullanır. UI kodu paylaşılmaz, iş mantığı payla�
 
 ### `src/app` — Composition Root
 Her şeyin birbirine bağlandığı tek yer. Bağımlılıklar burada oluşturulup enjekte
-edilir. Kök navigasyon, sağlayıcılar ve DI container burada kurulur.
+edilir (`composeDependencies`). Kök navigasyon ve sağlayıcılar burada kurulur.
+
+> Bir DI **container**'ı YOKTUR: bağımlılıklar tek bir fonksiyonda elle
+> kurulur. Kayıt/çözümleme makinesi eklemek, tek bir grafik için gereksiz bir
+> dolaylılık katmanı olurdu.
 
 ---
 
