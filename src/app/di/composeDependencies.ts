@@ -131,7 +131,7 @@ export const composeDependencies = (): AppDependencies => {
   // Oynatıcı: reklam yapılandırılmışsa gerçek oynatıcı bir DECORATOR ile sarılır.
   // Reklam mantığı tek yerde toplanır; use case'ler, UI ve CarPlay aynı portu
   // görmeye devam eder ve reklamdan haberdar olmak zorunda kalmaz.
-  const basePlayer = new TrackPlayerAudioService();
+  const basePlayer = new TrackPlayerAudioService(logger);
   const audioPlayer = isAdsEnabled(env)
     ? new AdAwareAudioPlayer(
         basePlayer,

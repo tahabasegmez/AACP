@@ -1,13 +1,14 @@
 import { Episode, INITIAL_PLAYBACK_STATE, PlaybackState } from '@domain/entities';
+import { Logger } from '@core/logger';
 import { AudioPlayerService } from '@domain/services';
 import TrackPlayer, {
   AppKilledPlaybackBehavior,
-  Capability,
   Event,
   IOSCategory,
   IOSCategoryMode,
 } from 'react-native-track-player';
 import { PermissionsAndroid, Platform } from 'react-native';
+import { NOTIFICATION_CAPABILITIES, remoteCapabilities } from './capabilities';
 import {
   episodeToNowPlaying,
   episodeToTrack,
@@ -51,6 +52,8 @@ const requestNotificationPermission = async (): Promise<void> => {
  * yine buradaki PlaybackState dinleyicileri üzerinden geri yansır.
  */
 export class TrackPlayerAudioService implements AudioPlayerService {
+  constructor(private readonly logger?: Logger) {}
+
   private state: PlaybackState = INITIAL_PLAYBACK_STATE;
   private readonly listeners = new Set<(state: PlaybackState) => void>();
   private readonly subscriptions: Array<{ remove: () => void }> = [];
@@ -68,47 +71,32 @@ export class TrackPlayerAudioService implements AudioPlayerService {
       iosCategory: IOSCategory.Playback,
       iosCategoryMode: IOSCategoryMode.SpokenAudio,
     });
-    await TrackPlayer.updateOptions({
-      progressUpdateEventInterval: 1,
-      /**
-       * Oynatma kartındaki (kilit ekranı / CarPlay) yan tuşlar.
-       *
-       * İleri/geri SARMA (`JumpForward/Backward`) bilinçli olarak YOK: iOS her
-       * iki tuş çiftini birden göstermez, sarma açıkken "sonraki/önceki bölüm"
-       * gizlenir. Araçta bölüm değiştirmek 15 sn sarmaktan daha sık gerekir;
-       * sarma zaten sürgüyle (`SeekTo`) yapılabiliyor.
-       */
-      capabilities: [
-        Capability.Play,
-        Capability.Pause,
-        Capability.Stop,
-        Capability.SeekTo,
-        Capability.SkipToNext,
-        Capability.SkipToPrevious,
-      ],
-      /**
-       * Android bildirimindeki TUŞLAR.
-       *
-       * `capabilities` uzaktan kumandanın ne KABUL ettiğini söyler; bu liste
-       * bildirimde neyin ÇİZİLECEĞİNİ. `Stop` ve `SeekTo` dışarıda: durdurma
-       * bildirimi kapatmakla aynı işi görür, sarma ise tuş değil sürgüdür.
-       *
-       * (v4'teki `compactCapabilities` v5'te kaldırıldı; daraltılmış bildirim
-       * ayrı olarak yapılandırılmıyor.)
-       */
-      notificationCapabilities: [
-        Capability.Play,
-        Capability.Pause,
-        Capability.SkipToPrevious,
-        Capability.SkipToNext,
-      ],
-      android: {
-        appKilledPlaybackBehavior:
-          AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
-      },
-    });
+    // Dinleyiciler kart yapılandırmasından ÖNCE bağlanır: `updateOptions`
+    // patlarsa oynatma yine çalışmalı ve arayüz durumu görmeye devam etmeli.
+    // Eskiden sıra tersti ve tek bir hata tüm oynatma durumunu sessizce
+    // öldürüyordu.
     this.registerListeners();
     this.isSetup = true;
+
+    try {
+      await TrackPlayer.updateOptions({
+        progressUpdateEventInterval: 1,
+        // Yetenek listesi platforma göre üretilir; sebebi `capabilities.ts`de.
+        capabilities: remoteCapabilities(Platform.OS),
+        // Bildirim tuşları yalnızca Android kavramıdır.
+        ...(Platform.OS === 'android'
+          ? { notificationCapabilities: NOTIFICATION_CAPABILITIES }
+          : {}),
+        android: {
+          appKilledPlaybackBehavior:
+            AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
+        },
+      });
+    } catch (error) {
+      // Kart yapılandırılamadı: kilit ekranı kontrolleri eksik kalır ama ses
+      // çalar. Sessizce yutmak, sorunun yıllarca fark edilmemesi demekti.
+      this.logger?.error('Oynatma kartı yapılandırılamadı', error);
+    }
   }
 
   async play(episode: Episode): Promise<void> {
