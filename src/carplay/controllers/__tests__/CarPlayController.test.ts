@@ -95,6 +95,8 @@ const headersOf = (tab: MockList): (string | undefined)[] =>
   tab.config.sections.map(section => section.header);
 
 let continued: Episode | null = null;
+/** Oynatıcı kaç kez kurulmak istendi? (araç uygulamayı tek başına açabilir) */
+let setupCount = 0;
 /** Oynatma oturumunun testteki karşılığı (tek gerçek kaynak). */
 let queue: { episodes: readonly Episode[]; index: number } = { episodes: [], index: -1 };
 
@@ -120,6 +122,9 @@ const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies
     resolveVoiceQuery: { execute: async () => ok(null) },
     resumePlayback: { execute: async () => ok(undefined) },
     audioPlayer: {
+      setup: async () => {
+        setupCount += 1;
+      },
       getState: async () => ({ ...INITIAL_PLAYBACK_STATE, rate: 1 }),
       subscribe: () => () => undefined,
     },
@@ -137,6 +142,7 @@ const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies
 beforeEach(() => {
   tp.__reset();
   continued = null;
+  setupCount = 0;
   queue = { episodes: [], index: -1 };
 });
 
@@ -151,6 +157,46 @@ describe('CarPlayController', () => {
       'İndirilenler',
       'Şimdi çalan',
     ]);
+  });
+
+  it('onConnect: oynatıcıyı KURAR', async () => {
+    // Uygulamayı araç açtığında telefon arayüzü hiç görünmez ve kurulumu
+    // isteyen başka kimse olmaz: ses oturumu açılmaz, sistemin oynatma kartı
+    // (Now Playing) boş kalırdı.
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
+
+    expect(setupCount).toBe(1);
+  });
+
+  it('Now Playing şablonu GÖZLEMCİDEN ÖNCE kurulur', async () => {
+    // Paylaşılan şablonu sistem de açabilir. Kimliği native tarafa ancak biz
+    // onu yarattığımızda yazılır; yazılmadan gelen "göründü" olayı ana iş
+    // parçacığında çökerdi. Bu yüzden ilk oynatma beklenmez.
+    await new CarPlayController(makeDeps(), noopLogger).onConnect();
+
+    const names = tp.__getCalls().map(([name]) => name);
+    expect(names).toContain('enableNowPlaying');
+    expect(callsOf('enableNowPlaying')).toHaveLength(1);
+    // Şablon henüz hiçbir yere itilmedi ama YARATILDI: ilk oynatmada
+    // `pushTemplate` ile açılacak olan örnek hazır.
+    expect(callsOf('pushTemplate')).toHaveLength(0);
+  });
+
+  it('yeniden bağlanmada sekmeler YENİDEN YARATILMAZ', async () => {
+    // Her `new ListTemplate` bir olay dinleyicisi daha bağlar: araç her
+    // bağlandığında dört sekme daha yaratmak, tek dokunuşun birden çok kez
+    // işlenmesi demekti.
+    const controller = new CarPlayController(makeDeps(), noopLogger);
+    await controller.onConnect();
+    const first = tabs();
+
+    controller.onDisconnect();
+    await controller.onConnect();
+
+    expect(callsOf('setRootTemplate')).toHaveLength(2);
+    expect(tabs()).toBe(first);
+    // Gözlemci de tekrar eklenmez (kütüphane onu kaldıramıyor).
+    expect(callsOf('enableNowPlaying')).toHaveLength(1);
   });
 
   it("Ana Sayfa: devam girişi ve podcast'ler", async () => {

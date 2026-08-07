@@ -143,6 +143,24 @@ tek bir değişmez kuraldan beslenir:
 Böylece kullanıcının "geri" tuşu, sistemin kendi gezinmesi ve bizim
 itmelerimiz aynı kanaldan geçer. Model saftır ve ayrı test edilir.
 
+#### Şablon ilk oynatmayı beklemez
+
+Paylaşılan Now Playing şablonu **bağlantı anında** kurulur, ilk oynatmada
+değil. Sebebi çökme:
+
+Kütüphane bir şablonun kimliğini native tarafa ancak biz o şablonu
+yarattığımızda yazar (`userInfo[@"templateId"]`). Sistem paylaşılan Now
+Playing'i kendisi açabildiği için (aracın kendi "şimdi çalıyor" düğmesi),
+kimlik yazılmadan bir "göründü" olayı gelebiliyordu:
+
+```objc
+[body setObject:[userInfo objectForKey:@"templateId"] forKey:@"templateId"];
+```
+
+`userInfo` boşken bu `setObject:nil` demektir — **NSInvalidArgumentException,
+ana iş parçacığında çökme**. Şablonu bağlantıda yaratmak kimliği daima yazılı
+tutar.
+
 #### `enableNowPlaying` bir kez, kapatma yok
 
 `react-native-carplay` 2.3.0'da bu metot bir bayrağı okur ama **hiç yazmaz**
@@ -355,6 +373,30 @@ CarPlay / direksiyon tuşu
 Böylece infrastructure presentation'a bağımlı olmaz. İşleyici kayıtlı değilse
 komutlar sessizce yok sayılır (tek bölüm çalarken "sonraki" anlamsızdır).
 
+**Kayıt bir ekrana değil, uygulamanın ömrüne bağlıdır.** Eskiden bunu bir React
+bileşeni yapıyor ve söküldüğünde bağlantıyı koparıyordu; uygulamayı araç
+açtığında telefon arayüzü hiç görünmediği için komutlar hiç bağlanmıyordu —
+araçta "sonraki bölüm" çalışmıyor, bölüm bitince sıradakine geçilmiyordu. Artık
+bağlama composition root'ta yapılır (`bindRemoteQueue`).
+
+Bunun için oynatma akışı bir kancadan çıkarıldı: mantık
+[`createPlaybackController`](../src/presentation/features/player/playbackController.ts)
+içinde React'ten bağımsız yaşar, `usePlaybackController` yalnızca ince bir
+kancadır. Tek uygulama, iki giriş noktası.
+
+## 6.1 Oynatıcı kurulumu
+
+`TrackPlayer.setupPlayer` çağrılmadan ses oturumu açılmaz, uzaktan kontroller
+bağlanmaz ve **sistemin oynatma kartı (`MPNowPlayingInfoCenter`) boş kalır** —
+araçta "çalan bölüme dair hiçbir şey görünmüyor" şikâyetinin sebebi buydu.
+
+Kurulum eskiden yalnızca telefon arayüzünün bir efektinde isteniyordu. Artık
+`CarPlayController.onConnect` de ister; `AudioPlayerService.setup()` tekrar
+çağrılabilir. Bayrak yerine **söz (promise) hatırlanır**: iki çağrı aynı anda
+gelirse ikisi de bayrağı boş görür ve `setupPlayer` iki kez çalışıp
+`player_already_initialized` ile patlardı. İkinci çağıran artık aynı kurulumu
+bekler ve döndüğünde oynatıcı gerçekten hazırdır.
+
 ## 7. mac'te yapılacaklar
 
 Kod hazır; kalanlar Xcode adımlarıdır.
@@ -392,9 +434,66 @@ Bu yüzden manifest iki rol tanımlar:
 | `CPTemplateApplicationSceneSessionRoleApplication` | `CarPlaySceneDelegate` (ObjC) | Arayüz denetleyicisini `RNCarPlay`e devreder |
 
 `SceneDelegate` bilinçli olarak ayrı dosyada değil: Xcode projesine yeni Swift
-dosyası eklemeden çalışması için `AppDelegate.swift` içinde durur. React Native
-fabrikası AppDelegate'te kurulur, ilk sahne bağlandığında başlatılır; başlatma
-seçenekleri (`launchOptions`) o ana kadar AppDelegate'te bekletilir.
+dosyası eklemeden çalışması için `AppDelegate.swift` içinde durur.
+
+#### React Native'i kim başlatır?
+
+Uygulamayı hangi sahnenin açtığı önceden **belli değildir**. Kullanıcı
+telefondan açabilir; araç bağlanınca **yalnızca CarPlay sahnesi** de açılabilir.
+Başlatma bir zamanlar telefon sahnesine bağlıydı ve o durumda JS **hiç
+çalışmıyordu**: `registerOnConnect` kaydolmuyor, oynatıcı kurulmuyor, araç
+ekranı boş kalıyordu.
+
+Bu yüzden başlatma sahnelerden alındı (`ReactNativeBootstrap`): kim önce gelirse
+React Native'i o başlatır.
+
+| Sahne | Ne yapar |
+| --- | --- |
+| Telefon (`SceneDelegate`) | Başlatır **ve** kök görünümü pencereye bağlar. Paylaşım bağlantısını başlatma seçeneklerine koyabilmek için başlatma burada yapılabilmeli. |
+| CarPlay | `AppDelegate` sahne bildirimini dinler ve yalnızca **başlatır** (pencere yok). |
+
+Kök görünüm **tek örnektir**; telefon sahnesi geldiğinde yeniden başlatılmaz,
+yalnızca pencereye bağlanır. İkinci kez başlatmak ikinci bir React ağacı — iki
+store, iki zamanlayıcı, iki oynatıcı köprüsü — demekti.
+
+> Pencereye bağlanmamış kök görünüm de **çalışır**: yüzey (surface) paket
+> yürütüldükten sonra kendiliğinden başlar, penceresi olmasını beklemez. Böylece
+> araçla açılan uygulamada da arka plan köprüleri (oynatma durumu, "kaldığın
+> yer" kaydı, uzaktan kuyruk komutları) ayaktadır.
+
+CarPlay sahnesinin tetikleyicisi bir **bildirimdir**
+(`UIScene.willConnectNotification`), Objective-C delegesinden Swift çağrısı
+değil: o yol üretilen `-Swift.h` başlığına bağımlı ve aynı hedef içinde derleme
+sırasına duyarlıdır.
+
+#### Bağlantı olayları köprüsüz mimaride düşüyordu
+
+`RNCarPlay` bağlan/kopar olaylarını yalnızca `bridge` doluyken gönderir:
+
+```objc
+if (cp.bridge) { [cp sendEventWithName:@"didConnect" body:...]; }
+```
+
+Köprüsüz mimaride (`RCTNewArchEnabled`) `bridge` **daima nil**'dir; olaylar
+sessizce düşer. Sonuçları:
+
+- uygulama **açıkken** araca bağlanınca JS bunu hiç öğrenmiyor, ekran boş
+  kalıyordu (yalnızca uygulama CarPlay'le birlikte açıldığında çalışıyordu:
+  kütüphane o durumu açılışta `checkForConnection` ile kendisi yakalar),
+- bağlantı kopunca `onDisconnect` çalışmıyor, şablon yığını modeli eskimiş
+  kalıyor ve sonraki bağlantıda yanlış şablon itiliyordu.
+
+Olay `RCTCallableJSModules` üzerinden köprüsüz de gönderilebiliyor; boşluk
+`CarPlaySceneDelegate` içinde doldurulur. Köprü varsa (eski mimari) kütüphane
+olayı zaten göndermiştir — iki kez göndermek kök şablonun iki kez kurulması
+demek olurdu.
+
+#### Sekmeler yeniden bağlanmada yeniden yaratılmaz
+
+Native taraf şablonları kimlikleriyle saklar ve her `new ListTemplate` bir olay
+dinleyicisi daha bağlar. Araç her bağlandığında dört sekme daha yaratmak, tek
+dokunuşun birden çok kez işlenmesi demekti. `onDisconnect` yalnızca yığın
+modelini sıfırlar.
 
 ## 8. Kısıtlar ve kararlar
 

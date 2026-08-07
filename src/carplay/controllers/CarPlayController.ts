@@ -129,6 +129,11 @@ export class CarPlayController {
   private library?: TabList;
   private downloads?: TabList;
   private playing?: TabList;
+  /**
+   * Kök sekme çubuğu — bir kez yaratılır, her bağlantıda yeniden kök yapılır
+   * (bkz. buildRoot).
+   */
+  private tabBar?: TabBarTemplate;
 
   /**
    * Paylaşılan Now Playing şablonu — CarPlay'de tek bir örnek vardır, biz de
@@ -170,26 +175,50 @@ export class CarPlayController {
   /** CarPlay bağlandığında çağrılır. */
   async onConnect(): Promise<void> {
     this.logger.info('CarPlay bağlandı');
-    this.enableNowPlayingOnce();
+    // Oynatıcı henüz KURULMAMIŞ olabilir: uygulamayı araç açtığında telefon
+    // arayüzü hiç görünmez ve kurulumu isteyen başka kimse olmaz. Kurulmadan
+    // ses oturumu açılmaz, uzaktan kontroller bağlanmaz ve sistemin oynatma
+    // kartı (MPNowPlayingInfoCenter) boş kalır — araçta "hiçbir şey
+    // görünmüyor" şikâyetinin sebebi buydu. Kurulum tekrar çağrılabilir.
+    await this.ensurePlayerReady();
+    this.prepareNowPlaying();
     this.watchPlayback();
     await this.buildRoot();
   }
 
+  /** Oynatıcıyı hazırlar; kurulamazsa arayüz yine de açılır (liste gezilebilir). */
+  private async ensurePlayerReady(): Promise<void> {
+    try {
+      await this.deps.audioPlayer.setup();
+    } catch (error) {
+      this.logger.error('CarPlay: oynatıcı kurulamadı', error);
+    }
+  }
+
   /**
-   * Sistem oynatma ekranını UYGULAMA ÖMRÜNDE BİR KEZ etkinleştirir.
+   * Sistem oynatma ekranını hazırlar — UYGULAMA ÖMRÜNDE BİR KEZ.
    *
-   * `react-native-carplay` 2.3.0'da `enableNowPlaying` bir bayrağı okur ama
-   * hiç yazmaz (`isNowPlayingActive` atanmıyor): her `true` çağrısı Now
-   * Playing şablonuna BİR GÖZLEMCİ DAHA ekler ve `false` çağrısı hiçbir şey
-   * yapmaz. Yeniden bağlanmalarda tekrar çağırmak, "Sıradakiler" ve şov
-   * düğmelerinin tek dokunuşta iki-üç kez tetiklenmesi ve aynı şablonun üst
-   * üste itilmesi demekti.
+   * Şablon ÖNCE yaratılır, gözlemci SONRA bağlanır; ikisi de tekrarlanmaz.
+   * Sıra da teklik de bilinçlidir:
+   *
+   * 1. `CPNowPlayingTemplate` PAYLAŞILAN bir örnektir ve onu sistem de açabilir
+   *    (aracın kendi "şimdi çalıyor" düğmesi). Kütüphane şablonun kimliğini
+   *    native tarafa ancak biz onu yarattığımızda yazar; yazılmadan önce gelen
+   *    "göründü" olayı kimliği nil okuyup sözlüğe koymaya çalışır ve ANA İŞ
+   *    PARÇACIĞINDA NSInvalidArgumentException ile çöker. Bu yüzden şablon ilk
+   *    oynatmayı beklemez: bağlantı anında kurulur.
+   * 2. `enableNowPlaying` 2.3.0'da bir bayrağı okur ama hiç yazmaz
+   *    (`isNowPlayingActive` atanmıyor): her `true` çağrısı BİR GÖZLEMCİ DAHA
+   *    ekler, `false` çağrısı hiçbir şey yapmaz. Yeniden bağlanmalarda tekrar
+   *    çağırmak, "Sıradakiler" ve şov düğmelerinin tek dokunuşta iki-üç kez
+   *    tetiklenmesi demekti.
    */
-  private enableNowPlayingOnce(): void {
+  private prepareNowPlaying(): void {
     if (this.nowPlayingEnabled) {
       return;
     }
     this.nowPlayingEnabled = true;
+    this.nowPlaying();
     CarPlay.enableNowPlaying(true);
   }
 
@@ -198,13 +227,12 @@ export class CarPlayController {
     this.logger.info('CarPlay bağlantısı koptu');
     this.unsubscribePlayback?.();
     this.unsubscribePlayback = undefined;
-    // `enableNowPlaying(false)` BİLİNÇLİ olarak çağrılmaz: kütüphane onu
-    // uygulayamıyor (bkz. enableNowPlayingOnce) ve çağırmak yalnızca yanlış
-    // bir güven yaratırdı.
-    // Şablonlar araçla birlikte gider; yeniden bağlanınca kök baştan kurulur.
-    this.nowPlayingTemplate = undefined;
+    // `enableNowPlaying(false)` ve şablonların atılması BİLİNÇLİ olarak
+    // yapılmaz: paylaşılan Now Playing şablonu ile kök sekmeler native tarafta
+    // yaşamaya devam eder, yeniden yaratmak yalnızca bir olay dinleyicisi daha
+    // bağlamak olurdu (bkz. prepareNowPlaying).
+    // Yığın modeli sıfırlanır: araçtaki ekranlar bağlantıyla birlikte gitti.
     this.stack.clear();
-    this.rootTemplateIds = [];
   }
 
   /**
@@ -225,9 +253,23 @@ export class CarPlayController {
 
   // --- kök şablon ---------------------------------------------------------
 
-  /** Sekmeli kök şablonu kurar ve içeriğini doldurur. */
+  /**
+   * Sekmeli kök şablonu kurar (bir kez) ve içeriğini doldurur.
+   *
+   * Şablonlar yeniden bağlanmada YENİDEN YARATILMAZ: native taraf onları
+   * kimlikleriyle saklar ve her `new ListTemplate` bir olay dinleyicisi daha
+   * bağlar. Araç her bağlandığında dört sekme daha yaratmak, tek dokunuşun
+   * birden çok kez işlenmesi demekti.
+   */
   private async buildRoot(): Promise<void> {
     try {
+      if (this.tabBar) {
+        CarPlay.setRootTemplate(this.tabBar);
+        this.stack.clear();
+        await this.refreshAll();
+        return;
+      }
+
       this.home = new TabList(
         'Ana Sayfa',
         {
@@ -276,28 +318,28 @@ export class CarPlayController {
         id => this.onTemplateAppear(id),
       );
 
-      CarPlay.setRootTemplate(
-        new TabBarTemplate({
-          templates: [
-            this.home.template,
-            this.library.template,
-            this.downloads.template,
-            this.playing.template,
-          ],
-          onTemplateSelect: (_template, { selectedTemplateId }) => {
-            // Sekmeye dönüldüğünde içerik tazelenir: telefonda ya da başka bir
-            // cihazda yapılan değişiklikler araçta da görünsün.
-            this.refresh();
+      this.tabBar = new TabBarTemplate({
+        templates: [
+          this.home.template,
+          this.library.template,
+          this.downloads.template,
+          this.playing.template,
+        ],
+        onTemplateSelect: (_template, { selectedTemplateId }) => {
+          // Sekmeye dönüldüğünde içerik tazelenir: telefonda ya da başka bir
+          // cihazda yapılan değişiklikler araçta da görünsün.
+          this.refresh();
 
-            // "Şimdi çalan" sekmesi doğrudan oynatıcıyı açar — sürücü ikinci
-            // kez dokunmak zorunda kalmasın. Bir şey çalmıyorsa sekmenin boş
-            // görünümü kalır.
-            if (selectedTemplateId === this.playing?.template.id && this.currentEpisodeId) {
-              this.showNowPlaying();
-            }
-          },
-        }),
-      );
+          // "Şimdi çalan" sekmesi doğrudan oynatıcıyı açar — sürücü ikinci
+          // kez dokunmak zorunda kalmasın. Bir şey çalmıyorsa sekmenin boş
+          // görünümü kalır.
+          if (selectedTemplateId === this.playing?.template.id && this.currentEpisodeId) {
+            this.showNowPlaying();
+          }
+        },
+      });
+
+      CarPlay.setRootTemplate(this.tabBar);
 
       // Kök sekmeler: bunlardan biri göründüğünde yığın boşalmış demektir.
       this.rootTemplateIds = [
@@ -781,6 +823,11 @@ export class CarPlayController {
    * hem "çalıyor" işareti hem de "Dinlemeye devam" rafı güncel kalır.
    */
   private watchPlayback(): void {
+    // Bağlantı olayı yinelenebilir; ikinci bir abonelik her durum değişiminde
+    // iki tazeleme turu demek olurdu.
+    if (this.unsubscribePlayback) {
+      return;
+    }
     this.unsubscribePlayback = this.deps.audioPlayer.subscribe(state => {
       const playing = state.status === 'playing';
       const episodeChanged = state.currentEpisodeId !== this.currentEpisodeId;

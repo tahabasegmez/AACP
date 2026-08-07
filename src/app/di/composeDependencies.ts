@@ -88,6 +88,7 @@ import {
   createPersistentStorage,
 } from '@infrastructure';
 import { AppDependencies } from '@presentation/di';
+import { bindRemoteQueue } from '../playback/bindRemoteQueue';
 
 /**
  * COMPOSITION ROOT — tüm somut bağımlılıklar burada, tek yerde kurulur ve
@@ -248,6 +249,16 @@ export const composeDependencies = (): AppDependencies => {
 
   // Sesli komut çözümleyicisi — CarPlay/Siri ve ileride sesli arama kullanır.
   const resolveVoiceQuery = new ResolveVoiceQuery(catalogRepo, feedRepo);
+
+  // Uzaktan kumanda komutları (CarPlay, kilit ekranı, direksiyon tuşları)
+  // kuyruğa bağlanır — bir ekrana değil, uygulamanın ömrüne bağlıdır.
+  bindRemoteQueue({
+    analytics,
+    continueEpisode,
+    pausePlayback,
+    resumePlayback,
+    seekTo,
+  });
 
   return {
     resolveVoiceQuery,

@@ -57,12 +57,31 @@ export class TrackPlayerAudioService implements AudioPlayerService {
   private state: PlaybackState = INITIAL_PLAYBACK_STATE;
   private readonly listeners = new Set<(state: PlaybackState) => void>();
   private readonly subscriptions: Array<{ remove: () => void }> = [];
-  private isSetup = false;
+  /**
+   * Süren/biten kurulum — BAYRAK DEĞİL, SÖZ tutulur.
+   *
+   * Kurulumu artık iki bağımsız yüzey isteyebiliyor (telefon arayüzü ve CarPlay
+   * sahnesi) ve hangisinin önce geleceği belli değil. Bayrak yeterli değildi:
+   * iki çağrı aynı anda gelirse ikisi de bayrağı boş görür, `setupPlayer` iki
+   * kez çalışır ve ikincisi `player_already_initialized` ile patlardı. Söz
+   * hatırlandığında ikinci çağıran aynı kurulumu BEKLER — döndüğünde oynatıcı
+   * gerçekten hazırdır.
+   */
+  private setupPromise?: Promise<void>;
 
-  async setup(): Promise<void> {
-    if (this.isSetup) {
-      return;
+  setup(): Promise<void> {
+    if (!this.setupPromise) {
+      // Kurulum başarısız olursa söz UNUTULUR: sonraki deneme (ör. kullanıcı
+      // uygulamayı öne getirdiğinde) yeniden şansını bulsun.
+      this.setupPromise = this.runSetup().catch(error => {
+        this.setupPromise = undefined;
+        throw error;
+      });
     }
+    return this.setupPromise;
+  }
+
+  private async runSetup(): Promise<void> {
     await requestNotificationPermission();
     // iOS: Playback kategorisi + SpokenAudio modu → arka plan sesi VE Now Playing
     // (kilit ekranı + Dynamic Island medya kartı). Podcast için doğru profil.
@@ -117,7 +136,6 @@ export class TrackPlayerAudioService implements AudioPlayerService {
       this.logger?.error('Oynatma kartı yapılandırılamadı', error);
     }
     this.registerListeners();
-    this.isSetup = true;
   }
 
   async play(episode: Episode): Promise<void> {

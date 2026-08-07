@@ -5,7 +5,6 @@ import {
   LastPlayedRestorer,
   PlaybackSessionBridge,
   QueryProvider,
-  RemoteQueueBridge,
   SyncRunner,
   ThemeProvider,
   useDependencies,
@@ -43,8 +42,6 @@ export const PodcastProviders: React.FC<{ children: React.ReactNode }> = ({ chil
           <SyncRunner />
           {/* Hesabın en son dinlediği bölümü mini player'a geri yükler. */}
           <LastPlayedRestorer />
-          {/* CarPlay / kilit ekranı "sonraki-önceki bölüm" komutlarını kuyruğa bağlar. */}
-          <RemoteQueueBridge />
           {/* Aynı hesapta tek cihaz kuralı — oturum boyunca geçerli. */}
           <PlaybackSessionBridge />
           {children}
