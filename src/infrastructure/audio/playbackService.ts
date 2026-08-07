@@ -1,17 +1,20 @@
 import TrackPlayer, { Event } from 'react-native-track-player';
-import { remoteQueueHandlers } from './remoteQueueCommands';
-
-const FORWARD_SEC = 30;
-const BACKWARD_SEC = 15;
+import { SEEK_BACKWARD_SEC, SEEK_FORWARD_SEC } from './remoteControls';
 
 /**
  * Playback service — track-player'ın arka planda çalışan servis fonksiyonu.
  * index.js'de `registerPlaybackService` ile kaydedilir.
  *
- * Kilit ekranı, bildirim, CarPlay ve Android Auto'daki uzaktan kontrol
- * butonlarını (oynat/duraklat/ileri/geri/seek) native tarafta işler. Bu olaylar
- * TrackPlayer durumunu değiştirir; değişiklik TrackPlayerAudioService'in
- * PlaybackState dinleyicileri üzerinden UI'a geri yansır.
+ * Kilit ekranı, bildirim, Dynamic Island, CarPlay ve Android Auto'daki uzaktan
+ * kontrol tuşlarını native tarafta işler. Bu olaylar TrackPlayer durumunu
+ * değiştirir; değişiklik TrackPlayerAudioService'in PlaybackState dinleyicileri
+ * üzerinden UI'a geri yansır.
+ *
+ * KUYRUK KOMUTLARI DOĞRUDAN KÜTÜPHANEYE GİDER. Bir dönem "sonraki/önceki
+ * bölüm" uygulamanın kendi kuyruğuna el yapımı bir köprüyle bağlanıyordu:
+ * kuyruk presentation'da, oynatıcıda ise tek parça vardı ve ikisi ayrışıyordu —
+ * kilit ekranındaki tuş uygulamadaki sırayı takip etmiyordu. Artık sıra
+ * oynatıcının kendi kuyruğudur, köprüye gerek yoktur.
  */
 export default async function playbackService(): Promise<void> {
   TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play());
@@ -24,33 +27,21 @@ export default async function playbackService(): Promise<void> {
 
   TrackPlayer.addEventListener(Event.RemoteJumpForward, async ({ interval }) => {
     const { position } = await TrackPlayer.getProgress();
-    await TrackPlayer.seekTo(position + (interval ?? FORWARD_SEC));
+    await TrackPlayer.seekTo(position + (interval ?? SEEK_FORWARD_SEC));
   });
 
   TrackPlayer.addEventListener(Event.RemoteJumpBackward, async ({ interval }) => {
     const { position } = await TrackPlayer.getProgress();
-    await TrackPlayer.seekTo(Math.max(0, position - (interval ?? BACKWARD_SEC)));
+    await TrackPlayer.seekTo(Math.max(0, position - (interval ?? SEEK_BACKWARD_SEC)));
   });
 
-  // Sonraki/önceki BÖLÜM (track-player'ın kendi kuyruğu değil, uygulamanınki).
-  // Hangi bölümün sıradaki olduğunu kuyruk bilir; köprü üzerinden sorulur.
-  TrackPlayer.addEventListener(Event.RemoteNext, () => remoteQueueHandlers().next());
+  // Sonraki/önceki BÖLÜM — kuyruğun sahibi oynatıcı olduğu için tek satır.
+  // Kuyruğun ucundaysak kütüphane komutu kendisi yok sayar.
+  TrackPlayer.addEventListener(Event.RemoteNext, () => TrackPlayer.skipToNext());
   TrackPlayer.addEventListener(Event.RemotePrevious, () =>
-    remoteQueueHandlers().previous(),
+    TrackPlayer.skipToPrevious(),
   );
 
-  /**
-   * Bölüm sonuna gelindi → kuyrukta sonrakine geç.
-   *
-   * Oynatıcıya HER SEFERİNDE tek bölüm yüklenir (kuyruk uygulamanındır), bu
-   * yüzden bir bölüm bitince track-player'ın kendi kuyruğu boşalır ve bu olay
-   * düşer. Dinleyici olmadığı için oynatma bölüm sonunda sessizce duruyordu:
-   * sıra dolu olsa bile sonraki bölüme geçilmiyordu.
-   *
-   * Kuyruğun sonundaysak `next()` hiçbir şey yapmaz; oynatma doğal olarak
-   * biter.
-   */
-  TrackPlayer.addEventListener(Event.PlaybackQueueEnded, () =>
-    remoteQueueHandlers().next(),
-  );
+  // Bölüm sonunda sıradakine geçmek de kütüphanenin işi: kuyruk onda olduğu
+  // için `PlaybackQueueEnded`'i elle karşılamaya gerek kalmadı.
 }

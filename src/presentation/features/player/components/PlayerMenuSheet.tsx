@@ -3,8 +3,9 @@ import { Pressable, View } from 'react-native';
 import { Episode } from '@domain/entities';
 import { useTheme } from '../../../theme';
 import { BottomSheet, Icon, IconName, Text } from '../../../ui';
-import { usePlayerQueueStore } from '../../../stores';
+
 import { shareEpisode } from '../../episode/shareEpisode';
+import { usePlaybackController } from '../usePlaybackController';
 
 /**
  * PlayerMenuSheet — tam ekran oynatıcının "…" menüsü.
@@ -20,7 +21,7 @@ export const PlayerMenuSheet: React.FC<{
   onFeedback?: (message: string) => void;
 }> = ({ visible, episode, onClose, onFeedback }) => {
   const theme = useTheme();
-  const enqueue = usePlayerQueueStore(s => s.enqueue);
+  const { enqueue } = usePlaybackController();
 
   const run = (action: () => void, message: string): void => {
     action();

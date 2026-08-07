@@ -2,8 +2,9 @@ import { Alert } from 'react-native';
 import { Episode } from '@domain/entities';
 import { useTheme } from '../../theme';
 import { SwipeAction } from '../../ui';
-import { usePlayerQueueStore } from '../../stores';
+
 import { useRemoveEpisodeFromPlaylist } from '../../query';
+import { usePlaybackController } from '../player/usePlaybackController';
 
 /**
  * Bölüm satırının GÖSTERİLDİĞİ YER.
@@ -40,7 +41,7 @@ export const useEpisodeSwipeActions = ({
   onAddToPlaylist,
 }: Input): { right: SwipeAction; left: SwipeAction } => {
   const theme = useTheme();
-  const enqueue = usePlayerQueueStore(s => s.enqueue);
+  const { enqueue } = usePlaybackController();
   const removeEpisode = useRemoveEpisodeFromPlaylist();
 
   const playlistId = context?.playlistId;
@@ -49,7 +50,7 @@ export const useEpisodeSwipeActions = ({
     icon: 'queue',
     label: 'Sıraya ekle',
     color: theme.colors.accent,
-    onTrigger: () => enqueue(episode),
+    onTrigger: () => void enqueue(episode),
   };
 
   if (!playlistId) {

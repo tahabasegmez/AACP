@@ -1,4 +1,5 @@
 import { Episode, PlaybackStatus } from '@domain/entities';
+import { QueueItem } from '@domain/services';
 import { State, type AddTrack, type NowPlayingMetadata } from 'react-native-track-player';
 
 /**
@@ -32,7 +33,7 @@ export const mapTrackPlayerState = (state: State): PlaybackStatus => {
 };
 
 /** Şov adı bilinmediğinde oynatma kartında görünecek ad. */
-const PUBLISHER = 'Anadolu Ajansı';
+const PUBLISHER = 'AACP';
 
 /**
  * Domain Episode'unu track-player'ın çalabileceği bir track nesnesine çevirir.
@@ -45,11 +46,40 @@ const PUBLISHER = 'Anadolu Ajansı';
  * `album` bilinçli olarak DOLDURULMAZ: CarPlay hem sanatçıyı hem albümü ayrı
  * satırlarda gösterdiği için şov adı ekranda iki kez çıkıyordu.
  */
-export const episodeToTrack = (episode: Episode): AddTrack => ({
-  id: episode.id,
-  url: episode.audioUrl,
-  ...episodeToNowPlaying(episode),
+export const episodeToTrack = (item: QueueItem): AddTrack => ({
+  id: item.episode.id,
+  url: item.episode.audioUrl,
+  ...episodeToNowPlaying(item.episode),
+  // Kuyruk artık OYNATICIDA yaşadığı için domain verisi parçanın üstünde
+  // taşınır: kütüphane tanımadığı alanları olduğu gibi saklar ve `getQueue()`
+  // ile geri verir (`Track.originalObject`). Böylece kuyruğu okumak için
+  // ikinci bir kayıt tutmak gerekmez.
+  [EPISODE_KEY]: item.episode,
+  [SOURCE_KEY]: item.source,
 });
+
+/** Parçanın üstünde taşınan domain alanları (kütüphane bunları yorumlamaz). */
+const EPISODE_KEY = 'aacpEpisode';
+const SOURCE_KEY = 'aacpSource';
+
+/**
+ * Parçayı kuyruk öğesine geri çevirir.
+ *
+ * Beklenen alanlar yoksa (ör. kütüphane sürümü değişip özel alanları
+ * düşürürse) öğe atlanır: yarım bir bölümle çalışmaktansa kuyrukta
+ * göstermemek yeğdir.
+ */
+export const trackToQueueItem = (track: unknown): QueueItem | null => {
+  const raw = track as Record<string, unknown> | null;
+  const episode = raw?.[EPISODE_KEY] as Episode | undefined;
+  if (!episode?.id) {
+    return null;
+  }
+  return {
+    episode,
+    source: raw?.[SOURCE_KEY] === 'user' ? 'user' : 'context',
+  };
+};
 
 /**
  * Oynatma kartına yazılacak meta veri.

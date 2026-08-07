@@ -33,7 +33,7 @@ describe('episodeToTrack', () => {
   };
 
   it('domain episode → track alanları', () => {
-    const track = episodeToTrack(episode);
+    const track = episodeToTrack({ episode, source: 'context' });
     expect(track.id).toBe('ep1');
     expect(track.url).toBe('https://media/ep1.mp3');
     expect(track.title).toBe('Başlık');
@@ -42,21 +42,21 @@ describe('episodeToTrack', () => {
   });
 
   it('süre 0 ise duration undefined', () => {
-    const track = episodeToTrack({ ...episode, durationSec: 0 });
+    const track = episodeToTrack({ episode: { ...episode, durationSec: 0 }, source: 'context' });
     expect(track.duration).toBeUndefined();
   });
 
   it('şov adı sanatçı olarak yazılır', () => {
-    const track = episodeToTrack({ ...episode, showTitle: 'Şov 1' });
+    const track = episodeToTrack({ episode: { ...episode, showTitle: 'Şov 1' }, source: 'context' });
     expect(track.artist).toBe('Şov 1');
   });
 
   it('şov adı yoksa yayıncıya düşer', () => {
-    expect(episodeToTrack(episode).artist).toBe('Anadolu Ajansı');
+    expect(episodeToTrack({ episode, source: 'context' }).artist).toBe('Anadolu Ajansı');
   });
 
   it('albüm alanı doldurulmaz (kartta şov adı iki kez çıkardı)', () => {
-    expect(episodeToTrack({ ...episode, showTitle: 'Şov 1' }).album).toBeUndefined();
+    expect(episodeToTrack({ episode: { ...episode, showTitle: 'Şov 1' }, source: 'context' }).album).toBeUndefined();
   });
 });
 
@@ -75,7 +75,7 @@ describe('episodeToNowPlaying', () => {
 
   it('kart alanları track ile AYNI kaynaktan gelir', () => {
     const card = episodeToNowPlaying(episode);
-    const track = episodeToTrack(episode);
+    const track = episodeToTrack({ episode, source: 'context' });
 
     expect(card).toEqual({
       title: 'Başlık',

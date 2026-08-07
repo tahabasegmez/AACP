@@ -3,7 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { PlaybackState } from '@domain/entities';
 import { useDependencies } from '../../di';
 import { queryKeys } from '../../query';
-import { usePlayerStore } from '../../stores';
+import { queueEpisodes, usePlayerQueueStore, usePlayerStore } from '../../stores';
+import { episodeForProgress } from './progressRecord';
 
 /** Çalarken konumu en fazla bu aralıkla (saniye) kaydet. */
 const SAVE_INTERVAL_SEC = 5;
@@ -60,8 +61,15 @@ export const useProgressRecorder = (): ((state: PlaybackState) => void) => {
       lastPositionRef.current = positionSec;
 
       // "Dinlemeye devam" kartının başlık/kapak gösterip doğrudan çalabilmesi
-      // için o an çalan bölümün meta'sını da kaydet.
-      const episode = usePlayerStore.getState().currentEpisode;
+      // için bölümün meta'sını da kaydet — ama META, KAYDIN KİMLİĞİYLE AYNI
+      // bölümden gelmeli. Bölüm değişiminde oynatıcı ile store kısa süreliğine
+      // ayrışır; körlemesine "açık olan bölüm"ü yazmak kaydı yanlış başlık,
+      // kapak ve audioUrl ile kalıcı olarak zehirliyordu (bkz. progressRecord).
+      const episode = episodeForProgress(
+        currentEpisodeId,
+        usePlayerStore.getState().currentEpisode,
+        queueEpisodes(usePlayerQueueStore.getState().items),
+      );
 
       void savePlaybackProgress
         .execute({

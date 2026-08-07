@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Episode, PlaybackProgress } from '@domain/entities';
 import { useDependencies } from '../../di';
-import { setPlaybackSession, usePlayerStore } from '../../stores';
+import { usePlayerStore } from '../../stores';
 import { useCurrentUser } from '../../query';
 
 /** Kaldığın-yer kaydından çalınabilir bir bölüm kurar. */
@@ -67,9 +67,11 @@ export const LastPlayedRestorer: React.FC = () => {
         if (!latest) {
           return;
         }
-        // Oturum tek yerden kurulur (kuyruk + çalan bölüm); doğrudan
-        // `setCurrentEpisode` çağırmak ikisinin ayrışmasına kapı açardı.
-        setPlaybackSession([toEpisode(latest)], 0);
+        // Yalnızca GÖSTERİM kurulur; kuyruğa DOKUNULMAZ. Kuyruk oynatıcıda
+        // yaşar ve onu doldurmak sesi yüklemek demektir — açılışta ağa çıkmak
+        // ya da dosya açmak gereksiz. Kullanıcı oynata bastığında `togglePlay`
+        // bölümü kuyruğa alıp kaldığı yerden başlatır.
+        usePlayerStore.getState().setCurrentEpisode(toEpisode(latest));
         // Kaldığı yer göstergeye de yazılır; aksi halde ilerleme çubuğu
         // sıfırdan başlıyor gibi görünürdü. Durum 'idle' kalır: ses henüz
         // oynatıcıya yüklenmedi ve bunu `togglePlay` bu bilgiden anlar.

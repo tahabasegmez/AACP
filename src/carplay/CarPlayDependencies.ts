@@ -1,5 +1,5 @@
 import { ArtworkCache } from '@core/ports';
-import { AudioPlayerService, PlaybackSessionService } from '@domain/services';
+import { AudioPlayerService } from '@domain/services';
 import {
   ContinueEpisode,
   GetDownloads,
@@ -40,13 +40,12 @@ export interface CarPlayDependencies {
   readonly continueEpisode: ContinueEpisode;
   readonly pausePlayback: PausePlayback;
   readonly resumePlayback: ResumePlayback;
-  readonly audioPlayer: AudioPlayerService;
   /**
-   * Oynatma oturumu. CarPlay bir listeden çalmaya başladığında bağlamı KURAR
-   * (kuyruk + çalan bölüm) ve "Sıradakiler" listesini buradan okur — kendi
-   * kopyasını tutmaz. Telefondaki oynatma da aynı oturumu kullanır.
+   * Oynatıcı — oynatma KUYRUĞUNUN da sahibidir. CarPlay bir listeden çalmaya
+   * başlayınca bağlamı buradan kurar ve "Sıradakiler"i buradan okur; kendi
+   * kopyasını tutmaz. Telefon da aynı kuyruğu kullanır.
    */
-  readonly playbackSession: PlaybackSessionService;
+  readonly audioPlayer: AudioPlayerService;
 
   // --- görseller ----------------------------------------------------------
   /**

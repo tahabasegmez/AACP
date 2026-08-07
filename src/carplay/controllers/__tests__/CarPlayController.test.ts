@@ -9,6 +9,7 @@ import {
   Show,
 } from '@domain/entities';
 import { CarPlay } from 'react-native-carplay';
+import { QueueSnapshot } from '@domain/services';
 import { CarPlayDependencies } from '../../CarPlayDependencies';
 import { CarPlayController } from '../CarPlayController';
 
@@ -98,7 +99,7 @@ let continued: Episode | null = null;
 /** Oynatıcı kaç kez kurulmak istendi? (araç uygulamayı tek başına açabilir) */
 let setupCount = 0;
 /** Oynatma oturumunun testteki karşılığı (tek gerçek kaynak). */
-let queue: { episodes: readonly Episode[]; index: number } = { episodes: [], index: -1 };
+let queue: QueueSnapshot = { items: [], index: -1 };
 
 const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies =>
   ({
@@ -114,8 +115,23 @@ const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies
     getDownloads: { execute: async () => ok([download]) },
     getPlaylists: { execute: async () => ok([playlist]) },
     continueEpisode: {
-      execute: async ({ episode: e }: { episode: Episode }) => {
+      execute: async ({
+        episode: e,
+        queue: q,
+        index,
+      }: {
+        episode: Episode;
+        queue?: readonly Episode[];
+        index?: number;
+      }) => {
         continued = e;
+        // Kuyruk oynatmayla BİRLİKTE kurulur (oynatıcının kuyruğu).
+        if (q) {
+          queue = {
+            items: q.map(episode => ({ episode, source: 'context' as const })),
+            index: index ?? 0,
+          };
+        }
         return ok(undefined);
       },
     },
@@ -127,15 +143,11 @@ const makeDeps = (overrides?: Partial<CarPlayDependencies>): CarPlayDependencies
       },
       getState: async () => ({ ...INITIAL_PLAYBACK_STATE, rate: 1 }),
       subscribe: () => () => undefined,
+      // Kuyruğun sahibi oynatıcıdır; CarPlay onu buradan okur.
+      getQueue: async () => queue,
     },
     // CarPlay uzak kapak kabul etmez; port yereli döner.
     artwork: { localUri: async (url: string) => `file:///cache/${url.split('/').pop()}` },
-    playbackSession: {
-      setContext: (episodes: readonly Episode[], index: number) => {
-        queue = { episodes, index };
-      },
-      getQueue: () => queue,
-    },
     ...overrides,
   }) as unknown as CarPlayDependencies;
 
@@ -143,7 +155,7 @@ beforeEach(() => {
   tp.__reset();
   continued = null;
   setupCount = 0;
-  queue = { episodes: [], index: -1 };
+  queue = { items: [], index: -1 };
 });
 
 describe('CarPlayController', () => {
@@ -338,7 +350,7 @@ describe('CarPlayController', () => {
 
     // Her oynatma bir bağlam kuyruğu bırakır: direksiyon tuşları ve
     // "Sıradakiler" boş kalmamalı.
-    expect(queue.episodes.map(e => e.id)).toEqual(['e-dl']);
+    expect(queue.items.map(i => i.episode.id)).toEqual(['e-dl']);
     expect(queue.index).toBe(0);
   });
 

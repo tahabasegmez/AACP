@@ -6,6 +6,10 @@ import { PlayEpisode } from './PlayEpisode';
 
 export interface ContinueEpisodeParams {
   readonly episode: Episode;
+  /** Verilirse kuyruk bu bölümlerle kurulur (şov/liste bağlamı). */
+  readonly queue?: readonly Episode[];
+  /** Kuyruktaki başlangıç konumu. */
+  readonly index?: number;
 }
 
 /**
@@ -32,6 +36,8 @@ export class ContinueEpisode implements UseCase<ContinueEpisodeParams, void> {
 
     return this.playEpisode.execute({
       episode: params.episode,
+      queue: params.queue,
+      index: params.index,
       startPositionSec,
     });
   }

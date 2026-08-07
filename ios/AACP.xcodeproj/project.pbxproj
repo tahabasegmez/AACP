@@ -13,6 +13,8 @@
 		7A1C0A032D0100000000AA03 /* CarPlaySceneDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 7A1C0A022D0100000000AA02 /* CarPlaySceneDelegate.m */; };
 		7A1C0A072D0100000000AA07 /* AirPlayRoutePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1C0A052D0100000000AA05 /* AirPlayRoutePicker.swift */; };
 		7A1C0A082D0100000000AA08 /* AirPlayRoutePicker.m in Sources */ = {isa = PBXBuildFile; fileRef = 7A1C0A062D0100000000AA06 /* AirPlayRoutePicker.m */; };
+		7A1C0A0B2D0100000000AA0B /* NowPlayingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1C0A092D0100000000AA09 /* NowPlayingSession.swift */; };
+		7A1C0A0C2D0100000000AA0C /* NowPlayingSession.m in Sources */ = {isa = PBXBuildFile; fileRef = 7A1C0A0A2D0100000000AA0A /* NowPlayingSession.m */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		BF916FBA3E6FB152CAD68D0B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
@@ -31,6 +33,8 @@
 		7A1C0A042D0100000000AA04 /* AACP.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; name = AACP.entitlements; path = AACP/AACP.entitlements; sourceTree = "<group>"; };
 		7A1C0A052D0100000000AA05 /* AirPlayRoutePicker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = AirPlayRoutePicker.swift; path = AACP/AirPlayRoutePicker.swift; sourceTree = "<group>"; };
 		7A1C0A062D0100000000AA06 /* AirPlayRoutePicker.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = AirPlayRoutePicker.m; path = AACP/AirPlayRoutePicker.m; sourceTree = "<group>"; };
+		7A1C0A092D0100000000AA09 /* NowPlayingSession.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = NowPlayingSession.swift; path = AACP/NowPlayingSession.swift; sourceTree = "<group>"; };
+		7A1C0A0A2D0100000000AA0A /* NowPlayingSession.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = NowPlayingSession.m; path = AACP/NowPlayingSession.m; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = AACP/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -54,6 +58,8 @@
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
 				7A1C0A052D0100000000AA05 /* AirPlayRoutePicker.swift */,
 				7A1C0A062D0100000000AA06 /* AirPlayRoutePicker.m */,
+				7A1C0A092D0100000000AA09 /* NowPlayingSession.swift */,
+				7A1C0A0A2D0100000000AA0A /* NowPlayingSession.m */,
 				7A1C0A012D0100000000AA01 /* CarPlaySceneDelegate.h */,
 				7A1C0A022D0100000000AA02 /* CarPlaySceneDelegate.m */,
 				7A1C0A042D0100000000AA04 /* AACP.entitlements */,
@@ -264,6 +270,8 @@
 				7A1C0A032D0100000000AA03 /* CarPlaySceneDelegate.m in Sources */,
 				7A1C0A072D0100000000AA07 /* AirPlayRoutePicker.swift in Sources */,
 				7A1C0A082D0100000000AA08 /* AirPlayRoutePicker.m in Sources */,
+				7A1C0A0B2D0100000000AA0B /* NowPlayingSession.swift in Sources */,
+				7A1C0A0C2D0100000000AA0C /* NowPlayingSession.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

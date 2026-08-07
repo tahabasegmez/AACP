@@ -4,8 +4,9 @@ import { formatDuration, stripHtml } from '@core/utils';
 import { useTheme } from '../../theme';
 import { BottomSheet, CoverImage, Icon, IconName, Text } from '../../ui';
 import { useEpisodeNotes, useSavedEpisodes, useShowsQuery, useToggleSaved } from '../../query';
-import { useEpisodeSheetStore, usePlayerQueueStore } from '../../stores';
+import { useEpisodeSheetStore } from '../../stores';
 import { usePlayEpisode } from '../player/usePlayEpisode';
+import { usePlaybackController } from '../player/usePlaybackController';
 import { useEpisodeStatus, useSetEpisodeCompleted } from '../player/useEpisodeStatus';
 import { useDownloads, useDownloadStatus } from '../downloads/useDownloads';
 import { AddToPlaylistSheet } from '../playlists/components/AddToPlaylistSheet';
@@ -28,7 +29,7 @@ const formatDate = (iso: string): string => {
 export const EpisodeSheet: React.FC = () => {
   const theme = useTheme();
   const [playlistOpen, setPlaylistOpen] = useState(false);
-  const enqueue = usePlayerQueueStore(s => s.enqueue);
+  const { enqueue } = usePlaybackController();
   const episode = useEpisodeSheetStore(s => s.episode);
   const close = useEpisodeSheetStore(s => s.close);
   const play = usePlayEpisode();

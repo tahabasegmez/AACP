@@ -6,9 +6,28 @@ import { PlayEpisode } from '../PlayEpisode';
 
 class FakePlayer implements AudioPlayerService {
   public played: Episode | null = null;
+  public queue: readonly Episode[] = [];
+  public startedAt = -1;
+  public skippedTo = -1;
+
   async setup() {}
-  async play(episode: Episode) {
-    this.played = episode;
+  async setQueue(episodes: readonly Episode[], index: number, startPositionSec = -1) {
+    this.queue = episodes;
+    this.played = episodes[index] ?? null;
+    this.startedAt = startPositionSec;
+  }
+  async enqueue() {}
+  async removeAt() {}
+  async moveItem() {}
+  async skipTo(index: number, startPositionSec = -1) {
+    this.skippedTo = index;
+    this.startedAt = startPositionSec;
+    this.played = this.queue[index] ?? this.played;
+  }
+  async skipToNext() {}
+  async skipToPrevious() {}
+  async getQueue() {
+    return { items: this.queue.map(episode => ({ episode, source: 'context' as const })), index: 0 };
   }
   async resume() {}
   async pause() {}
@@ -57,20 +76,20 @@ describe('PlayEpisode kaynak çözümü', () => {
       status: 'downloaded',
       localPath: '/dl/ep1.mp3',
     });
-    await new PlayEpisode(player, downloads).execute({ episode });
+    await new PlayEpisode(player, downloads).execute({ episode, queue: [episode] });
     expect(player.played?.audioUrl).toBe('file:///dl/ep1.mp3');
   });
 
   it('indirilmemişse uzak URL\'i çalar', async () => {
     const player = new FakePlayer();
     const downloads = new FakeDownloads(null);
-    await new PlayEpisode(player, downloads).execute({ episode });
+    await new PlayEpisode(player, downloads).execute({ episode, queue: [episode] });
     expect(player.played?.audioUrl).toBe('https://media/remote.mp3');
   });
 
   it('downloadRepo yoksa uzak URL', async () => {
     const player = new FakePlayer();
-    await new PlayEpisode(player).execute({ episode });
+    await new PlayEpisode(player).execute({ episode, queue: [episode] });
     expect(player.played?.audioUrl).toBe('https://media/remote.mp3');
   });
 });

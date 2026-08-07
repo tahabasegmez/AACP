@@ -66,8 +66,8 @@ kaymasına açıktı.
 İki parça vardır ve ayrımı bilinçlidir:
 
 1. **"Şimdi çalan" sekmesi (bizim)** — çalan bölüm ve kuyruğun devamı. İçeriği
-   uygulamanın kendi durumundan (`PlaybackQueueService` + çalan bölüm kimliği)
-   gelir, dolayısıyla her zaman günceldir ve biz biçimlendiririz.
+   oynatıcının kuyruğundan (`AudioPlayerService.getQueue`) gelir, dolayısıyla
+   kilit ekranıyla aynı gerçeği gösterir ve biz biçimlendiririz.
 2. **Sistem Now Playing ekranı (iOS'un)** — taşıma kontrolleri. İçeriğini
    (başlık, sanatçı, kapak, süre) iOS `MPNowPlayingInfoCenter`'dan kendisi
    doldurur; uygulama oraya yalnızca track meta verisini yazar
@@ -82,7 +82,7 @@ Sistem ekranına eklenenler:
 | Öğe | Nereden gelir |
 |---|---|
 | Oynat/duraklat, **seek çubuğu** | Sistem (track-player `MPNowPlayingInfoCenter`'ı besler) |
-| **Sonraki / önceki bölüm** | `Capability.SkipToNext/Previous` → uygulamanın kuyruğu |
+| **Sonraki / önceki bölüm** | `Capability.SkipToNext/Previous` → oynatıcının kuyruğu (§6) |
 | **Sıradakiler** | `upNextButton` → kuyruk listesi, dokununca o bölüme atlar |
 | **Şov adı** | `albumArtistButton` → o şovun bölümleri (Spotify davranışı) |
 
@@ -92,9 +92,12 @@ sürüş sırasında ayar değil dinleme yapılır, ikisi de telefonda duruyor.
 
 **Sarma tuşları (15/30 sn) kapalıdır.** iOS kartta hem sarma hem bölüm değiştirme
 tuşlarını birden göstermez; araçta bölüm değiştirmek daha sık gerekir, sarma
-zaten sürgüyle yapılabilir. Bu bir uygulama geneli ayardır
-(`TrackPlayerAudioService`), dolayısıyla **kilit ekranını da** aynı şekilde
-etkiler.
+zaten sürgüyle yapılabilir. Karar tek yerdedir
+([remoteControls](../src/infrastructure/audio/remoteControls.ts)) ve uygulama
+genelidir — **kilit ekranını da** aynı şekilde etkiler.
+
+`Capability.Stop` de kapalıdır: Apple onu canlı yayınlara ayırır ve açık
+bırakıldığında sistem duraklat yerine bir "durdur" karesi çizebiliyor.
 
 > Hız düğmesi bir dönem denendi ama üstündeki etiket daima `0×` gösteriyordu:
 > o değeri iOS `MPNowPlayingInfoPropertyPlaybackRate`'ten okur ve oraya JS'ten
@@ -179,29 +182,25 @@ ve şov düğmelerinin tek dokunuşta iki-üç kez tetiklenmesi (ve aynı şablo
 
 ### Oynatma oturumu tek yerde yaşar
 
-"Ne çalıyor ve sırada ne var" TEK yerde tutulur:
-[`PlaybackSessionService`](../src/domain/services/PlaybackSessionService.ts).
-CarPlay kendi kopyasını tutmaz; bir listeden çalmaya başlayınca bu port
-üzerinden bağlamı kurar, "Sıradakiler" de aynı porttan okur.
-
-`setContext` kuyruğu ve çalan bölümü **birlikte** alır. Bu bilinçlidir: ikisi
-ayrı ayrı ayarlanabildiği sürece biri unutulabiliyor — nitekim CarPlay yalnızca
-kuyruğu kurmuş, telefondaki kapak ve başlık eski bölümde kalmıştı.
+"Ne çalıyor ve sırada ne var" TEK yerde tutulur: **oynatıcının kendi kuyruğu**
+(bkz. §6). CarPlay kendi kopyasını tutmaz; bir listeden çalmaya başlayınca
+kuyruğu oynatmayla BİRLİKTE kurar, "Sıradakiler" de aynı kuyruktan okunur.
 
 ```
-Telefon (usePlaybackController)  ─┐
-                                  ├─→ setPlaybackSession()  ← tek nokta
-CarPlay (PlaybackSessionAdapter) ─┘        ├─ kuyruk
-                                           └─ çalan bölüm
+Telefon (playbackController) ─┐
+                              ├─→ AudioPlayerService  ← tek gerçek kaynak
+CarPlay (CarPlayController)  ─┘        ├─ kuyruk
+                                       └─ çalan bölüm
 ```
 
-Port domain'de durur, somut uygulama
-[PlaybackSessionAdapter](../src/app/carplay/PlaybackSessionAdapter.ts) ile
-composition root'ta bağlanır — `@carplay` presentation'ı tanımaz.
+Kuyruk ve çalan bölüm **birlikte** kurulur (`ContinueEpisode`'un `queue` +
+`index` parametreleri). Bu bilinçlidir: ikisi ayrı ayrı ayarlanabildiği sürece
+biri unutulabiliyordu — nitekim CarPlay yalnızca kuyruğu kurmuş, telefondaki
+kapak ve başlık eski bölümde kalmıştı.
 
-Bağlam **her** oynatmada verilir: "Dinlemeye devam"dan çalmak bile bağlam olarak
-o listeyi bırakır. Aksi halde tek bölümlük kuyruk kalır ve "Sıradakiler" boş
-görünürdü.
+CarPlay kuyruğu asenkron okur ama şablon geri çağrıları senkrondur; bu yüzden
+her tazeleme turunda bir kez okunup denetleyicide tutulur — şablonlar hep aynı
+anlık görüntüyü görür.
 
 ### Oynatma kartının içeriği
 
@@ -320,6 +319,27 @@ turları birikmesin.
 - **Ekranda:** "Dinlemeye devam" rafındaki bir bölüm "Sonra dinle" rafından
   düşürülür — aynı ekranda iki kez görünmez, üstteki raf kazanır.
 
+### Kaydın meta'sı kimliğiyle AYNI bölümden gelmeli
+
+Kaydın kimliği **oynatıcıdan** gelir (gerçekte yüklü olan parça), gösterim
+meta'sı ise uygulamanın durumundan. İkisi bölüm değişiminde kısa süreliğine
+ayrışır: store yeni bölümü gösterirken oynatıcı hâlâ eskisini tutar.
+
+O anda körlemesine "şu an açık olan bölüm"ün meta'sını yazmak kaydı **kalıcı
+olarak bozuyordu** — A bölümünün kaydı B'nin başlığını, kapağını ve
+`audioUrl`'ini alıyordu. İki sonucu vardı:
+
+1. "Dinlemeye devam"da aynı bölüm iki kez görünüyordu (iki kimlik, aynı başlık),
+2. o satıra dokunmak **yanlış bölümü** çalıyordu.
+
+Depo alanları birleştirdiği (`?? existing`) için yanlış değer kendiliğinden de
+düzelmiyordu. Artık meta, kaydın kimliğine ait bölümden çözülür
+([progressRecord](../src/presentation/features/player/progressRecord.ts));
+bölüm bulunamazsa meta hiç yazılmaz — **eksik meta, yanlış meta'dan iyidir.**
+
+Cihazda kalmış eski bozuk kayıtlar için `GetResumeList` ikinci bir ayıklama
+daha yapar: şov + başlık aynıysa tek satır kalır.
+
 ## 4. Sesli komut (Siri)
 
 Domain tarafı hazırdır: [ResolveVoiceQuery](../src/domain/usecases/voice/ResolveVoiceQuery.ts)
@@ -357,32 +377,70 @@ src/carplay/
 2. **Şablon dönüşümleri saftır.** `sections.ts` native tipe bağlanmaz; bu
    sayede CarPlay olmadan (Windows dahil) test edilebilir.
 
-## 6. Sonraki/önceki bölüm nasıl çalışıyor?
+## 6. Kuyruk nerede yaşıyor?
 
-Bu komutlar arka plan servisinde (`playbackService`) karşılanır ama hangi
-bölümün sıradaki olduğunu **kuyruk** bilir ve kuyruk presentation'da yaşar.
-İkisini bağlamak için ince bir köprü vardır:
+**Kuyruğun tek sahibi oynatıcıdır** (`react-native-track-player`'ın kendi
+kuyruğu). Uygulama ikinci bir sıra TUTMAZ.
 
 ```
-CarPlay / direksiyon tuşu
-   └─ playbackService (infrastructure)
-        └─ remoteQueueHandlers()          ← sözleşme
-             └─ RemoteQueueBridge (presentation)  ← gerçek işleyiciler
+setQueue / add / move / remove / skipToNext / skipToPrevious
+        └─ track-player kuyruğu   ← TEK gerçek kaynak
+             ├─ kilit ekranı & Dynamic Island
+             ├─ CarPlay "Sıradakiler"
+             ├─ direksiyon tuşları
+             └─ playerQueueStore (yalnızca arayüz YANSIMASI)
 ```
 
-Böylece infrastructure presentation'a bağımlı olmaz. İşleyici kayıtlı değilse
-komutlar sessizce yok sayılır (tek bölüm çalarken "sonraki" anlamsızdır).
+> **Neden değişti.** Kuyruk bir dönem presentation'da (Zustand) yaşıyor,
+> oynatıcıya ise tek parça yükleniyordu; "sonraki bölüm" komutları da el yapımı
+> bir köprüyle bağlanıyordu. İki ayrı gerçek kaynak kaçınılmaz olarak ayrıştı:
+> uygulamada 4 bölümlük sıra varken oynatıcıda 1 parça oluyor, kilit
+> ekranındaki ve Dynamic Island'daki tuşlar uygulamadaki sırayı takip
+> etmiyordu. Köprü (`remoteQueueCommands`, `bindRemoteQueue`) ve ayrı oturum
+> portu (`PlaybackSessionService`) kaldırıldı.
 
-**Kayıt bir ekrana değil, uygulamanın ömrüne bağlıdır.** Eskiden bunu bir React
-bileşeni yapıyor ve söküldüğünde bağlantıyı koparıyordu; uygulamayı araç
-açtığında telefon arayüzü hiç görünmediği için komutlar hiç bağlanmıyordu —
-araçta "sonraki bölüm" çalışmıyor, bölüm bitince sıradakine geçilmiyordu. Artık
-bağlama composition root'ta yapılır (`bindRemoteQueue`).
+### Sıralama kuralı
 
-Bunun için oynatma akışı bir kancadan çıkarıldı: mantık
-[`createPlaybackController`](../src/presentation/features/player/playbackController.ts)
-içinde React'ten bağımsız yaşar, `usePlaybackController` yalnızca ince bir
-kancadır. Tek uygulama, iki giriş noktası.
+Bir şovun ya da listenin içinde bir bölüme dokunmak, **ardındaki bölümleri de
+sıraya alır** (`context`). Kullanıcının elle eklediği bölüm ise **çalanın hemen
+ardına**, bağlam bölümlerinin ÖNÜNE girer (`user`); birden çok ekleme kendi
+aralarında sırasını korur.
+
+```
+çalan(context) → eklenen-1(user) → eklenen-2(user) → şovun devamı(context)…
+```
+
+Kaynak ayrımı (`context` / `user`) parçanın üstünde taşınır: kütüphane
+tanımadığı alanları olduğu gibi saklayıp `getQueue()` ile geri verir
+(`Track.originalObject`). Böylece ayrım için ikinci bir kayıt tutmak gerekmez.
+
+### Uzaktan komutlar
+
+`playbackService` artık tek satır: `RemoteNext → TrackPlayer.skipToNext()`.
+Kuyruğun ucundaysak komutu kütüphane kendisi yok sayar ve sistem tuşu pasif
+çizer — eskiden tuş etkin görünüp hiçbir şey yapmıyordu. Bölüm bitince
+sıradakine geçmek de kütüphanenin işidir.
+
+### Kuyruk dışarıdan ilerlediğinde
+
+Sıra artık uygulamaya sorulmadan da ilerleyebilir (kilit ekranı, araç, bölüm
+sonu). İki şey buna bağlanır ve ikisi de bir EKRANA değil uygulamanın ömrüne
+aittir:
+
+| Modül | İşi |
+| --- | --- |
+| `bindPlaybackQueueSync` | arayüzün yansımasını tazeler |
+| `bindResumeOnEpisodeChange` | yeni bölümü kaldığı yerden sürdürür |
+
+İkincisi olmasa kilit ekranından "sonraki" demek, yarım bırakılmış bir bölümü
+baştan başlatırdı.
+
+### Reklam
+
+Oynatıcıyı saran reklam DECORATOR'ı kaldırıldı: tek parça çaldığını
+varsaydığı için kuyruğun oynatıcıya taşınmasıyla uyumsuz kaldı. Geri
+eklenecekse doğru yer yine composition root'tur — portu implement eden bir
+sarmalayıcı, kuyruk çağrılarını da devretmelidir (bkz. REKLAM.md).
 
 ## 6.1 Oynatıcı kurulumu
 
@@ -396,6 +454,36 @@ Kurulum eskiden yalnızca telefon arayüzünün bir efektinde isteniyordu. Artı
 gelirse ikisi de bayrağı boş görür ve `setupPlayer` iki kez çalışıp
 `player_already_initialized` ile patlardı. İkinci çağıran artık aynı kurulumu
 bekler ve döndüğünde oynatıcı gerçekten hazırdır.
+
+## 6.2 Kartın "çalıyor mu" bilgisi
+
+Oynatma kartının iki ayrı parçası vardır ve **ikisi de gereklidir**:
+
+| Ne | Nereye yazılır | Kim yazar |
+| --- | --- | --- |
+| İçerik (başlık, sanatçı, kapak, süre, konum) | `MPNowPlayingInfoCenter.nowPlayingInfo` | track-player |
+| Oynatma sürüyor mu | `MPNowPlayingInfoCenter.playbackState` | **biz** ([NowPlayingSession](../ios/AACP/NowPlayingSession.swift)) |
+
+`react-native-track-player` (ve altındaki SwiftAudioEx) `playbackState`'i
+**hiçbir yerde yazmıyor**; yazılmayınca `.unknown` kalır ve MediaRemote
+uygulamayı "çalan oynatıcı" olarak seçmez:
+
+```
+[MRDElectedPlayerController] ElectedPlayer changed ... to <(null)>
+    selectionReason = <... (AACP)/player-... is not playing>
+```
+
+Sonuç kafa karıştırıcıydı: kart TAM olarak doluyordu (başlık, sanatçı, 289 KB
+kapak, `PlaybackRate = 1`, tüm uzaktan komutlar etkin) ama **kilit ekranında ve
+Dynamic Island'da hiçbir şey görünmüyordu** — kayıt sisteme ulaşıyor, kimse
+çizmiyordu.
+
+Durum tek noktadan bildirilir: `TrackPlayerAudioService.update()` oynatma
+durumunun geçtiği tek yerdir. Ara durumlar (yükleniyor, tamponluyor) "çalıyor"
+sayılır — kullanıcı oynata bastığında kart hemen belirmeli, ilk parça yüklenene
+kadar yanıp sönmemeli.
+
+> Kütüphane bu alanı yazmaya başlarsa köprü kaldırılabilir.
 
 ## 7. mac'te yapılacaklar
 

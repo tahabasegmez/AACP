@@ -14,6 +14,7 @@ import {
   NowPlayingTemplate,
   TabBarTemplate,
 } from 'react-native-carplay';
+import { QueueSnapshot } from '@domain/services';
 import { CarPlayDependencies } from '../CarPlayDependencies';
 import {
   CarPlayList,
@@ -156,6 +157,15 @@ export class CarPlayController {
 
   /** Katalog — Kitaplığın sekmesi ve Now Playing'deki şov düğmesi için. */
   private shows: readonly Show[] = [];
+
+  /**
+   * Kuyruğun son okunan hâli.
+   *
+   * Kuyruğun sahibi oynatıcıdır ve okuması ASENKRONDUR; CarPlay geri
+   * çağrıları ise senkron. Bu yüzden her tazeleme turunda bir kez okunup
+   * burada tutulur — şablonlar hep aynı anlık görüntüyü görür.
+   */
+  private queue: QueueSnapshot = { items: [], index: -1 };
 
   private currentEpisodeId: string | null = null;
   /** Oynatıcı ŞU AN çalıyor mu? Duraklamış bölüme dokunmak devam ettirmeli. */
@@ -412,6 +422,9 @@ export class CarPlayController {
    * kayıt, kapalı depolama) diğer sekmeler yine dolar.
    */
   private async refreshAll(): Promise<void> {
+    // Kuyruk oynatıcıdan okunur; şablonlar bu anlık görüntüyü kullanır.
+    this.queue = await this.deps.audioPlayer.getQueue();
+
     const [resume, playlists, downloads] = await Promise.all([
       this.read('devam listesi', () => this.deps.getResumeList.execute()),
       this.read('listeler', () => this.deps.getPlaylists.execute()),
@@ -555,7 +568,8 @@ export class CarPlayController {
    * gelir, dolayısıyla her zaman günceldir. Üstteki satır sistem ekranını açar.
    */
   private nowPlayingList(): CarPlayList {
-    const { episodes, index } = this.deps.playbackSession.getQueue();
+    const episodes = this.queue.items.map(item => item.episode);
+    const { index } = this.queue;
     const current =
       episodes[index] ?? episodes.find(episode => episode.id === this.currentEpisodeId);
     const upcoming = index >= 0 ? episodes.slice(index + 1) : [];
@@ -684,12 +698,12 @@ export class CarPlayController {
       return;
     }
 
-    // Kuyruk oynatmadan ÖNCE kurulur: oynatma başlar başlamaz gelen
-    // "sonraki bölüm" komutu doğru sırayı bulsun.
-    this.deps.playbackSession.setContext(queue.map(item => this.withShow(item)), index);
-
+    // Kuyruk oynatmayla BİRLİKTE kurulur: sıra oynatıcının kendi kuyruğudur,
+    // böylece kilit ekranı ve direksiyon tuşları da aynı sırayı görür.
     const result = await this.deps.continueEpisode.execute({
       episode: this.withShow(episode),
+      queue: queue.map(item => this.withShow(item)),
+      index,
     });
     if (!isOk(result)) {
       this.logger.error('CarPlay: oynatma başlatılamadı', result.error);
@@ -775,8 +789,8 @@ export class CarPlayController {
 
   /** "Sıradakiler" — uygulamanın kuyruğundan, çalan bölümden itibaren. */
   private showUpNext(): void {
-    const { episodes, index } = this.deps.playbackSession.getQueue();
-    const upcoming = episodes.slice(Math.max(0, index));
+    const { items, index } = this.queue;
+    const upcoming = items.slice(Math.max(0, index)).map(item => item.episode);
     if (upcoming.length === 0) {
       this.logger.info('CarPlay: kuyruk boş, "Sıradakiler" açılmadı');
       return;
@@ -814,8 +828,8 @@ export class CarPlayController {
 
   /** Kuyruktaki çalan bölüm — düğmeler bunun üzerinden çalışır. */
   private currentEpisode(): Episode | undefined {
-    const { episodes, index } = this.deps.playbackSession.getQueue();
-    return episodes[index] ?? episodes.find(e => e.id === this.currentEpisodeId);
+    const episodes = this.queue.items.map(item => item.episode);
+    return episodes[this.queue.index] ?? episodes.find(e => e.id === this.currentEpisodeId);
   }
 
   /**

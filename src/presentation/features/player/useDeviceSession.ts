@@ -14,7 +14,7 @@ import {
 import { AppDependencies, useDependencies } from '../../di';
 import { queryKeys } from '../../query/queryKeys';
 import { useCurrentUser } from '../../query';
-import { setPlaybackSession, useDeviceSessionStore, usePlayerStore } from '../../stores';
+import { useDeviceSessionStore, usePlayerStore } from '../../stores';
 import { usePlaybackController } from './usePlaybackController';
 
 /**
@@ -109,10 +109,14 @@ const playHere = async (
   playEpisode: AppPlayEpisode,
 ): Promise<void> => {
   const episode = commandEpisode(command);
-  setPlaybackSession([episode], 0);
   // Konum, yayının yaşı kadar ilerletilir: karşı cihaz yayından bu yana
   // çalmaya devam etti, kullanıcı o sesi zaten duydu.
-  await playEpisode.execute({ episode, startPositionSec: commandPositionSec(command) });
+  await playEpisode.execute({
+    episode,
+    queue: [episode],
+    index: 0,
+    startPositionSec: commandPositionSec(command),
+  });
 };
 
 /** `playEpisode` use case'inin burada kullanılan yüzeyi. */

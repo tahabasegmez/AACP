@@ -6,7 +6,7 @@ import { usePlaybackSessionGuard } from './useDeviceSession';
  *
  * Kural bir ekrana değil oturuma aittir: player kapalıyken de geçerlidir.
  * Bu yüzden kancayı bir ekran değil, ağacın kökündeki bu görünmez bileşen
- * çağırır (RemoteQueueBridge ile aynı desen).
+ * çağırır (görünmez kök bileşen deseni).
  */
 export const PlaybackSessionBridge: React.FC = () => {
   usePlaybackSessionGuard();

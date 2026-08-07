@@ -1,11 +1,9 @@
 import {
   env,
-  isAdsEnabled,
   isAnalyticsEnabled,
   isSyncEnabled,
   resolveCatalogUrl,
 } from '@core/config';
-import { DEFAULT_AD_POLICY } from '@domain/entities';
 import { Platform } from 'react-native';
 import { ConsoleLogger } from '@core/logger';
 import {
@@ -69,10 +67,8 @@ import {
   RssFeedSource,
   PlaylistBackedSavedEpisodes,
   PlaylistRepositoryImpl,
-  VastAdRepository,
 } from '@data';
 import {
-  AdAwareAudioPlayer,
   ApiClient,
   BatchingAnalytics,
   BlobUtilDownloader,
@@ -88,7 +84,8 @@ import {
   createPersistentStorage,
 } from '@infrastructure';
 import { AppDependencies } from '@presentation/di';
-import { bindRemoteQueue } from '../playback/bindRemoteQueue';
+import { bindPlaybackQueueSync } from '../playback/bindPlaybackQueueSync';
+import { bindResumeOnEpisodeChange } from '../playback/bindResumeOnEpisodeChange';
 
 /**
  * COMPOSITION ROOT — tüm somut bağımlılıklar burada, tek yerde kurulur ve
@@ -129,18 +126,14 @@ export const composeDependencies = (): AppDependencies => {
   // yalnızca devralır/bırakır ve sonucu gösterir.
   const deviceSession = new ApiDeviceSessionRepository(api, Platform.OS);
 
-  // Oynatıcı: reklam yapılandırılmışsa gerçek oynatıcı bir DECORATOR ile sarılır.
-  // Reklam mantığı tek yerde toplanır; use case'ler, UI ve CarPlay aynı portu
-  // görmeye devam eder ve reklamdan haberdar olmak zorunda kalmaz.
-  const basePlayer = new TrackPlayerAudioService(logger);
-  const audioPlayer = isAdsEnabled(env)
-    ? new AdAwareAudioPlayer(
-        basePlayer,
-        new VastAdRepository(http, logger, { adTagUrl: env.adTagUrl ?? '' }),
-        logger,
-        { ...DEFAULT_AD_POLICY, enabled: true, everyNEpisodes: env.adEveryNEpisodes },
-      )
-    : basePlayer;
+  // Oynatıcı — oynatma kuyruğunun da sahibidir (bkz. AudioPlayerService).
+  //
+  // REKLAM: bir dönem oynatıcı bir reklam DECORATOR'ıyla sarılıyordu. Decorator
+  // tek parça çaldığını varsaydığı için kuyruğun oynatıcıya taşınmasıyla
+  // uyumsuz kaldı ve kaldırıldı. Geri eklenecekse doğru yer yine burasıdır:
+  // portu implement eden bir sarmalayıcı, kuyruk çağrılarını da devretmeli
+  // (bkz. docs/REKLAM.md).
+  const audioPlayer = new TrackPlayerAudioService(logger);
 
   // Cihazlar arası senkron: kaldığın yer, takipler, sonra dinle, listeler.
   // Playlist adaptörü ayrıca tutulur çünkü silmeleri repository ona bildirir.
@@ -250,15 +243,12 @@ export const composeDependencies = (): AppDependencies => {
   // Sesli komut çözümleyicisi — CarPlay/Siri ve ileride sesli arama kullanır.
   const resolveVoiceQuery = new ResolveVoiceQuery(catalogRepo, feedRepo);
 
-  // Uzaktan kumanda komutları (CarPlay, kilit ekranı, direksiyon tuşları)
-  // kuyruğa bağlanır — bir ekrana değil, uygulamanın ömrüne bağlıdır.
-  bindRemoteQueue({
-    analytics,
-    continueEpisode,
-    pausePlayback,
-    resumePlayback,
-    seekTo,
-  });
+  // Kuyruk kendiliğinden ilerlediğinde bölüm kaldığı yerden sürer. Bir ekrana
+  // değil, uygulamanın ömrüne bağlıdır: araçta da geçerli olmalı.
+  bindResumeOnEpisodeChange({ audioPlayer, getPlaybackProgress, logger });
+  // Kuyruk uygulama dışından da ilerleyebilir (kilit ekranı, araç, bölüm sonu);
+  // arayüzün yansıması bunu ancak buradan öğrenir.
+  bindPlaybackQueueSync({ audioPlayer, logger });
 
   return {
     resolveVoiceQuery,

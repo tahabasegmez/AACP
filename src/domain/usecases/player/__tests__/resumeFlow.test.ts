@@ -18,11 +18,34 @@ import {
 class FakePlayer implements AudioPlayerService {
   played: Episode | null = null;
   seekedTo: number | null = null;
+  startedAt = -1;
+  private queue: readonly Episode[] = [];
   private state: PlaybackState = INITIAL_PLAYBACK_STATE;
 
   async setup() {}
-  async play(episode: Episode) {
-    this.played = episode;
+  async setQueue(episodes: readonly Episode[], index: number, startPositionSec = -1) {
+    this.queue = episodes;
+    this.played = episodes[index] ?? null;
+    this.startedAt = startPositionSec;
+    // Kütüphane başlangıç saniyesini kendisi uygular; testler bunu
+    // `seekedTo` üzerinden okumaya devam edebilsin.
+    this.seekedTo = startPositionSec > 0 ? startPositionSec : null;
+  }
+  async enqueue() {}
+  async removeAt() {}
+  async moveItem() {}
+  async skipTo(index: number, startPositionSec = -1) {
+    this.played = this.queue[index] ?? this.played;
+    this.startedAt = startPositionSec;
+    this.seekedTo = startPositionSec > 0 ? startPositionSec : null;
+  }
+  async skipToNext() {}
+  async skipToPrevious() {}
+  async getQueue() {
+    return {
+      items: this.queue.map(episode => ({ episode, source: 'context' as const })),
+      index: 0,
+    };
   }
   async resume() {}
   async pause() {}
@@ -129,6 +152,104 @@ describe('GetResumeList', () => {
     expect(list.ok && list.value).toHaveLength(1);
     expect(list.ok && list.value[0].positionSec).toBe(300);
   });
+
+  it('AYNI görünen iki kaydı (şov + başlık) tek satıra indirir', async () => {
+    // Cihazda kalmış eski, yanlış meta ile yazılmış kayıt taklidi: iki farklı
+    // bölüm kimliği ama kullanıcıya aynı bölüm görünüyor.
+    const storage = new InMemoryKeyValueStorage();
+    storage.set(
+      'playback_progress_v1',
+      JSON.stringify({
+        eski: {
+          episodeId: 'eski',
+          showId: 'bir-bakista',
+          episodeTitle: 'ABD-İran müzakereleri',
+          positionSec: 60,
+          durationSec: 600,
+          updatedAt: '2026-07-20T10:00:00.000Z',
+          completed: false,
+        },
+        yeni: {
+          episodeId: 'yeni',
+          showId: 'bir-bakista',
+          episodeTitle: 'ABD-İran müzakereleri',
+          positionSec: 300,
+          durationSec: 600,
+          updatedAt: '2026-07-21T10:00:00.000Z',
+          completed: false,
+        },
+      }),
+    );
+
+    const list = await new GetResumeList(
+      new PlaybackProgressRepositoryImpl(storage),
+    ).execute();
+
+    expect(list.ok && list.value).toHaveLength(1);
+    expect(list.ok && list.value[0].episodeId).toBe('yeni');
+  });
+
+  it('başlıksız kayıtlar birbirine KARIŞMAZ', async () => {
+    const storage = new InMemoryKeyValueStorage();
+    storage.set(
+      'playback_progress_v1',
+      JSON.stringify({
+        a: {
+          episodeId: 'a',
+          positionSec: 60,
+          durationSec: 600,
+          updatedAt: '2026-07-20T10:00:00.000Z',
+          completed: false,
+        },
+        b: {
+          episodeId: 'b',
+          positionSec: 90,
+          durationSec: 600,
+          updatedAt: '2026-07-21T10:00:00.000Z',
+          completed: false,
+        },
+      }),
+    );
+
+    const list = await new GetResumeList(
+      new PlaybackProgressRepositoryImpl(storage),
+    ).execute();
+
+    expect(list.ok && list.value.map(p => p.episodeId).sort()).toEqual(['a', 'b']);
+  });
+
+  it('aynı şovun FARKLI bölümleri ayrı kalır', async () => {
+    const storage = new InMemoryKeyValueStorage();
+    storage.set(
+      'playback_progress_v1',
+      JSON.stringify({
+        a: {
+          episodeId: 'a',
+          showId: 'bir-bakista',
+          episodeTitle: 'Birinci bölüm',
+          positionSec: 60,
+          durationSec: 600,
+          updatedAt: '2026-07-20T10:00:00.000Z',
+          completed: false,
+        },
+        b: {
+          episodeId: 'b',
+          showId: 'bir-bakista',
+          episodeTitle: 'İkinci bölüm',
+          positionSec: 90,
+          durationSec: 600,
+          updatedAt: '2026-07-21T10:00:00.000Z',
+          completed: false,
+        },
+      }),
+    );
+
+    const list = await new GetResumeList(
+      new PlaybackProgressRepositoryImpl(storage),
+    ).execute();
+
+    expect(list.ok && list.value).toHaveLength(2);
+  });
 });
 
 describe('SetEpisodeCompleted', () => {
@@ -165,7 +286,7 @@ describe('ContinueEpisode', () => {
     const { save, continueEpisode, player } = makeSut();
     await save.execute({ episodeId: 'ep1', positionSec: 150, durationSec: 600 });
 
-    await continueEpisode.execute({ episode: episode('ep1') });
+    await continueEpisode.execute({ episode: episode('ep1'), queue: [episode('ep1')] });
 
     expect(player.played?.id).toBe('ep1');
     expect(player.seekedTo).toBe(150);
@@ -173,7 +294,7 @@ describe('ContinueEpisode', () => {
 
   it('kayıt yoksa baştan çalar (seekTo çağrılmaz)', async () => {
     const { continueEpisode, player } = makeSut();
-    await continueEpisode.execute({ episode: episode('ep-new') });
+    await continueEpisode.execute({ episode: episode('ep-new'), queue: [episode('ep-new')] });
 
     expect(player.played?.id).toBe('ep-new');
     expect(player.seekedTo).toBeNull();
@@ -183,7 +304,7 @@ describe('ContinueEpisode', () => {
     const { save, continueEpisode, player } = makeSut();
     await save.execute({ episodeId: 'ep1', positionSec: 595, durationSec: 600 });
 
-    await continueEpisode.execute({ episode: episode('ep1') });
+    await continueEpisode.execute({ episode: episode('ep1'), queue: [episode('ep1')] });
 
     expect(player.seekedTo).toBeNull();
   });

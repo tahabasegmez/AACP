@@ -7,6 +7,13 @@ import { runPlayback } from './playbackResult';
 
 export interface PlayEpisodeParams {
   readonly episode: Episode;
+  /**
+   * Verilirse kuyruk bu bölümlerle KURULUR (şov/liste bağlamı). Verilmezse
+   * oynatıcıdaki mevcut kuyruk korunur ve yalnızca `index`e atlanır.
+   */
+  readonly queue?: readonly Episode[];
+  /** Kuyruktaki başlangıç konumu (varsayılan: başı). */
+  readonly index?: number;
   /** Verilirse oynatma bu saniyeden başlar (kaldığı yerden devam için). */
   readonly startPositionSec?: number;
 }
@@ -29,11 +36,21 @@ export class PlayEpisode implements UseCase<PlayEpisodeParams, void> {
 
   execute(params: PlayEpisodeParams): Promise<Result<void>> {
     return runPlayback(async () => {
-      const episode = await this.resolveSource(params.episode);
-      await this.player.play(episode);
-      if (params.startPositionSec && params.startPositionSec > 0) {
-        await this.player.seekTo(params.startPositionSec);
+      const start = params.startPositionSec ?? 0;
+
+      // Kuyruk verilmediyse sıra oynatıcıda zaten kuruludur; yalnızca konuma
+      // atlanır. Yeniden kurmak, kullanıcının sıraya eklediklerini silerdi.
+      if (!params.queue) {
+        await this.player.skipTo(params.index ?? 0, start);
+        return;
       }
+
+      // Çevrimdışı kaynak kuyruğun TAMAMI için çözülür: sıra oynatıcıya
+      // toptan verildiği için her bölümün adresi girerken belli olmalı.
+      const episodes = await Promise.all(
+        params.queue.map(episode => this.resolveSource(episode)),
+      );
+      await this.player.setQueue(episodes, params.index ?? 0, start);
     });
   }
 

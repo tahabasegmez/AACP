@@ -1,18 +1,30 @@
 import { Episode, INITIAL_PLAYBACK_STATE, PlaybackState } from '@domain/entities';
 import { Logger } from '@core/logger';
-import { AudioPlayerService } from '@domain/services';
+import {
+  AudioPlayerService,
+  QueueItem,
+  QueueSnapshot,
+} from '@domain/services';
 import TrackPlayer, {
   AppKilledPlaybackBehavior,
-  Capability,
   Event,
   IOSCategory,
   IOSCategoryMode,
 } from 'react-native-track-player';
+import {
+  REMOTE_CONTROL_LAYOUT,
+  SEEK_BACKWARD_SEC,
+  SEEK_FORWARD_SEC,
+  notificationCapabilities,
+  remoteCapabilities,
+} from './remoteControls';
 import { PermissionsAndroid, Platform } from 'react-native';
+import { NativeNowPlayingSession } from './NativeNowPlayingSession';
 import {
   episodeToNowPlaying,
   episodeToTrack,
   mapTrackPlayerState,
+  trackToQueueItem,
 } from './playbackMapping';
 
 /**
@@ -56,6 +68,8 @@ export class TrackPlayerAudioService implements AudioPlayerService {
 
   private state: PlaybackState = INITIAL_PLAYBACK_STATE;
   private readonly listeners = new Set<(state: PlaybackState) => void>();
+  /** Kilit ekranı / Dynamic Island kartının "çalıyor mu" bilgisi. */
+  private readonly nowPlayingSession = new NativeNowPlayingSession();
   private readonly subscriptions: Array<{ remove: () => void }> = [];
   /**
    * Süren/biten kurulum — BAYRAK DEĞİL, SÖZ tutulur.
@@ -93,38 +107,14 @@ export class TrackPlayerAudioService implements AudioPlayerService {
     try {
       await TrackPlayer.updateOptions({
         progressUpdateEventInterval: 1,
-        /**
-         * Oynatma kartındaki (kilit ekranı / CarPlay) yan tuşlar.
-         *
-         * İleri/geri SARMA (`JumpForward/Backward`) bilinçli olarak YOK: iOS her
-         * iki tuş çiftini birden göstermez, sarma açıkken "sonraki/önceki bölüm"
-         * gizlenir. Araçta bölüm değiştirmek 15 sn sarmaktan daha sık gerekir;
-         * sarma zaten sürgüyle (`SeekTo`) yapılabiliyor.
-         */
-        capabilities: [
-          Capability.Play,
-          Capability.Pause,
-          Capability.Stop,
-          Capability.SeekTo,
-          Capability.SkipToNext,
-          Capability.SkipToPrevious,
-        ],
-        /**
-         * Android bildirimindeki TUŞLAR.
-         *
-         * `capabilities` uzaktan kumandanın ne KABUL ettiğini söyler; bu liste
-         * bildirimde neyin ÇİZİLECEĞİNİ. `Stop` ve `SeekTo` dışarıda: durdurma
-         * bildirimi kapatmakla aynı işi görür, sarma ise tuş değil sürgüdür.
-         *
-         * (v4'teki `compactCapabilities` v5'te kaldırıldı; daraltılmış bildirim
-         * ayrı olarak yapılandırılmıyor.)
-         */
-        notificationCapabilities: [
-          Capability.Play,
-          Capability.Pause,
-          Capability.SkipToPrevious,
-          Capability.SkipToNext,
-        ],
+        // Oynatma kartındaki taşıma tuşları TEK yerden gelir: hangi tuşların
+        // çıkacağı bir ürün kararıdır, oynatıcı ayarı değil (remoteControls).
+        capabilities: remoteCapabilities(REMOTE_CONTROL_LAYOUT),
+        // (v4'teki `compactCapabilities` v5'te kaldırıldı; daraltılmış
+        // bildirim ayrı olarak yapılandırılmıyor.)
+        notificationCapabilities: notificationCapabilities(REMOTE_CONTROL_LAYOUT),
+        forwardJumpInterval: SEEK_FORWARD_SEC,
+        backwardJumpInterval: SEEK_BACKWARD_SEC,
         android: {
           appKilledPlaybackBehavior:
             AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
@@ -138,20 +128,104 @@ export class TrackPlayerAudioService implements AudioPlayerService {
     this.registerListeners();
   }
 
-  async play(episode: Episode): Promise<void> {
+  // --- kuyruk ---------------------------------------------------------------
+  //
+  // Sıralama işlerinin tamamı track-player'ın KENDİ kuyruğuna devredilir
+  // (`setQueue`, `add`, `move`, `remove`, `skip*`). Uygulama ikinci bir kuyruk
+  // TUTMAZ: kilit ekranı, Dynamic Island, CarPlay ve direksiyon tuşları aynı
+  // sırayı görsün diye tek gerçek kaynak burasıdır.
+
+  async setQueue(
+    episodes: readonly Episode[],
+    index: number,
+    startPositionSec = -1,
+  ): Promise<void> {
+    const start = Math.max(0, Math.min(index, episodes.length - 1));
+    const target = episodes[start];
+    if (!target) {
+      await TrackPlayer.reset();
+      return;
+    }
+
+    // Dokunuşla ses arasındaki boşlukta arayüz "yükleniyor" göstersin.
     this.update({
       status: 'loading',
-      currentEpisodeId: episode.id,
-      positionSec: 0,
-      durationSec: episode.durationSec,
+      currentEpisodeId: target.id,
+      positionSec: startPositionSec > 0 ? startPositionSec : 0,
+      durationSec: target.durationSec,
     });
-    await TrackPlayer.reset();
-    await TrackPlayer.add(episodeToTrack(episode));
-    await TrackPlayer.play();
 
-    // Oynatma kartını (kilit ekranı / CarPlay) açıkça tazele. `reset()` kartı
-    // temizlediği için parça değişiminde boş kalabiliyor; bu çağrı kartın
-    // dolmasını garantiler. Başarısız olursa oynatma etkilenmez.
+    await TrackPlayer.setQueue(
+      episodes.map(episode => episodeToTrack({ episode, source: 'context' })),
+    );
+    // Başlangıç saniyesini kütüphane uygular: ayrıca seek etmek parçanın
+    // başını bir an duyurup sonra atlamak olurdu.
+    await TrackPlayer.skip(start, startPositionSec);
+    await TrackPlayer.play();
+    await this.refreshCard(target);
+  }
+
+  /**
+   * Kullanıcı eklemesi çalanın ardındaki KULLANICI BLOĞUNUN sonuna girer.
+   *
+   * Böylece "şunu da dinleyeyim" denen bölüm, şovun kendiliğinden gelen
+   * bölümlerinin önüne geçer; birden çok ekleme kendi aralarında sırasını korur.
+   */
+  async enqueue(episode: Episode): Promise<void> {
+    const { items, index } = await this.getQueue();
+    let at = index >= 0 ? index + 1 : items.length;
+    while (at < items.length && items[at].source === 'user') {
+      at += 1;
+    }
+    await TrackPlayer.add(episodeToTrack({ episode, source: 'user' }), at);
+  }
+
+  async removeAt(index: number): Promise<void> {
+    await TrackPlayer.remove(index);
+  }
+
+  async moveItem(from: number, to: number): Promise<void> {
+    await TrackPlayer.move(from, to);
+  }
+
+  async skipTo(index: number, startPositionSec = -1): Promise<void> {
+    // Kütüphane başlangıç saniyesini kendisi uygular; ayrıca seek etmek
+    // parçanın başını bir an duyurup sonra atlamak olurdu.
+    await TrackPlayer.skip(index, startPositionSec);
+    await TrackPlayer.play();
+  }
+
+  async skipToNext(): Promise<void> {
+    await TrackPlayer.skipToNext();
+  }
+
+  async skipToPrevious(): Promise<void> {
+    await TrackPlayer.skipToPrevious();
+  }
+
+  async getQueue(): Promise<QueueSnapshot> {
+    try {
+      const [tracks, index] = await Promise.all([
+        TrackPlayer.getQueue(),
+        TrackPlayer.getActiveTrackIndex(),
+      ]);
+      const items = tracks
+        .map(trackToQueueItem)
+        .filter((item): item is QueueItem => item !== null);
+      return { items, index: index ?? -1 };
+    } catch {
+      // Player henüz hazır değil: boş kuyruk, çağıranlar bunu zaten karşılar.
+      return { items: [], index: -1 };
+    }
+  }
+
+  /**
+   * Oynatma kartını (kilit ekranı / CarPlay) açıkça tazeler.
+   *
+   * Kuyruk kurulurken kart bir an boş kalabiliyor; bu çağrı dolmasını
+   * garantiler. Başarısız olursa oynatma etkilenmez.
+   */
+  private async refreshCard(episode: Episode): Promise<void> {
     try {
       await TrackPlayer.updateNowPlayingMetadata(episodeToNowPlaying(episode));
     } catch {
@@ -235,6 +309,10 @@ export class TrackPlayerAudioService implements AudioPlayerService {
 
   private update(partial: Partial<PlaybackState>): void {
     this.state = { ...this.state, ...partial };
+    // Kartın "çalıyor mu" ve "bu bir ses parçası" bilgilerini track-player
+    // YAZMIYOR; durumun tek geçtiği yer burası olduğu için sisteme buradan
+    // bildirilir (bkz. NativeNowPlayingSession).
+    this.nowPlayingSession.sync(this.state.status, this.state.currentEpisodeId);
     this.listeners.forEach(listener => listener(this.state));
   }
 }

@@ -4,7 +4,8 @@ import { Episode } from '@domain/entities';
 import { formatDuration } from '@core/utils';
 import { useTheme } from '../../../theme';
 import { BottomSheet, CoverImage, Icon, NowPlayingBars, Text } from '../../../ui';
-import { QueueItem, usePlayerQueueStore, usePlayerStore } from '../../../stores';
+import { QueueItem } from '@domain/services';
+import { usePlayerQueueStore, usePlayerStore } from '../../../stores';
 import { usePlaybackController } from '../usePlaybackController';
 
 /** Bir kuyruk satırının yüksekliği — sürükleme hesabı buna dayanır. */
@@ -30,11 +31,9 @@ export const QueueSheet: React.FC<{ visible: boolean; onClose: () => void }> = (
   const theme = useTheme();
   const items = usePlayerQueueStore(s => s.items);
   const index = usePlayerQueueStore(s => s.index);
-  const removeAt = usePlayerQueueStore(s => s.removeAt);
-  const moveItem = usePlayerQueueStore(s => s.moveItem);
   const current = usePlayerStore(s => s.currentEpisode);
   const playback = usePlayerStore(s => s.playback);
-  const { playIndex } = usePlaybackController();
+  const { playIndex, removeAt, moveItem } = usePlaybackController();
 
   /** Sürüklenen satırın kuyruktaki konumu; yoksa sürükleme yok. */
   const [dragging, setDragging] = useState<number | null>(null);
@@ -51,7 +50,7 @@ export const QueueSheet: React.FC<{ visible: boolean; onClose: () => void }> = (
         : [];
 
   const jumpTo = (position: number): void => {
-    playIndex(position);
+    void playIndex(position);
     onClose();
   };
 
